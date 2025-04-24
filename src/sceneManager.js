@@ -80,25 +80,29 @@ class SceneManager {
         const boundingSphere = new THREE.Sphere()
         bbox.getBoundingSphere(boundingSphere)
 
-        // Remove existing bounding sphere helper if it exists
-        const found = this.scene.getObjectByName('boundingSphereHelper')
-        if (found) {
-            this.scene.remove(found)
-        }
 
-        // Create and add bounding sphere helper
-        const materialConfig = 
-        {
-            color: 0xdddddd,
-            wireframe: true,
-            transparent: true,
-            opacity: 0.5
-        }
 
-        const boundingSphereHelper = new THREE.Mesh(new THREE.SphereGeometry(boundingSphere.radius, 16, 16), new THREE.MeshBasicMaterial(materialConfig))
-        boundingSphereHelper.position.copy(boundingSphere.center)
-        boundingSphereHelper.name = 'boundingSphereHelper'
-        this.scene.add(boundingSphereHelper)
+
+        // const found = this.scene.getObjectByName('boundingSphereHelper')
+        // if (found) {
+        //     this.scene.remove(found)
+        // }
+
+        // const materialConfig = 
+        // {
+        //     color: 0xdddddd,
+        //     wireframe: true,
+        //     transparent: true,
+        //     opacity: 0.5
+        // }
+
+        // const boundingSphereHelper = new THREE.Mesh(new THREE.SphereGeometry(boundingSphere.radius, 16, 16), new THREE.MeshBasicMaterial(materialConfig))
+        // boundingSphereHelper.position.copy(boundingSphere.center)
+        // boundingSphereHelper.name = 'boundingSphereHelper'
+        // this.scene.add(boundingSphereHelper)
+
+
+
 
         // Calculate required frustum size based on the bounding sphere (with padding)
         const { clientWidth, clientHeight } = this.container
