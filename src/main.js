@@ -10,11 +10,11 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const frustumSize = 5
     sceneManager = new SceneManager(document.getElementById('three-container'), backgroundColor, frustumSize)
     
-    // const gridHelper = new THREE.GridHelper(20, 20)
-    // gridHelper.rotation.x = Math.PI / 2
-    // sceneManager.addToScene(gridHelper)
+    const gridHelper = new THREE.GridHelper(20, 20)
+    gridHelper.rotation.x = Math.PI / 2
+    sceneManager.addToScene(gridHelper)
     
-    const geometry = new THREE.BoxGeometry(1, 1, 1)
+    const geometry = new THREE.BoxGeometry(16, 16, 16)
     const material = new THREE.MeshStandardMaterial({ color: 0xff0000 })
     const box = new THREE.Mesh(geometry, material)
     sceneManager.addToScene(box)
