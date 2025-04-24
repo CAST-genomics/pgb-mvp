@@ -7,7 +7,7 @@ import RendererFactory from './rendererFactory.js'
 class SceneManager {
 
     // Multiplier used to add padding around scene bounding sphere when framing the view
-    static SCENE_VIEW_PADDING = 1.0
+    static SCENE_VIEW_PADDING = 1.5
 
     constructor(container, backgroundColor, frustumSize) {
         this.container = container

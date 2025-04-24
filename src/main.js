@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     splineManager = new SplineManager()
 
     // const path = '/debug_recentered.json'
-    // const path = '/debug.json'
+    // const path = '/node-02.json'
     const path = '/cici.json'
     let json
     try {
@@ -25,18 +25,22 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     }
 
     splineManager.loadFromData(json)
-    
+
+    for (const line of splineManager.lines.values()) {
+        sceneManager.addToScene(line)
+    }
+
     // const gridHelper = new THREE.GridHelper(20, 20)
     // gridHelper.rotation.x = Math.PI / 2
     // sceneManager.addToScene(gridHelper)
-    
-    const geometry = new THREE.BoxGeometry(256, 256, 2)
-    const material = new THREE.MeshStandardMaterial({ color: 0xff0000 })
-    const box = new THREE.Mesh(geometry, material)
-    sceneManager.addToScene(box)
-    
+
+    // const geometry = new THREE.BoxGeometry(256, 256, 2)
+    // const material = new THREE.MeshStandardMaterial({ color: 0xff0000 })
+    // const box = new THREE.Mesh(geometry, material)
+    // sceneManager.addToScene(box)
+
     // Update the view to fit the scene
     sceneManager.updateViewToFitScene()
-    
+
     sceneManager.startAnimation()
 })

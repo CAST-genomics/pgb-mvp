@@ -31,22 +31,14 @@ class SplineManager {
             return
         }
 
-        // Clear existing splines
-        this.splines.clear()
-
-        // Process each node
+        // Accumulate coordinates and calculate bounding box
         const acc = []
         for (const [ignore, nodeData] of Object.entries(json.node)) {
             const xyzList = nodeData.odgf_coordinates.map(({ x, y }) => { return [x, y] })
             acc.push(...xyzList)
         }
 
-        // Transform array of [x,y] pairs into separate x and y arrays
-        const [xCoords, yCoords] = acc.reduce((result, [x, y]) => {
-            result[0].push(x);
-            result[1].push(y);
-            return result;
-        }, [[], []]);
+        const [xCoords, yCoords] = acc.reduce((result, [x, y]) => { result[0].push(x); result[1].push(y); return result; }, [[], []]);
 
         // Calculate min/max and centroid
         const bbox = {
@@ -63,6 +55,31 @@ class SplineManager {
         };
 
         console.log(`Bounding Box ${bbox.x.min} ${bbox.x.centroid} ${bbox.x.max} ${bbox.y.min} ${bbox.y.centroid} ${bbox.y.max}`);
+
+
+        // Clear existing splines
+        this.splines.clear()
+        this.lines.clear()
+
+        // Create splines
+        for (const [nodeName, nodeData] of Object.entries(json.node)) {
+
+            // Build spline from recentered coordinates
+            const coordinates = nodeData.odgf_coordinates.map(({ x, y }) => new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0))
+            const spline = new THREE.CatmullRomCurve3(coordinates)
+            this.splines.set(nodeName, spline)
+
+            const lineMaterialConfig =
+            {
+                color: 0x0000ff,
+                linewidth: 16,
+                worldUnits: true
+            }
+            const line = LineFactory.createLine(spline, false, 4, new LineMaterial(lineMaterialConfig))
+            this.lines.set(nodeName, line)
+
+        }
+
 
     }
 
