@@ -6,15 +6,15 @@ let sceneManager
 
 document.addEventListener("DOMContentLoaded", async (event) => {
 
-    const backgroundColor = new THREE.Color(0xeeeeee)
+    const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
     sceneManager = new SceneManager(document.getElementById('three-container'), backgroundColor, frustumSize)
     
-    const gridHelper = new THREE.GridHelper(20, 20)
-    gridHelper.rotation.x = Math.PI / 2
-    sceneManager.addToScene(gridHelper)
+    // const gridHelper = new THREE.GridHelper(20, 20)
+    // gridHelper.rotation.x = Math.PI / 2
+    // sceneManager.addToScene(gridHelper)
     
-    const geometry = new THREE.BoxGeometry(16, 16, 16)
+    const geometry = new THREE.BoxGeometry(256, 256, 2)
     const material = new THREE.MeshStandardMaterial({ color: 0xff0000 })
     const box = new THREE.Mesh(geometry, material)
     sceneManager.addToScene(box)
