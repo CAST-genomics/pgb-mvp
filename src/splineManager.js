@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { getRandomVibrantAppleCrayonColor } from './utils/color.js';
 
 class SplineManager {
     constructor() {
@@ -71,7 +72,7 @@ class SplineManager {
 
             const lineMaterialConfig =
             {
-                color: 0x0000ff,
+                color: getRandomVibrantAppleCrayonColor(),
                 linewidth: 16,
                 worldUnits: true
             }

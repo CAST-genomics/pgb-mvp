@@ -30,15 +30,6 @@ document.addEventListener("DOMContentLoaded", async (event) => {
         sceneManager.addToScene(line)
     }
 
-    // const gridHelper = new THREE.GridHelper(20, 20)
-    // gridHelper.rotation.x = Math.PI / 2
-    // sceneManager.addToScene(gridHelper)
-
-    // const geometry = new THREE.BoxGeometry(256, 256, 2)
-    // const material = new THREE.MeshStandardMaterial({ color: 0xff0000 })
-    // const box = new THREE.Mesh(geometry, material)
-    // sceneManager.addToScene(box)
-
     // Update the view to fit the scene
     sceneManager.updateViewToFitScene()
 
