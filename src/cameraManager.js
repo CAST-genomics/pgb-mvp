@@ -14,8 +14,8 @@ class CameraManager {
 
         const [ near, far ] =
             [
-                0.1,
-                1000
+                1e2,
+                1e5
             ];
 
         this.camera = new THREE.OrthographicCamera(left, right, top, bottom, near, far)
