@@ -3,25 +3,104 @@ import * as THREE from 'three'
 
 /**
  * Apple Crayon color palette
- * A collection of 16 classic colors used in Apple's classic Mac OS
+ * A collection of 25 colors used in Apple's classic Mac OS
  */
 const appleCrayonColors = new Map([
-    ['black', new THREE.Color(0x000000)],
-    ['blue', new THREE.Color(0x0000FF)],
-    ['brown', new THREE.Color(0x996633)],
-    ['cyan', new THREE.Color(0x00FFFF)],
-    ['green', new THREE.Color(0x00FF00)],
+    // Colors
+    ['snow', new THREE.Color(0xFFFAFA)],
+    ['salmon', new THREE.Color(0xFF6F61)],
+    ['tangerine', new THREE.Color(0xFFA500)],
+    ['marigold', new THREE.Color(0xFFD700)],
+    ['lemon', new THREE.Color(0xFFFF66)],
+    ['honeydew', new THREE.Color(0xF0FFF0)],
+    ['mint', new THREE.Color(0x98FF98)],
+    ['aqua', new THREE.Color(0x00FFFF)],
+    ['sky', new THREE.Color(0x87CEEB)],
+    ['ocean', new THREE.Color(0x4682B4)],
+    ['blueberry', new THREE.Color(0x4F86F7)],
+    ['lavender', new THREE.Color(0xE6E6FA)],
+    ['plum', new THREE.Color(0xDDA0DD)],
     ['magenta', new THREE.Color(0xFF00FF)],
-    ['orange', new THREE.Color(0xFF9900)],
-    ['purple', new THREE.Color(0x9900FF)],
-    ['red', new THREE.Color(0xFF0000)],
-    ['yellow', new THREE.Color(0xFFFF00)],
-    ['gray', new THREE.Color(0x808080)],
-    ['lightBlue', new THREE.Color(0x6666FF)],
-    ['lightGreen', new THREE.Color(0x66FF66)],
-    ['lightOrange', new THREE.Color(0xFFCC66)],
-    ['lightPurple', new THREE.Color(0xCC66FF)],
-    ['lightRed', new THREE.Color(0xFF6666)]
+    ['bubblegum', new THREE.Color(0xFFC1CC)],
+    ['carnation', new THREE.Color(0xFFA6C9)],
+    // Grays
+    ['licorice', new THREE.Color(0x000000)],
+    ['lead', new THREE.Color(0x545454)],
+    ['tin', new THREE.Color(0x888888)],
+    ['nickel', new THREE.Color(0xAAAAAA)],
+    ['aluminum', new THREE.Color(0xCCCCCC)],
+    ['magnesium', new THREE.Color(0xDDDDDD)],
+    ['silver', new THREE.Color(0xEEEEEE)],
+    ['mercury', new THREE.Color(0xF3F3F3)],
+    ['snow2', new THREE.Color(0xFFFFFF)]
+]);
+
+// Predefined color categories
+const colorCategories = {
+    vibrant: [
+        'salmon',
+        'tangerine',
+        'marigold',
+        'lemon',
+        'mint',
+        'aqua',
+        'sky',
+        'ocean',
+        'blueberry',
+        'plum',
+        'magenta',
+        'bubblegum',
+        'carnation'
+    ],
+    grays: [
+        'licorice',
+        'lead',
+        'tin',
+        'nickel',
+        'aluminum',
+        'magnesium',
+        'silver',
+        'mercury',
+        'snow2'
+    ],
+    pastels: [
+        'snow',
+        'honeydew',
+        'lavender',
+        'bubblegum',
+        'carnation'
+    ]
+};
+
+// Color complements mapping
+const colorComplements = new Map([
+    ['salmon', 'sky'],
+    ['tangerine', 'ocean'],
+    ['marigold', 'blueberry'],
+    ['lemon', 'plum'],
+    ['mint', 'magenta'],
+    ['aqua', 'bubblegum'],
+    ['sky', 'salmon'],
+    ['ocean', 'tangerine'],
+    ['blueberry', 'marigold'],
+    ['plum', 'lemon'],
+    ['magenta', 'mint'],
+    ['bubblegum', 'aqua'],
+    ['carnation', 'mint'],
+    // For grays, return a vibrant color
+    ['licorice', 'lemon'],
+    ['lead', 'marigold'],
+    ['tin', 'salmon'],
+    ['nickel', 'tangerine'],
+    ['aluminum', 'ocean'],
+    ['magnesium', 'blueberry'],
+    ['silver', 'plum'],
+    ['mercury', 'magenta'],
+    ['snow2', 'bubblegum'],
+    // For pastels, return a vibrant color
+    ['snow', 'blueberry'],
+    ['honeydew', 'plum'],
+    ['lavender', 'lemon']
 ]);
 
 /**
@@ -35,22 +114,29 @@ function getRandomAppleCrayonColor() {
 
 /**
  * Returns a random vibrant color from the Apple Crayon palette
- * Excludes black, gray, and light variants
+ * Excludes grays and pastels
  * @returns {THREE.Color} A THREE.Color object
  */
 function getRandomVibrantAppleCrayonColor() {
-    const vibrantColors = [
-        'blue',
-        'brown',
-        'cyan',
-        'green',
-        'magenta',
-        'orange',
-        'purple',
-        'red',
-        'yellow'
-    ];
-    const colorName = vibrantColors[Math.floor(Math.random() * vibrantColors.length)];
+    const colorName = colorCategories.vibrant[Math.floor(Math.random() * colorCategories.vibrant.length)];
+    return getAppleCrayonColorByName(colorName);
+}
+
+/**
+ * Returns a random pastel color from the Apple Crayon palette
+ * @returns {THREE.Color} A THREE.Color object
+ */
+function getRandomPastelAppleCrayonColor() {
+    const colorName = colorCategories.pastels[Math.floor(Math.random() * colorCategories.pastels.length)];
+    return getAppleCrayonColorByName(colorName);
+}
+
+/**
+ * Returns a random gray from the Apple Crayon palette
+ * @returns {THREE.Color} A THREE.Color object
+ */
+function getRandomGrayAppleCrayonColor() {
+    const colorName = colorCategories.grays[Math.floor(Math.random() * colorCategories.grays.length)];
     return getAppleCrayonColorByName(colorName);
 }
 
@@ -64,4 +150,21 @@ function getAppleCrayonColorByName(name) {
     return color ? color.clone() : undefined;
 }
 
-export { getRandomAppleCrayonColor, getRandomVibrantAppleCrayonColor, getAppleCrayonColorByName };
+/**
+ * Returns the complementary color for a given color name
+ * @param {string} name - The name of the color to find the complement for
+ * @returns {THREE.Color|undefined} The complementary color or undefined if not found
+ */
+function getComplementaryColor(name) {
+    const complementName = colorComplements.get(name);
+    return complementName ? getAppleCrayonColorByName(complementName) : undefined;
+}
+
+export { 
+    getRandomAppleCrayonColor, 
+    getRandomVibrantAppleCrayonColor,
+    getRandomPastelAppleCrayonColor,
+    getRandomGrayAppleCrayonColor,
+    getAppleCrayonColorByName,
+    getComplementaryColor
+};
