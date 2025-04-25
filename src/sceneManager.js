@@ -6,9 +6,6 @@ import RendererFactory from './rendererFactory.js'
 
 class SceneManager {
 
-    // Multiplier used to add padding around scene bounding sphere when framing the view
-    static SCENE_VIEW_PADDING = 1.5
-
     constructor(container, backgroundColor, frustumSize) {
         this.container = container
         this.scene = new THREE.Scene()
@@ -48,6 +45,7 @@ class SceneManager {
     }
 
     updateViewToFitScene() {
+
         // Create a bounding box that encompasses all objects in the scene
         const bbox = new THREE.Box3()
         this.scene.traverse((object) => {
@@ -86,10 +84,12 @@ class SceneManager {
 
 
 
+        // Multiplier used to add padding around scene bounding sphere when framing the view
+        const SCENE_VIEW_PADDING = 1.5
 
         // Calculate required frustum size based on the bounding sphere (with padding)
         const { clientWidth, clientHeight } = this.container
-        this.cameraRig.cameraManager.frustumHalfSize = boundingSphere.radius * SceneManager.SCENE_VIEW_PADDING
+        this.cameraRig.cameraManager.frustumHalfSize = boundingSphere.radius * SCENE_VIEW_PADDING
         this.cameraRig.cameraManager.windowResizeHelper(clientWidth/clientHeight)
 
         // Position camera to frame the scene
