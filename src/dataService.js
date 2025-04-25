@@ -3,13 +3,35 @@ import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { getRandomVibrantAppleCrayonColor } from './utils/color.js';
 
-class SplineManager {
+class DataService {
     constructor() {
         this.splines = new Map() // Store splines by node name
         this.lines = new Map() // Store lines by node name
     }
 
-    async loadFromFile(url) {
+    #calculateBoundingBox(json) {
+        // Accumulate all coordinates
+        const acc = []
+        for (const { odgf_coordinates } of Object.values(json.node)) {
+            const xyzList = odgf_coordinates.map(({ x, y }) => { return [x, y] })
+            acc.push(...xyzList)
+        }
+
+        // Partition x and y coordinates into separate lists
+        const [xCoords, yCoords] = acc.reduce((result, [x, y]) => { result[0].push(x); result[1].push(y); return result; }, [[], []]);
+
+        // Calculate bbox
+        const minX = Math.min(...xCoords);
+        const maxX = Math.max(...xCoords);
+        const minY = Math.min(...yCoords);
+        const maxY = Math.max(...yCoords);
+        return {
+            x: { min: minX, max: maxX, centroid: (minX + maxX) / 2 },
+            y: { min: minY, max: maxY, centroid: (minY + maxY) / 2 }
+        };
+    }
+
+    async loadPath(url) {
         try {
             const response = await fetch(url);
             if (!response.ok) {
@@ -25,42 +47,19 @@ class SplineManager {
         }
     }
 
-    loadFromData(json) {
+    ingestData(json) {
 
         if (!json || !json.node) {
             console.error('Invalid data format: missing node section')
             return
         }
 
-        // Accumulate coordinates and calculate bounding box
-        const acc = []
-        for (const [ignore, nodeData] of Object.entries(json.node)) {
-            const xyzList = nodeData.odgf_coordinates.map(({ x, y }) => { return [x, y] })
-            acc.push(...xyzList)
-        }
-
-        const [xCoords, yCoords] = acc.reduce((result, [x, y]) => { result[0].push(x); result[1].push(y); return result; }, [[], []]);
-
-        // Calculate min/max and centroid
-        const bbox = {
-            x: {
-                min: Math.min(...xCoords),
-                max: Math.max(...xCoords),
-                centroid: xCoords.reduce((sum, val) => sum + val, 0) / xCoords.length
-            },
-            y: {
-                min: Math.min(...yCoords),
-                max: Math.max(...yCoords),
-                centroid: yCoords.reduce((sum, val) => sum + val, 0) / yCoords.length
-            }
-        };
-
-        console.log(`Bounding Box ${bbox.x.min} ${bbox.x.centroid} ${bbox.x.max} ${bbox.y.min} ${bbox.y.centroid} ${bbox.y.max}`);
-
-
         // Clear existing splines
         this.splines.clear()
         this.lines.clear()
+
+        // Use bounding box to recenter coordinates
+        const bbox = this.#calculateBoundingBox(json);
 
         // Create splines
         for (const [nodeName, nodeData] of Object.entries(json.node)) {
@@ -71,11 +70,11 @@ class SplineManager {
             this.splines.set(nodeName, spline)
 
             const lineMaterialConfig =
-            {
-                color: getRandomVibrantAppleCrayonColor(),
-                linewidth: 16,
-                worldUnits: true
-            }
+                {
+                    color: getRandomVibrantAppleCrayonColor(),
+                    linewidth: 16,
+                    worldUnits: true
+                }
             const line = LineFactory.createLine(spline, false, 4, new LineMaterial(lineMaterialConfig))
             this.lines.set(nodeName, line)
 
@@ -84,21 +83,19 @@ class SplineManager {
 
     }
 
-    getLine(nodeName) {
-        return this.lines.get(nodeName)
+    addToScene(scene) {
+        for (const line of this.lines.values()) {
+            scene.add(line)
+        }
     }
 
-    getAllLines() {
-        return Array.from(this.lines.values())
+    getLine(nodeName) {
+        return this.lines.get(nodeName)
     }
 
     getSpline(nodeName) {
         return this.splines.get(nodeName)
     }
-
-    getAllSplines() {
-        return Array.from(this.splines.values())
-    }
 }
 
-export default SplineManager
+export default DataService
