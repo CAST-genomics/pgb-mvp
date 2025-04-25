@@ -3,19 +3,15 @@ import * as THREE from "three"
 class CameraManager {
     constructor(frustumSize, aspectRatio) {
 
-        const frustumHalfSize = frustumSize/2
+        const [ near, far ] = [ 1e2, 1e5 ];
+
+        this.frustumHalfSize = frustumSize/2
         const [ left, right, top, bottom ] =
             [
-                -frustumHalfSize * aspectRatio,
-                frustumHalfSize * aspectRatio,
-                frustumHalfSize,
-                -frustumHalfSize
-            ];
-
-        const [ near, far ] =
-            [
-                1e2,
-                1e5
+                -this.frustumHalfSize * aspectRatio,
+                this.frustumHalfSize * aspectRatio,
+                this.frustumHalfSize,
+                -this.frustumHalfSize
             ];
 
         this.camera = new THREE.OrthographicCamera(left, right, top, bottom, near, far)
@@ -23,11 +19,11 @@ class CameraManager {
 
     }
 
-    windowResizeHelper(frustumSize, aspectRatio){
-        this.camera.left = (-frustumSize * aspectRatio) / 2;
-        this.camera.right = (frustumSize * aspectRatio) / 2;
-        this.camera.top = frustumSize / 2;
-        this.camera.bottom = -frustumSize / 2;
+    windowResizeHelper(aspectRatio){
+        this.camera.left = (-this.frustumHalfSize * aspectRatio);
+        this.camera.right = (this.frustumHalfSize * aspectRatio);
+        this.camera.top = this.frustumHalfSize;
+        this.camera.bottom = -this.frustumHalfSize;
         this.camera.updateProjectionMatrix();
     }
 }
