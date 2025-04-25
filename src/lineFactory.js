@@ -4,7 +4,28 @@ import * as THREE from "three"
 
 class LineFactory {
 
-    static createLine(spline, doRGBList, divisionsMultiplier, lineMaterial) {
+    static createEdgeLine(startXYZ, endXYZ, lineMaterial) {
+        // Create array of positions for the line geometry
+        const xyzList = [
+            startXYZ.x, startXYZ.y, startXYZ.z,
+            endXYZ.x, endXYZ.y, endXYZ.z
+        ];
+
+        // Create and configure the line geometry
+        const lineGeometry = new LineGeometry();
+        lineGeometry.setPositions(xyzList);
+
+        // Create the line object
+        const line = new Line2(lineGeometry, lineMaterial);
+
+        // Set up the line properties
+        line.computeLineDistances();
+        line.scale.set(1, 1, 1);
+
+        return line;
+    }
+
+    static createNodeLine(spline, doRGBList, divisionsMultiplier, lineMaterial) {
 
         const divisions = Math.round(divisionsMultiplier * spline.points.length);
         // const divisions = 5;
@@ -37,7 +58,7 @@ class LineFactory {
         }
 
         const line = new Line2(lineGeometry, lineMaterial);
-        
+
         line.computeLineDistances();
         line.scale.set(1, 1, 1);
 

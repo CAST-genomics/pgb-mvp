@@ -1,12 +1,13 @@
 import * as THREE from 'three'
 import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import { getRandomVibrantAppleCrayonColor } from './utils/color.js';
+import {getAppleCrayonColorByName, getRandomVibrantAppleCrayonColor} from './utils/color.js';
 
 class DataService {
     constructor() {
         this.splines = new Map() // Store splines by node name
         this.lines = new Map() // Store lines by node name
+        this.edges = new Map() // Store edges by edge name
     }
 
     #calculateBoundingBox(json) {
@@ -61,31 +62,66 @@ class DataService {
         // Use bounding box to recenter coordinates
         const bbox = this.#calculateBoundingBox(json);
 
-        // Create splines
+        // Create splines & lines
         for (const [nodeName, nodeData] of Object.entries(json.node)) {
 
             // Build spline from recentered coordinates
             const coordinates = nodeData.odgf_coordinates.map(({ x, y }) => new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0))
             const spline = new THREE.CatmullRomCurve3(coordinates)
-            this.splines.set(nodeName, spline)
+
+            const [ cookedNodeName ] = nodeName.match(/^(\d+)(?=[+-])/)
+            this.splines.set(cookedNodeName, spline)
 
             const lineMaterialConfig =
                 {
                     color: getRandomVibrantAppleCrayonColor(),
+                    // color: getAppleCrayonColorByName('tin'),
                     linewidth: 16,
                     worldUnits: true
                 }
-            const line = LineFactory.createLine(spline, false, 4, new LineMaterial(lineMaterialConfig))
-            this.lines.set(nodeName, line)
+            const line = LineFactory.createNodeLine(spline, false, 4, new LineMaterial(lineMaterialConfig))
+            this.lines.set(cookedNodeName, line)
 
         }
 
+        for (const { starting_node, ending_node } of Object.values(json.edge)) {
 
+            let spline
+
+            const [ s ] = starting_node.match(/^(\d+)(?=[+-])/)
+            spline = this.splines.get( s )
+            if (!spline) {
+                console.error(`Could not find start spline at node ${ s }`)
+            }
+            const xyzStart = spline.getPoint(1)
+
+
+            const [ e ] = ending_node.match(/^(\d+)(?=[+-])/)
+            spline = this.splines.get( e )
+            if (!spline) {
+                console.error(`Could not find end spline at node ${ e }`)
+            }
+            const xyzEnd = spline.getPoint(0)
+
+            const lineMaterialConfig =
+                {
+                    color: getAppleCrayonColorByName('tin'),
+                    linewidth: 8,
+                    worldUnits: true
+                }
+
+            const edgeLine = LineFactory.createEdgeLine(xyzStart, xyzEnd, new LineMaterial(lineMaterialConfig))
+            this.edges.set( `${ s }-${ e }`, edgeLine )
+
+        }
     }
 
     addToScene(scene) {
         for (const line of this.lines.values()) {
             scene.add(line)
+        }
+        for (const edge of this.edges.values()) {
+            scene.add(edge)
         }
     }
 
