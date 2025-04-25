@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import {getAppleCrayonColorByName, getRandomVibrantAppleCrayonColor} from './utils/color.js';
+import {getAppleCrayonColorByName, generateUniqueColors} from './utils/color.js';
 
 class DataService {
     constructor() {
@@ -63,43 +63,43 @@ class DataService {
         const bbox = this.#calculateBoundingBox(json);
 
         // Create splines & lines
+        const uniqueColors = generateUniqueColors(Object.keys(json.node).length, { minSaturation: 60 })
+        let i = 0
         for (const [nodeName, nodeData] of Object.entries(json.node)) {
 
             // Build spline from recentered coordinates
             const coordinates = nodeData.odgf_coordinates.map(({ x, y }) => new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0))
             const spline = new THREE.CatmullRomCurve3(coordinates)
 
-            const [ cookedNodeName ] = nodeName.match(/^(\d+)(?=[+-])/)
-            this.splines.set(cookedNodeName, spline)
+            this.splines.set(nodeName, spline)
 
             const lineMaterialConfig =
                 {
-                    color: getRandomVibrantAppleCrayonColor(),
+                    color: uniqueColors[i],
+                    // color: getRandomVibrantAppleCrayonColor(),
                     // color: getAppleCrayonColorByName('tin'),
                     linewidth: 16,
                     worldUnits: true
                 }
             const line = LineFactory.createNodeLine(spline, false, 4, new LineMaterial(lineMaterialConfig))
-            this.lines.set(cookedNodeName, line)
+            this.lines.set(nodeName, line)
 
+            i++
         }
 
         for (const { starting_node, ending_node } of Object.values(json.edge)) {
 
             let spline
 
-            const [ s ] = starting_node.match(/^(\d+)(?=[+-])/)
-            spline = this.splines.get( s )
+            spline = this.splines.get( starting_node )
             if (!spline) {
-                console.error(`Could not find start spline at node ${ s }`)
+                console.error(`Could not find start spline at node ${ starting_node }`)
             }
             const xyzStart = spline.getPoint(1)
 
-
-            const [ e ] = ending_node.match(/^(\d+)(?=[+-])/)
-            spline = this.splines.get( e )
+            spline = this.splines.get( ending_node )
             if (!spline) {
-                console.error(`Could not find end spline at node ${ e }`)
+                console.error(`Could not find end spline at node ${ ending_node }`)
             }
             const xyzEnd = spline.getPoint(0)
 
@@ -111,7 +111,7 @@ class DataService {
                 }
 
             const edgeLine = LineFactory.createEdgeLine(xyzStart, xyzEnd, new LineMaterial(lineMaterialConfig))
-            this.edges.set( `${ s }-${ e }`, edgeLine )
+            this.edges.set( `${ starting_node }-${ ending_node }`, edgeLine )
 
         }
     }
