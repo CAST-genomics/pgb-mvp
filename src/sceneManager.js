@@ -6,9 +6,6 @@ import RendererFactory from './rendererFactory.js'
 
 class SceneManager {
 
-    // Multiplier used to add padding around scene bounding sphere when framing the view
-    static SCENE_VIEW_PADDING = 1.5
-
     constructor(container, backgroundColor, frustumSize) {
         this.container = container
         this.scene = new THREE.Scene()
@@ -32,26 +29,9 @@ class SceneManager {
         this.scene.add(object)
     }
     
-    handleResize() {
-        
-        // Recalculate the frustum size based on current scene bounds
-        const bbox = new THREE.Box3()
-        this.scene.traverse((object) => {
-            if (object.isMesh && object.name !== 'boundingSphereHelper') {
-                object.geometry.computeBoundingBox()
-                const objectBox = object.geometry.boundingBox.clone()
-                objectBox.applyMatrix4(object.matrixWorld)
-                bbox.union(objectBox)
-            }
-        })
-
-        const boundingSphere = new THREE.Sphere()
-        bbox.getBoundingSphere(boundingSphere)
-        
-        // Update camera frustum with new dimensions
+    handleResize() {       
         const { clientWidth, clientHeight } = this.container
-        this.cameraRig.cameraManager.windowResizeHelper(2 * boundingSphere.radius * SceneManager.SCENE_VIEW_PADDING, clientWidth/clientHeight)
-        
+        this.cameraRig.cameraManager.windowResizeHelper(clientWidth/clientHeight)
         this.renderer.setSize(clientWidth, clientHeight)
     }
     
@@ -65,6 +45,7 @@ class SceneManager {
     }
 
     updateViewToFitScene() {
+
         // Create a bounding box that encompasses all objects in the scene
         const bbox = new THREE.Box3()
         this.scene.traverse((object) => {
@@ -103,10 +84,13 @@ class SceneManager {
 
 
 
+        // Multiplier used to add padding around scene bounding sphere when framing the view
+        const SCENE_VIEW_PADDING = 1.5
 
         // Calculate required frustum size based on the bounding sphere (with padding)
         const { clientWidth, clientHeight } = this.container
-        this.cameraRig.cameraManager.windowResizeHelper(2 * boundingSphere.radius * SceneManager.SCENE_VIEW_PADDING, clientWidth/clientHeight)
+        this.cameraRig.cameraManager.frustumHalfSize = boundingSphere.radius * SCENE_VIEW_PADDING
+        this.cameraRig.cameraManager.windowResizeHelper(clientWidth/clientHeight)
 
         // Position camera to frame the scene
         this.cameraRig.camera.position.set(0, 0, 2 * boundingSphere.radius) // Position camera at 2x the radius

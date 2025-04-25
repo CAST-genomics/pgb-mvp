@@ -4,14 +4,10 @@ class CameraRig {
     constructor(cameraManager, controls) {
         this.cameraManager = cameraManager
         this.controls = controls
-        
+
         // Add light to camera
         const light = new THREE.PointLight(0xffffff, 2.5, 0, 0)
         this.cameraManager.camera.add(light)
-    }
-
-    handleResize(width, height) {
-        this.cameraManager.windowResizeHelper(this.cameraManager.frustumSize, width/height)
     }
 
     update() {
@@ -23,4 +19,4 @@ class CameraRig {
     }
 }
 
-export default CameraRig 
+export default CameraRig
