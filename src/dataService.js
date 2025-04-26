@@ -89,29 +89,52 @@ class DataService {
 
         for (const { starting_node, ending_node } of Object.values(json.edge)) {
 
+            const edgeNodeSign = node => {
+                const parts = node.split('')    
+                const sign = parts.pop()
+                const remainder = parts.join('')
+                return { sign, remainder }
+            }
+
             let spline
+            let node
+            let t
 
-            spline = this.splines.get( starting_node )
+            // Start node
+            const { sign: signStart, remainder: remainderStart } = edgeNodeSign( starting_node )
+            node = `${ remainderStart }+`
+            spline = this.splines.get( node )
             if (!spline) {
-                console.error(`Could not find start spline at node ${ starting_node }`)
+                console.error(`Could not find start spline at node ${ node }`)
             }
-            const xyzStart = spline.getPoint(1)
 
-            spline = this.splines.get( ending_node )
+            t = signStart === '+' ? 1 : 0
+            const xyzStart = spline.getPoint(t)
+
+            // End node
+            const { sign: signEnd, remainder: remainderEnd } = edgeNodeSign( ending_node )
+            node = `${ remainderEnd }+`
+            spline = this.splines.get( node )
             if (!spline) {
-                console.error(`Could not find end spline at node ${ ending_node }`)
+                console.error(`Could not find end spline at node ${ node }`)
             }
-            const xyzEnd = spline.getPoint(0)
+
+            t = signEnd === '+' ? 0 : 1
+            const xyzEnd = spline.getPoint(t)
 
             const lineMaterialConfig =
                 {
                     color: getAppleCrayonColorByName('tin'),
                     linewidth: 8,
                     worldUnits: true
-                }
+                };
+
+            // position egde lines behind nodes in z-axis
+            xyzStart.z = -4
+            xyzEnd.z = -4
 
             const edgeLine = LineFactory.createEdgeLine(xyzStart, xyzEnd, new LineMaterial(lineMaterialConfig))
-            this.edges.set( `${ starting_node }-${ ending_node }`, edgeLine )
+            this.edges.set( `${ starting_node }#${ ending_node }`, edgeLine )
 
         }
     }
