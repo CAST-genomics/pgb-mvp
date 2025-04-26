@@ -1,10 +1,10 @@
-import './styles/app.scss'
-import SceneManager from './sceneManager.js'
 import * as THREE from 'three'
-import SplineManager from './splineManager.js'
+import SceneManager from './sceneManager.js'
+import DataService from './dataService.js'
+import './styles/app.scss'
 
 let sceneManager
-let splineManager
+let dataService
 
 document.addEventListener("DOMContentLoaded", async (event) => {
 
@@ -12,23 +12,19 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const frustumSize = 5
     sceneManager = new SceneManager(document.getElementById('three-container'), backgroundColor, frustumSize)
 
-    splineManager = new SplineManager()
+    dataService = new DataService()
 
-    // const path = '/debug_recentered.json'
-    // const path = '/node-02.json'
     const path = '/cici.json'
     let json
     try {
-        json = await splineManager.loadFromFile(path)
+        json = await dataService.loadPath(path)
     } catch (error) {
         console.error(`Error loading ${path}:`, error)
     }
 
-    splineManager.loadFromData(json)
+    dataService.ingestData(json)
 
-    for (const line of splineManager.lines.values()) {
-        sceneManager.addToScene(line)
-    }
+    dataService.addToScene(sceneManager.scene)
 
     // Update the view to fit the scene
     sceneManager.updateViewToFitScene()

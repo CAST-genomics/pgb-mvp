@@ -160,11 +160,52 @@ function getComplementaryColor(name) {
     return complementName ? getAppleCrayonColorByName(complementName) : undefined;
 }
 
+/**
+ * Generates N unique colors with varied hue, saturation, and lightness
+ * Colors are distributed across the full color spectrum
+ * @param {number} N - The number of unique colors to generate
+ * @param {Object} options - Optional parameters
+ * @param {number} options.minSaturation - Minimum saturation (0-100), default 20
+ * @param {number} options.maxSaturation - Maximum saturation (0-100), default 100
+ * @param {number} options.minLightness - Minimum lightness (0-100), default 20
+ * @param {number} options.maxLightness - Maximum lightness (0-100), default 80
+ * @returns {Array<THREE.Color>} An array of N unique THREE.Color objects
+ */
+function generateUniqueColors(N, options = {}) {
+    if (N <= 0) return [];
+    
+    const {
+        minSaturation = 20,
+        maxSaturation = 100,
+        minLightness = 20,
+        maxLightness = 80
+    } = options;
+
+    const colors = [];
+    const hueStep = 360 / N;  // Distribute colors evenly across the hue spectrum
+    
+    for (let i = 0; i < N; i++) {
+        // Calculate hue, evenly distributed
+        const hue = (i * hueStep) % 360;
+        
+        // Vary saturation and lightness for each color
+        const saturation = minSaturation + Math.random() * (maxSaturation - minSaturation);
+        const lightness = minLightness + Math.random() * (maxLightness - minLightness);
+        
+        const color = new THREE.Color();
+        color.setHSL(hue / 360, saturation / 100, lightness / 100);
+        colors.push(color);
+    }
+    
+    return colors;
+}
+
 export { 
     getRandomAppleCrayonColor, 
     getRandomVibrantAppleCrayonColor,
     getRandomPastelAppleCrayonColor,
     getRandomGrayAppleCrayonColor,
     getAppleCrayonColorByName,
-    getComplementaryColor
+    getComplementaryColor,
+    generateUniqueColors
 };
