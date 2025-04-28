@@ -81,7 +81,7 @@ class DataService {
                     linewidth: 16,
                     worldUnits: true
                 }
-            const line = LineFactory.createNodeLine(spline, false, 4, new LineMaterial(lineMaterialConfig))
+            const line = LineFactory.createNodeLine(nodeName, spline, false, 4, new LineMaterial(lineMaterialConfig))
             this.lines.set(nodeName, line)
 
             i++
@@ -90,7 +90,7 @@ class DataService {
         for (const { starting_node, ending_node } of Object.values(json.edge)) {
 
             const edgeNodeSign = node => {
-                const parts = node.split('')    
+                const parts = node.split('')
                 const sign = parts.pop()
                 const remainder = parts.join('')
                 return { sign, remainder }
@@ -150,6 +150,10 @@ class DataService {
 
     getLine(nodeName) {
         return this.lines.get(nodeName)
+    }
+
+    getAllLines() {
+        return Array.from(this.lines.values())
     }
 
     getSpline(nodeName) {

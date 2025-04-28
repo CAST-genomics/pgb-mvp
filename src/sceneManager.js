@@ -6,7 +6,7 @@ import RendererFactory from './rendererFactory.js'
 
 class SceneManager {
 
-    constructor(container, backgroundColor, frustumSize) {
+    constructor(container, backgroundColor, frustumSize, raycastService) {
         this.container = container
         this.scene = new THREE.Scene()
         this.scene.background = backgroundColor
@@ -21,6 +21,8 @@ class SceneManager {
         this.cameraRig = new CameraRig(cameraManager, mapControl)
         this.scene.add(this.cameraRig.camera)
         
+        this.raycastService = raycastService
+
         // Setup resize handler
         window.addEventListener('resize', () => this.handleResize())
     }
@@ -36,6 +38,12 @@ class SceneManager {
     }
     
     animate() {
+        const intersections = this.raycastService.intersectObjects(this.cameraRig.camera, this.dataService.getAllLines())
+
+        if (intersections.length > 0) {
+            console.log(`intersections: ${ intersections.length }`)
+        }
+
         this.cameraRig.update()
         this.renderer.render(this.scene, this.cameraRig.camera)
     }

@@ -25,7 +25,7 @@ class LineFactory {
         return line;
     }
 
-    static createNodeLine(spline, doRGBList, divisionsMultiplier, lineMaterial) {
+    static createNodeLine(nodeName, spline, doRGBList, divisionsMultiplier, lineMaterial) {
 
         const divisions = Math.round(divisionsMultiplier * spline.points.length);
         // const divisions = 5;
@@ -58,6 +58,7 @@ class LineFactory {
         }
 
         const line = new Line2(lineGeometry, lineMaterial);
+        line.userData = { nodeName }
 
         line.computeLineDistances();
         line.scale.set(1, 1, 1);
