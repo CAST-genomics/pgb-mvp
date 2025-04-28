@@ -1,0 +1,47 @@
+digraph CICI_Topology {
+    rankdir=LR;
+    bgcolor="white";
+
+    /* Node styling */
+    node [shape=box, style=rounded, fontsize=10, fontcolor=black, color=black];
+    edge [color=black, fontsize=8];
+
+    /* Main linear path */
+    "2912" -> "2913";
+    "2913" -> "2914";
+    "2914" -> "2915";
+    "2915" -> "2916";
+    "2916" -> "2917";
+    "2917" -> "2918";
+    "2918" -> "2919";
+    "2919" -> "2920";
+    "2920" -> "2921";
+    "2921" -> "2922";
+    "2922" -> "2923";
+    "2923" -> "2924";
+    "2924" -> "2925";
+
+    /* Additional black edges */
+    "2913" -> "2915";          // via 2914 bypass
+    "2915" -> "2922";          // jump ahead
+    "2922" -> "2920";          // connects to start of 2920
+
+    /* Former "red" cross-links – rendered the same (black) here */
+    "2912" -> "294049";
+    "2918_start" [label="2918(start)"];
+    "2918_start" -> "289921";
+
+    "2919_start" [label="2919(start)"];
+    "2919_start" -> "289920";
+
+    "2920_start" [label="2920(start)"];
+    "2920_start" -> "289919";
+
+    "409624_start" [label="409624(start)"];
+    "409624_start" -> "2920";
+
+    /* Invisible edges to keep auxiliary nodes near their counterparts */
+    "2918" -> "2918_start" [style=invis];
+    "2919" -> "2919_start" [style=invis];
+    "2920" -> "2920_start" [style=invis];
+}
