@@ -12,9 +12,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const frustumSize = 5
 
     const threshold = 4
-    sceneManager = new SceneManager(document.getElementById('three-container'), backgroundColor, frustumSize, new RayCastService(threshold))
-
-    sceneManager.dataService = new DataService()
+    sceneManager = new SceneManager(document.getElementById('three-container'), backgroundColor, frustumSize, new RayCastService(threshold), new DataService())
 
     const path = '/cici.json'
     let json
