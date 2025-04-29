@@ -4,6 +4,8 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import {getAppleCrayonColorByName, generateUniqueColors} from './utils/color.js';
 
 class DataService {
+    #EDGE_Z_OFFSET = -4
+
     constructor() {
         this.splines = new Map() // Store splines by node name
         this.linesGroup = new THREE.Group();
@@ -36,7 +38,8 @@ class DataService {
         const uniqueColors = generateUniqueColors(Object.keys(nodes).length, { minSaturation: 60 })
         let i = 0
         for (const [nodeName, nodeData] of Object.entries(nodes)) {
-            // Build spline from recentered coordinates
+
+            // Build spline from coordinates recentered around origin
             const coordinates = nodeData.odgf_coordinates.map(({ x, y }) => new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0))
             const spline = new THREE.CatmullRomCurve3(coordinates)
 
@@ -47,7 +50,7 @@ class DataService {
                 linewidth: 16,
                 worldUnits: true
             }
-            const line = LineFactory.createNodeLine(nodeName, spline, false, 4, new LineMaterial(lineMaterialConfig))
+            const line = LineFactory.createNodeLine(nodeName, spline, 4, 1 + i, new LineMaterial(lineMaterialConfig))
             this.linesGroup.add(line)
 
             i++
@@ -55,7 +58,7 @@ class DataService {
     }
 
     #createEdgeLines(edges) {
-        
+
         const edgeNodeSign = node => {
             const parts = node.split('')
             const sign = parts.pop()
@@ -97,8 +100,8 @@ class DataService {
             };
 
             // position edge lines behind nodes in z-axis
-            xyzStart.z = -4
-            xyzEnd.z = -4
+            xyzStart.z = this.#EDGE_Z_OFFSET
+            xyzEnd.z = this.#EDGE_Z_OFFSET
 
             const edgeLine = LineFactory.createEdgeLine(xyzStart, xyzEnd, new LineMaterial(lineMaterialConfig))
             this.edgesGroup.add(edgeLine)
@@ -149,7 +152,7 @@ class DataService {
         // Remove from scene
         this.linesGroup.parent?.remove(this.linesGroup);
         this.edgesGroup.parent?.remove(this.edgesGroup);
-        
+
         // Dispose of all geometries and materials
         [this.linesGroup, this.edgesGroup].forEach(group => {
             group.traverse((object) => {
@@ -164,7 +167,7 @@ class DataService {
             });
             group.clear();
         });
-        
+
         // Clear the maps
         this.splines.clear();
 

@@ -41,9 +41,15 @@ class SceneManager {
         const intersections = this.raycastService.intersectObject(this.cameraRig.camera, this.dataService.linesGroup)
 
         if (intersections.length > 0) {
-            console.log(`intersections: ${ intersections.length }`)
-        }
 
+            // Sort by distance to get the closest intersection
+            intersections.sort((a, b) => a.distance - b.distance);
+            
+            const { userData } = intersections[0].object
+            const { nodeName } = userData
+            
+            console.log(`Intersected node line: ${ nodeName }`);
+        }
         this.cameraRig.update()
         this.renderer.render(this.scene, this.cameraRig.camera)
     }
