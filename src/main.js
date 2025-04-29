@@ -14,7 +14,11 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const threshold = 8
     sceneManager = new SceneManager(document.getElementById('three-container'), backgroundColor, frustumSize, new RayCastService(threshold), new DataService())
 
-    const path = '/cici.json'
+    // const path = '/cici.json'
+    // const path = '/chr6_28477797_29477797.JSON'
+    // const path = '/chr6_160531482_160664275.JSON'
+    const path = '/chr22_42120000_42250000.JSON'
+
     let json
     try {
         json = await sceneManager.dataService.loadPath(path)
