@@ -38,7 +38,7 @@ class SceneManager {
     }
     
     animate() {
-        const intersections = this.raycastService.intersectObjects(this.cameraRig.camera, this.dataService.getAllLines())
+        const intersections = this.raycastService.intersectObject(this.cameraRig.camera, this.dataService.linesGroup)
 
         if (intersections.length > 0) {
             console.log(`intersections: ${ intersections.length }`)

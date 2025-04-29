@@ -6,8 +6,8 @@ import {getAppleCrayonColorByName, generateUniqueColors} from './utils/color.js'
 class DataService {
     constructor() {
         this.splines = new Map() // Store splines by node name
-        this.lines = new Map() // Store lines by node name
-        this.edges = new Map() // Store edges by edge name
+        this.linesGroup = new THREE.Group();
+        this.edgesGroup = new THREE.Group();
     }
 
     #calculateBoundingBox(json) {
@@ -57,7 +57,8 @@ class DataService {
 
         // Clear existing splines
         this.splines.clear()
-        this.lines.clear()
+        this.linesGroup.clear()
+        this.edgesGroup.clear()
 
         // Use bounding box to recenter coordinates
         const bbox = this.#calculateBoundingBox(json);
@@ -82,7 +83,7 @@ class DataService {
                     worldUnits: true
                 }
             const line = LineFactory.createNodeLine(nodeName, spline, false, 4, new LineMaterial(lineMaterialConfig))
-            this.lines.set(nodeName, line)
+            this.linesGroup.add(line)
 
             i++
         }
@@ -134,26 +135,39 @@ class DataService {
             xyzEnd.z = -4
 
             const edgeLine = LineFactory.createEdgeLine(xyzStart, xyzEnd, new LineMaterial(lineMaterialConfig))
-            this.edges.set( `${ starting_node }#${ ending_node }`, edgeLine )
+            this.edgesGroup.add(edgeLine)
 
         }
     }
 
     addToScene(scene) {
-        for (const line of this.lines.values()) {
-            scene.add(line)
-        }
-        for (const edge of this.edges.values()) {
-            scene.add(edge)
-        }
+        scene.add(this.linesGroup);
+        scene.add(this.edgesGroup);
     }
 
-    getLine(nodeName) {
-        return this.lines.get(nodeName)
-    }
+    dispose() {
+        // Remove from scene
+        this.linesGroup.parent?.remove(this.linesGroup);
+        this.edgesGroup.parent?.remove(this.edgesGroup);
+        
+        // Dispose of all geometries and materials
+        [this.linesGroup, this.edgesGroup].forEach(group => {
+            group.traverse((object) => {
+                if (object.geometry) object.geometry.dispose();
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(material => material.dispose());
+                    } else {
+                        object.material.dispose();
+                    }
+                }
+            });
+            group.clear();
+        });
+        
+        // Clear the maps
+        this.splines.clear();
 
-    getAllLines() {
-        return Array.from(this.lines.values())
     }
 
     getSpline(nodeName) {
