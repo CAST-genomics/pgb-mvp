@@ -4,6 +4,7 @@ import CameraRig from "./cameraRig.js"
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 
+
 class SceneManager {
 
     constructor(container, backgroundColor, frustumSize, raycastService) {
@@ -11,52 +12,77 @@ class SceneManager {
         this.scene = new THREE.Scene()
         this.scene.background = backgroundColor
         this.initialFrustumSize = frustumSize
-        
+
         // Initialize renderer
         this.renderer = RendererFactory.create(container)
-        
+
         // Initialize camera system
         const cameraManager = new CameraManager(frustumSize, container.clientWidth/container.clientHeight)
         const mapControl = MapControlsFactory.create(cameraManager.camera, container)
         this.cameraRig = new CameraRig(cameraManager, mapControl)
         this.scene.add(this.cameraRig.camera)
-        
+
         this.raycastService = raycastService
+        this.raycastService.setupVisualFeedback(this.scene)
 
         // Setup resize handler
         window.addEventListener('resize', () => this.handleResize())
     }
-    
+
     addToScene(object) {
         this.scene.add(object)
     }
-    
-    handleResize() {       
+
+    handleResize() {
         const { clientWidth, clientHeight } = this.container
         this.cameraRig.cameraManager.windowResizeHelper(clientWidth/clientHeight)
         this.renderer.setSize(clientWidth, clientHeight)
     }
-    
+
+    handleIntersection(intersections) {
+
+        if (undefined === intersections || 0 === intersections.length) {
+            this.clearIntersectionFeedback()
+            return
+        }
+
+        // Sort by distance to get the closest intersection
+        intersections.sort((a, b) => a.distance - b.distance);
+
+		const { faceIndex, pointOnLine, object:nodeLine } = intersections[0];
+
+        // Show feedback for line intersection
+		this.raycastService.showVisualFeedback(pointOnLine, nodeLine.material.color)
+
+        const { userData } = nodeLine
+        const { nodeName } = userData
+        console.log(`Intersected node line: ${ nodeName }`);
+
+		// Calculate parametric coordinate for the spiral
+		// const t = this.findClosestT(this.spline, pointOnLine, faceIndex, line.geometry.getAttribute('instanceStart').count);
+		// console.log('Segment index (t):', t);
+
+		this.renderer.domElement.style.cursor = 'crosshair';
+	}
+
+	clearIntersectionFeedback() {
+		this.raycastService.clearVisualFeedback()
+        this.renderer.domElement.style.cursor = '';
+	}
+
     animate() {
         const intersections = this.raycastService.intersectObject(this.cameraRig.camera, this.dataService.linesGroup)
 
-        if (intersections.length > 0) {
+        this.handleIntersection(intersections)
 
-            // Sort by distance to get the closest intersection
-            intersections.sort((a, b) => a.distance - b.distance);
-            
-            const { userData } = intersections[0].object
-            const { nodeName } = userData
-            
-            console.log(`Intersected node line: ${ nodeName }`);
-        }
         this.cameraRig.update()
         this.renderer.render(this.scene, this.cameraRig.camera)
     }
-    
+
     startAnimation() {
         this.renderer.setAnimationLoop(() => this.animate())
     }
+
 
     updateViewToFitScene() {
 
@@ -83,7 +109,7 @@ class SceneManager {
         //     this.scene.remove(found)
         // }
 
-        // const materialConfig = 
+        // const materialConfig =
         // {
         //     color: 0xdddddd,
         //     wireframe: true,
@@ -112,4 +138,4 @@ class SceneManager {
     }
 }
 
-export default SceneManager 
+export default SceneManager

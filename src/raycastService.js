@@ -39,6 +39,28 @@ class RayCastService {
         this.updateRaycaster(camera)
         return this.raycaster.intersectObjects(objects)
     }
+
+    setupVisualFeedback(scene) {
+		this.raycastVisualFeedback = this.createVisualFeeback(0x00ff00);
+		scene.add(this.raycastVisualFeedback);
+	}
+
+    createVisualFeeback(color) {
+		const sphere = new THREE.Mesh(new THREE.SphereGeometry(16, 32, 16), new THREE.MeshBasicMaterial({ color, depthTest: false }))
+		sphere.visible = false
+		sphere.renderOrder = 10
+		return sphere
+	}
+
+    showVisualFeedback(pointOnLine, visualFeedbackColor) {
+        this.raycastVisualFeedback.visible = true;
+		this.raycastVisualFeedback.position.copy(pointOnLine);
+		this.raycastVisualFeedback.material.color.copy(visualFeedbackColor).offsetHSL(0.7, 0, 0);
+    }
+
+    clearVisualFeedback() {
+        this.raycastVisualFeedback.visible = false;
+    }
 }
 
 export default RayCastService;

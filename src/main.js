@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
 
-    const threshold = 2
+    const threshold = 4
     sceneManager = new SceneManager(document.getElementById('three-container'), backgroundColor, frustumSize, new RayCastService(threshold))
 
     sceneManager.dataService = new DataService()
