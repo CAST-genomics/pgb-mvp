@@ -10,6 +10,7 @@ class DataService {
         this.splines = new Map() // Store splines by node name
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
+        this.adjacencyList = {}; // Store the adjacency list representation of the graph
     }
 
     #calculateBoundingBox(json) {
@@ -134,6 +135,7 @@ class DataService {
         this.splines.clear()
         this.linesGroup.clear()
         this.edgesGroup.clear()
+        this.adjacencyList = {}
 
         // Use bounding box to recenter coordinates
         const bbox = this.#calculateBoundingBox(json);
@@ -141,6 +143,9 @@ class DataService {
         // Create splines & lines
         this.#createSplinesAndNodeLines(bbox, json.node);
         this.#createEdgeLines(json.edge);
+        
+        // Create adjacency list
+        this.adjacencyList = this.#createAdjacencyList(json);
     }
 
     addToScene(scene) {
@@ -170,11 +175,45 @@ class DataService {
 
         // Clear the maps
         this.splines.clear();
-
+        this.adjacencyList = {};
     }
 
     getSpline(nodeName) {
         return this.splines.get(nodeName)
+    }
+    
+    getAdjacencyList() {
+        return this.adjacencyList;
+    }
+    
+    #createAdjacencyList(json) {
+        // Initialize empty adjacency list
+        const adjacencyList = {};
+        
+        // Process each node to ensure all nodes appear in the list (even without outgoing edges)
+        for (const nodeId in json.node) {
+            if (!adjacencyList[nodeId]) {
+                adjacencyList[nodeId] = [];
+            }
+        }
+        
+        // Process each edge to build connections
+        for (const edge of json.edge) {
+            const source = edge.starting_node;
+            const target = edge.ending_node;
+            
+            // Add each node if not already in the list
+            if (!adjacencyList[source]) {
+                adjacencyList[source] = [];
+            }
+            
+            // Add the target to the source's adjacency list if not already there
+            if (!adjacencyList[source].includes(target)) {
+                adjacencyList[source].push(target);
+            }
+        }
+        
+        return adjacencyList;
     }
 }
 
