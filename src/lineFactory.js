@@ -25,39 +25,29 @@ class LineFactory {
         return line;
     }
 
-    static createNodeLine(spline, doRGBList, divisionsMultiplier, lineMaterial) {
+    static createNodeLine(nodeName, spline, divisionsMultiplier, zOffset, lineMaterial) {
 
         const divisions = Math.round(divisionsMultiplier * spline.points.length);
-        // const divisions = 5;
 
         const xyz = new THREE.Vector3();
-        const rgbList = [];
         const xyzList = [];
 
         for (let i = 0; i < 1 + divisions; i++) {
 
             const t = i/divisions;
-            // console.log(`t: ${t}`);
-
             spline.getPoint(t, xyz);
+
+            // use zOffset to disambiguate node lines
+            xyz.z = 2 * zOffset
+
             xyzList.push(xyz.x, xyz.y, xyz.z);
-
-            if (true === doRGBList) {
-                const color = new THREE.Color();
-                color.setHSL(t, 1.0, 0.5, THREE.SRGBColorSpace);
-                   rgbList.push(color.r, color.g, color.b);
-            }
-
         }
 
         const lineGeometry = new LineGeometry();
         lineGeometry.setPositions(xyzList);
 
-        if (true === doRGBList) {
-            lineGeometry.setColors(rgbList);
-        }
-
         const line = new Line2(lineGeometry, lineMaterial);
+        line.userData = { nodeName }
 
         line.computeLineDistances();
         line.scale.set(1, 1, 1);
