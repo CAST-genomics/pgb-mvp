@@ -64,7 +64,7 @@ class SceneManager {
 		const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
 		console.log(`line ${ nodeName } t: ${ t }`);
 
-		this.renderer.domElement.style.cursor = 'crosshair';
+		this.renderer.domElement.style.cursor = 'none';
 	}
 
     findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
