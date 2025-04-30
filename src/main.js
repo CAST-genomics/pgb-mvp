@@ -14,9 +14,13 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const threshold = 8
     sceneManager = new SceneManager(document.getElementById('three-container'), backgroundColor, frustumSize, new RayCastService(threshold), new DataService())
 
-    // Add search handler
-    document.querySelector('form[role="search"]').addEventListener('submit', (event) => sceneManager.handleSearch(event));
-
     sceneManager.startAnimation()
-    
+
+    // Add search handler
+    const searchButton = document.querySelector('.btn-outline-secondary');
+    const urlInput = document.querySelector('input[type="url"]');
+    searchButton.addEventListener('click', () => {
+        const url = urlInput.value;
+        sceneManager.handleSearch(url);
+    });
 })

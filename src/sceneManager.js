@@ -166,10 +166,7 @@ class SceneManager {
         this.cameraRig.camera.lookAt(boundingSphere.center)
     }
 
-    async handleSearch(event) {
-        event.preventDefault(); // Prevent form submission
-        const urlInput = event.target.querySelector('input[type="url"]');
-        const url = urlInput.value;
+    async handleSearch(url) {
         console.log('Search URL:', url);
 
         let json
@@ -178,7 +175,7 @@ class SceneManager {
         } catch (error) {
             console.error(`Error loading ${url}:`, error)
         }
-    
+
         this.dataService.dispose()
 
         this.dataService.ingestData(json)
@@ -186,7 +183,6 @@ class SceneManager {
         this.dataService.addToScene(this.scene)
 
         this.updateViewToFitScene()
-
     }
 }
 
