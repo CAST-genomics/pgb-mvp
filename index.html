@@ -15,7 +15,27 @@
   <script type="module" src="src/main.js"></script>
 </head>
 <body class="vh-100 w-100 m-0 p-0">
-  <div class="h-100 w-100">
+  <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">PGB MVP</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <div class="container-fluid d-flex justify-content-center">
+          <form class="d-flex" role="search" style="width: 50%;">
+            <div class="input-group">
+              <input type="url" class="form-control" placeholder="Enter data file URL" aria-label="Data file URL">
+              <button class="btn btn-outline-secondary" type="submit">
+                <i class="bi bi-search"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <div class="h-100 w-100" style="padding-top: 56px;">
     <div class="h-100 w-100">
       <div id="three-container" class="three-container h-100 w-100"></div>
     </div>

@@ -165,6 +165,29 @@ class SceneManager {
         this.cameraRig.camera.position.set(0, 0, 2 * boundingSphere.radius) // Position camera at 2x the radius
         this.cameraRig.camera.lookAt(boundingSphere.center)
     }
+
+    async handleSearch(event) {
+        event.preventDefault(); // Prevent form submission
+        const urlInput = event.target.querySelector('input[type="url"]');
+        const url = urlInput.value;
+        console.log('Search URL:', url);
+
+        let json
+        try {
+            json = await this.dataService.loadPath(url)
+        } catch (error) {
+            console.error(`Error loading ${url}:`, error)
+        }
+    
+        this.dataService.dispose()
+
+        this.dataService.ingestData(json)
+
+        this.dataService.addToScene(this.scene)
+
+        this.updateViewToFitScene()
+
+    }
 }
 
 export default SceneManager
