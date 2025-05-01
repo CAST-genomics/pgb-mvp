@@ -4,6 +4,8 @@ class RayCastService {
     constructor(threshold) {
         this.pointer = new THREE.Vector2();
         this.raycaster = new THREE.Raycaster();
+
+        this.threshold = threshold;
         this.setup(threshold);
         this.setupEventListeners();
     }
@@ -19,6 +21,15 @@ class RayCastService {
 
     cleanup() {
         document.removeEventListener('pointermove', this.onPointerMove.bind(this));
+        
+        // Dispose of visual feedback resources if they exist
+        if (this.raycastVisualFeedback) {
+            this.raycastVisualFeedback.geometry.dispose();
+            this.raycastVisualFeedback.material.dispose();
+            if (this.raycastVisualFeedback.parent) {
+                this.raycastVisualFeedback.parent.remove(this.raycastVisualFeedback);
+            }
+        }
     }
 
     onPointerMove(event) {

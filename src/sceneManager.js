@@ -186,6 +186,9 @@ class SceneManager {
 
         this.dataService.dispose()
 
+        // Reset raycaster parameters for new lines
+        this.raycastService.setup(this.raycastService.threshold)
+
         this.dataService.ingestData(json)
 
         this.dataService.addToScene(this.scene)
