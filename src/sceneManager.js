@@ -133,28 +133,13 @@ class SceneManager {
         const boundingSphere = new THREE.Sphere()
         bbox.getBoundingSphere(boundingSphere)
 
-
-
-
         const found = this.scene.getObjectByName('boundingSphereHelper')
         if (found) {
             this.scene.remove(found)
         }
 
-        const materialConfig =
-        {
-            color: 0xdddddd,
-            wireframe: true,
-            transparent: true,
-            opacity: 0.5
-        }
-
-        const boundingSphereHelper = new THREE.Mesh(new THREE.SphereGeometry(boundingSphere.radius, 16, 16), new THREE.MeshBasicMaterial(materialConfig))
-        boundingSphereHelper.position.copy(boundingSphere.center)
-        boundingSphereHelper.name = 'boundingSphereHelper'
-        this.scene.add(boundingSphereHelper)
-
-
+        // const boundingSphereHelper = this.#createBoundingSphereHelper(boundingSphere)
+        // this.scene.add(boundingSphereHelper)
 
         // Multiplier used to add padding around scene bounding sphere when framing the view
         const SCENE_VIEW_PADDING = 1.5
@@ -168,6 +153,23 @@ class SceneManager {
         // Position camera to frame the scene
         this.cameraRig.camera.position.set(0, 0, 2 * boundingSphere.radius) // Position camera at 2x the radius
         this.cameraRig.camera.lookAt(boundingSphere.center)
+    }
+
+    #createBoundingSphereHelper(boundingSphere) {
+        const materialConfig = {
+            color: 0xdddddd,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.5
+        }
+
+        const boundingSphereHelper = new THREE.Mesh(
+            new THREE.SphereGeometry(boundingSphere.radius, 16, 16),
+            new THREE.MeshBasicMaterial(materialConfig)
+        )
+        boundingSphereHelper.position.copy(boundingSphere.center)
+        boundingSphereHelper.name = 'boundingSphereHelper'
+        return boundingSphereHelper
     }
 
     async handleSearch(url) {
