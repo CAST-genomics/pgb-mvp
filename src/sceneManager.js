@@ -112,6 +112,9 @@ class SceneManager {
         this.renderer.setAnimationLoop(() => this.animate())
     }
 
+    stopAnimation() {
+        this.renderer.setAnimationLoop(null)
+    }
 
     updateViewToFitScene() {
 
@@ -176,6 +179,8 @@ class SceneManager {
             console.error(`Error loading ${url}:`, error)
         }
 
+        this.stopAnimation()
+
         this.dataService.dispose()
 
         this.dataService.ingestData(json)
@@ -183,6 +188,8 @@ class SceneManager {
         this.dataService.addToScene(this.scene)
 
         this.updateViewToFitScene()
+
+        this.startAnimation()
     }
 }
 
