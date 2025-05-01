@@ -1,13 +1,11 @@
 import * as THREE from 'three';
 
 class RayCastService {
-    constructor(threshold) {
+    constructor(container, threshold) {
         this.pointer = new THREE.Vector2();
         this.raycaster = new THREE.Raycaster();
-
-        this.threshold = threshold;
         this.setup(threshold);
-        this.setupEventListeners();
+        this.setupEventListeners(container);
     }
 
     setup(threshold) {
@@ -15,26 +13,21 @@ class RayCastService {
         this.raycaster.params.Line2.threshold = threshold;
     }
 
-    setupEventListeners() {
-        document.addEventListener('pointermove', this.onPointerMove.bind(this));
+    setupEventListeners(container) {
+        this.container = container;
+        container.addEventListener('pointermove', this.onPointerMove.bind(this));
     }
 
     cleanup() {
-        document.removeEventListener('pointermove', this.onPointerMove.bind(this));
-        
-        // Dispose of visual feedback resources if they exist
-        if (this.raycastVisualFeedback) {
-            this.raycastVisualFeedback.geometry.dispose();
-            this.raycastVisualFeedback.material.dispose();
-            if (this.raycastVisualFeedback.parent) {
-                this.raycastVisualFeedback.parent.remove(this.raycastVisualFeedback);
-            }
+        if (this.container) {
+            this.container.removeEventListener('pointermove', this.onPointerMove.bind(this));
         }
     }
 
     onPointerMove(event) {
-        this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-        this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        const rect = this.container.getBoundingClientRect();
+        this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     }
 
     updateRaycaster(camera) {
