@@ -62,7 +62,7 @@ class SceneManager {
         const spline = this.dataService.splines.get(nodeName)
         const segments = nodeLine.geometry.getAttribute('instanceStart')
 		const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
-		// console.log(`line ${ nodeName } t: ${ t }`);
+		console.log(`line ${ nodeName } t: ${ t }`);
 
 		this.renderer.domElement.style.cursor = 'none';
 	}
