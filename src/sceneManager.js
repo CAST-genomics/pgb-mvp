@@ -172,14 +172,19 @@ class SceneManager {
     async handleSearch(url) {
         console.log('Search URL:', url);
 
+        this.stopAnimation()
+
+        // Reset camera and controls
+        // this.cameraRig.camera.position.set(0, 0, 0)
+        // this.cameraRig.camera.lookAt(0, 0, 0)
+        this.cameraRig.controls.reset()
+
         let json
         try {
             json = await this.dataService.loadPath(url)
         } catch (error) {
             console.error(`Error loading ${url}:`, error)
         }
-
-        this.stopAnimation()
 
         this.dataService.dispose()
 
