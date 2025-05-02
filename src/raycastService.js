@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 
 class RayCastService {
-    constructor(threshold) {
+    constructor(container, threshold) {
         this.pointer = new THREE.Vector2();
         this.raycaster = new THREE.Raycaster();
         this.setup(threshold);
-        this.setupEventListeners();
+        this.setupEventListeners(container);
     }
 
     setup(threshold) {
@@ -13,17 +13,21 @@ class RayCastService {
         this.raycaster.params.Line2.threshold = threshold;
     }
 
-    setupEventListeners() {
-        document.addEventListener('pointermove', this.onPointerMove.bind(this));
+    setupEventListeners(container) {
+        this.container = container;
+        container.addEventListener('pointermove', this.onPointerMove.bind(this));
     }
 
     cleanup() {
-        document.removeEventListener('pointermove', this.onPointerMove.bind(this));
+        if (this.container) {
+            this.container.removeEventListener('pointermove', this.onPointerMove.bind(this));
+        }
     }
 
     onPointerMove(event) {
-        this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-        this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        const rect = this.container.getBoundingClientRect();
+        this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     }
 
     updateRaycaster(camera) {
@@ -47,6 +51,7 @@ class RayCastService {
 
     createVisualFeeback(color) {
 		const sphere = new THREE.Mesh(new THREE.SphereGeometry(16, 32, 16), new THREE.MeshBasicMaterial({ color, depthTest: false }))
+		sphere.name = 'raycastVisualFeedback'
 		sphere.visible = false
 		sphere.renderOrder = 10
 		return sphere

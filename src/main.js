@@ -11,27 +11,30 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
 
+    const container = document.getElementById('three-container')
     const threshold = 8
-    sceneManager = new SceneManager(document.getElementById('three-container'), backgroundColor, frustumSize, new RayCastService(threshold), new DataService())
-
-    // const path = '/cici.json'
-    // const path = '/chr6_28477797_29477797.JSON'
-    // const path = '/chr6_160531482_160664275.JSON'
-    const path = '/chr22_42120000_42250000.JSON'
-
-    let json
-    try {
-        json = await sceneManager.dataService.loadPath(path)
-    } catch (error) {
-        console.error(`Error loading ${path}:`, error)
-    }
-
-    sceneManager.dataService.ingestData(json)
-
-    sceneManager.dataService.addToScene(sceneManager.scene)
-
-    // Update the view to fit the scene
-    sceneManager.updateViewToFitScene()
+    const raycastService = new RayCastService(container, threshold)
+    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, new DataService())
 
     sceneManager.startAnimation()
+
+    // Add search handlers
+    const searchButton = document.querySelector('.btn-outline-secondary');
+    const urlInput = document.getElementById('urlInput');
+    
+    // Handle manual URL entry
+    searchButton.addEventListener('click', () => {
+        const url = urlInput.value;
+        sceneManager.handleSearch(url);
+    });
+
+    // Handle dropdown selection
+    document.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', (event) => {
+            event.preventDefault();
+            const url = event.target.href;
+            urlInput.value = url;
+            sceneManager.handleSearch(url);
+        });
+    });
 })

@@ -112,13 +112,16 @@ class SceneManager {
         this.renderer.setAnimationLoop(() => this.animate())
     }
 
+    stopAnimation() {
+        this.renderer.setAnimationLoop(null)
+    }
 
     updateViewToFitScene() {
 
         // Create a bounding box that encompasses all objects in the scene
         const bbox = new THREE.Box3()
         this.scene.traverse((object) => {
-            if (object.isMesh && object.name !== 'boundingSphereHelper') {
+            if (object.isLine2 && object.name !== 'boundingSphereHelper') {
                 object.geometry.computeBoundingBox()
                 const objectBox = object.geometry.boundingBox.clone()
                 objectBox.applyMatrix4(object.matrixWorld)
@@ -130,33 +133,19 @@ class SceneManager {
         const boundingSphere = new THREE.Sphere()
         bbox.getBoundingSphere(boundingSphere)
 
+        const found = this.scene.getObjectByName('boundingSphereHelper')
+        if (found) {
+            this.scene.remove(found)
+        }
 
-
-
-        // const found = this.scene.getObjectByName('boundingSphereHelper')
-        // if (found) {
-        //     this.scene.remove(found)
-        // }
-
-        // const materialConfig =
-        // {
-        //     color: 0xdddddd,
-        //     wireframe: true,
-        //     transparent: true,
-        //     opacity: 0.5
-        // }
-
-        // const boundingSphereHelper = new THREE.Mesh(new THREE.SphereGeometry(boundingSphere.radius, 16, 16), new THREE.MeshBasicMaterial(materialConfig))
-        // boundingSphereHelper.position.copy(boundingSphere.center)
-        // boundingSphereHelper.name = 'boundingSphereHelper'
+        // const boundingSphereHelper = this.#createBoundingSphereHelper(boundingSphere)
         // this.scene.add(boundingSphereHelper)
-
-
 
         // Multiplier used to add padding around scene bounding sphere when framing the view
         const SCENE_VIEW_PADDING = 1.5
 
         // Calculate required frustum size based on the bounding sphere (with padding)
+        this.cameraRig.controls.reset()
         const { clientWidth, clientHeight } = this.container
         this.cameraRig.cameraManager.frustumHalfSize = boundingSphere.radius * SCENE_VIEW_PADDING
         this.cameraRig.cameraManager.windowResizeHelper(clientWidth/clientHeight)
@@ -164,6 +153,46 @@ class SceneManager {
         // Position camera to frame the scene
         this.cameraRig.camera.position.set(0, 0, 2 * boundingSphere.radius) // Position camera at 2x the radius
         this.cameraRig.camera.lookAt(boundingSphere.center)
+    }
+
+    #createBoundingSphereHelper(boundingSphere) {
+        const materialConfig = {
+            color: 0xdddddd,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.5
+        }
+
+        const boundingSphereHelper = new THREE.Mesh(
+            new THREE.SphereGeometry(boundingSphere.radius, 16, 16),
+            new THREE.MeshBasicMaterial(materialConfig)
+        )
+        boundingSphereHelper.position.copy(boundingSphere.center)
+        boundingSphereHelper.name = 'boundingSphereHelper'
+        return boundingSphereHelper
+    }
+
+    async handleSearch(url) {
+        console.log('Search URL:', url);
+
+        this.stopAnimation()
+
+        let json
+        try {
+            json = await this.dataService.loadPath(url)
+        } catch (error) {
+            console.error(`Error loading ${url}:`, error)
+        }
+
+        this.dataService.dispose()
+
+        this.dataService.ingestData(json)
+
+        this.dataService.addToScene(this.scene)
+
+        this.updateViewToFitScene()
+
+        this.startAnimation()
     }
 }
 
