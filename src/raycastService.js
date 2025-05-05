@@ -6,6 +6,8 @@ class RayCastService {
         this.raycaster = new THREE.Raycaster();
         this.setup(threshold);
         this.setupEventListeners(container);
+        this.clickCallbacks = new Set();
+        this.currentIntersection = null;
     }
 
     setup(threshold) {
@@ -16,11 +18,23 @@ class RayCastService {
     setupEventListeners(container) {
         this.container = container;
         container.addEventListener('pointermove', this.onPointerMove.bind(this));
+        container.addEventListener('click', this.onClick.bind(this));
     }
 
     cleanup() {
         if (this.container) {
             this.container.removeEventListener('pointermove', this.onPointerMove.bind(this));
+            this.container.removeEventListener('click', this.onClick.bind(this));
+        }
+        this.clickCallbacks.clear();
+    }
+
+    onClick(event) {
+        if (this.currentIntersection) {
+            const { t, nodeName } = this.currentIntersection;
+            for (const callback of this.clickCallbacks) {
+                callback(nodeName, t);
+            }
         }
     }
 
@@ -35,7 +49,7 @@ class RayCastService {
     }
 
     intersectObject(camera, object) {
-        this.updateRaycaster(camera)
+        this.updateRaycaster(camera);
         return this.raycaster.intersectObject(object)
     }
 
@@ -68,12 +82,16 @@ class RayCastService {
     }
 
     handleIntersection(dataService, nodeLine, pointOnLine, faceIndex) {
+
         const { userData } = nodeLine;
         const { nodeName } = userData;
         const spline = dataService.splines.get(nodeName);
         const segments = nodeLine.geometry.getAttribute('instanceStart');
         const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
-        return { t, nodeName };
+
+        this.currentIntersection = { t, nodeName };
+
+        return this.currentIntersection;
     }
 
     findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
@@ -101,6 +119,16 @@ class RayCastService {
         }
 
         return bestT;
+    }
+
+    clearIntersectionFeedback() {
+        this.currentIntersection = null;
+        this.raycastVisualFeedback.visible = false;
+    }
+
+    registerClickHandler(callback) {
+        this.clickCallbacks.add(callback);
+        return () => this.clickCallbacks.delete(callback); // Return cleanup function
     }
 }
 

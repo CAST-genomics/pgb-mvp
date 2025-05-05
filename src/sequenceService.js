@@ -3,16 +3,19 @@ import { defaultNucleotideRGBStrings } from './utils/nucleotideRGBStrings.js';
 
 class SequenceService {
     constructor(container) {
-        
         this.container = container;
         this.canvas = container.querySelector('canvas');
         this.ctx = this.canvas.getContext('2d');
+        this.currentSequence = null;
         
         // Initialize the canvas size
         this.resizeCanvas();
         
+        // Bind the resize handler to this instance
+        this.boundResizeHandler = this.resizeCanvas.bind(this);
+        
         // Add event listeners
-        window.addEventListener('resize', () => this.resizeCanvas());
+        window.addEventListener('resize', this.boundResizeHandler);
     }
     
     resizeCanvas() {
@@ -29,6 +32,11 @@ class SequenceService {
         // Set the canvas CSS size to match the container
         this.canvas.style.width = `${width}px`;
         this.canvas.style.height = `${height}px`;
+
+        // Repaint the current sequence if one exists
+        if (this.currentSequence) {
+            this.repaint();
+        }
     }
     
     renderSequenceString(sequence) {
@@ -37,18 +45,30 @@ class SequenceService {
             return;
         }
 
+        this.currentSequence = sequence;
+        this.repaint();
+    }
+
+    repaint() {
+        if (!this.currentSequence) return;
+
         const { width, height } = this.container.getBoundingClientRect();
-        const sectionWidth = width / sequence.length;
+        const sectionWidth = width / this.currentSequence.length;
 
         // Clear the canvas
         this.ctx.clearRect(0, 0, width, height);
 
         // Draw a rectangle for each character
-        for (let i = 0; i < sequence.length; i++) {
-            const color = defaultNucleotideRGBStrings[sequence[i]];
+        for (let i = 0; i < this.currentSequence.length; i++) {
+            const color = defaultNucleotideRGBStrings[this.currentSequence[i]];
             this.ctx.fillStyle = color;
             this.ctx.fillRect(i * sectionWidth, 0, sectionWidth, height);
         }
+    }
+    
+    dispose() {
+        // Remove event listeners
+        window.removeEventListener('resize', this.boundResizeHandler);
     }
     
     // Add methods for sequence visualization and interaction here

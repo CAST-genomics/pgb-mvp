@@ -29,6 +29,11 @@ class SceneManager {
         this.raycastService = raycastService
         this.raycastService.setupVisualFeedback(this.scene)
 
+        // Register Raycast click handler
+        this.raycastService.registerClickHandler((nodeName, t) => {
+            console.log(`Line(${nodeName}) t(${t})`);
+        });
+
         // Setup resize handler
         window.addEventListener('resize', () => this.handleResize())
     }
@@ -59,7 +64,7 @@ class SceneManager {
         this.renderer.domElement.style.cursor = 'none';
 
         const { t, nodeName } = this.raycastService.handleIntersection(this.dataService, nodeLine, pointOnLine, faceIndex);
-        console.log(`line(${ nodeName }) t(${ t })`);
+        // console.log(`line(${ nodeName }) t(${ t })`);
 
         if (nodeName !== previousNodeName) {
             previousNodeName = nodeName
@@ -143,6 +148,12 @@ class SceneManager {
         boundingSphereHelper.position.copy(boundingSphere.center)
         boundingSphereHelper.name = 'boundingSphereHelper'
         return boundingSphereHelper
+    }
+
+    handleLineClick(nodeName, pointOnLine) {
+        // This method can be overridden or extended to handle line clicks
+        // For now, we'll just log the click
+        console.log(`Line ${nodeName} clicked at point:`, pointOnLine);
     }
 
     async handleSearch(url) {
