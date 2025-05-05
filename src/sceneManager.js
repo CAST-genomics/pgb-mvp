@@ -4,15 +4,19 @@ import CameraRig from "./cameraRig.js"
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 
+let previousNodeName = undefined
 
 class SceneManager {
 
-    constructor(container, backgroundColor, frustumSize, raycastService, dataService) {
+    constructor(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService) {
         this.container = container
         this.scene = new THREE.Scene()
         this.scene.background = backgroundColor
         this.initialFrustumSize = frustumSize
+
         this.dataService = dataService
+        this.sequenceService = sequenceService
+
         // Initialize renderer
         this.renderer = RendererFactory.create(container)
 
@@ -24,6 +28,11 @@ class SceneManager {
 
         this.raycastService = raycastService
         this.raycastService.setupVisualFeedback(this.scene)
+
+        // Register Raycast click handler
+        this.raycastService.registerClickHandler((nodeLine, nodeName, ignore) => {
+            this.sequenceService.renderWithNode(nodeLine, nodeName)
+        });
 
         // Setup resize handler
         window.addEventListener('resize', () => this.handleResize())
@@ -51,50 +60,13 @@ class SceneManager {
 
 		const { faceIndex, pointOnLine, object:nodeLine } = intersections[0];
 
-        // Show feedback for line intersection
-		this.raycastService.showVisualFeedback(pointOnLine, nodeLine.material.color)
+        this.renderer.domElement.style.cursor = 'none';
 
-        const { userData } = nodeLine
-        const { nodeName } = userData
-        // console.log(`Intersected node line: ${ nodeName }`);
+        const { t, nodeName } = this.raycastService.handleIntersection(this.dataService, nodeLine, pointOnLine, faceIndex);
 
-		// Calculate parametric coordinate for the spiral
-        const spline = this.dataService.splines.get(nodeName)
-        const segments = nodeLine.geometry.getAttribute('instanceStart')
-		const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
-		console.log(`line ${ nodeName } t: ${ t }`);
-
-		this.renderer.domElement.style.cursor = 'none';
 	}
 
-    findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
-		// Convert segment index to parameter range
-		const segmentSize = 1 / totalSegments;
-		const left = segmentIndex * segmentSize;
-		const right = (segmentIndex + 1) * segmentSize;
-
-		// Do a local search within this segment
-		let iterations = 0;
-		const maxIterations = 16;
-		let bestT = left;
-		let bestDist = spline.getPoint(left).distanceTo(targetPoint);
-
-		// Sample points within the segment to find closest
-		const samples = 10;
-		for (let i = 0; i <= samples; i++) {
-			const t = left + (right - left) * (i / samples);
-			const dist = spline.getPoint(t).distanceTo(targetPoint);
-
-			if (dist < bestDist) {
-				bestDist = dist;
-				bestT = t;
-			}
-		}
-
-		return bestT;
-	}
-
-	clearIntersectionFeedback() {
+    clearIntersectionFeedback() {
 		this.raycastService.clearVisualFeedback()
         this.renderer.domElement.style.cursor = '';
 	}
@@ -170,6 +142,12 @@ class SceneManager {
         boundingSphereHelper.position.copy(boundingSphere.center)
         boundingSphereHelper.name = 'boundingSphereHelper'
         return boundingSphereHelper
+    }
+
+    handleLineClick(nodeName, pointOnLine) {
+        // This method can be overridden or extended to handle line clicks
+        // For now, we'll just log the click
+        console.log(`Line ${nodeName} clicked at point:`, pointOnLine);
     }
 
     async handleSearch(url) {

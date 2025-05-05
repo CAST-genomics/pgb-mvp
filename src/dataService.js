@@ -7,7 +7,8 @@ class DataService {
     #EDGE_Z_OFFSET = -4
 
     constructor() {
-        this.splines = new Map() // Store splines by node name
+        this.splines = new Map()
+        this.sequences = new Map()
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
     }
@@ -108,6 +109,12 @@ class DataService {
         }
     }
 
+    #createSequences(sequences) {
+        for (const [ nodeName, sequenceString ] of Object.entries(sequences)) {
+            this.sequences.set(nodeName, sequenceString)
+        }
+    }
+
     async loadPath(url) {
         try {
             const response = await fetch(url);
@@ -132,6 +139,7 @@ class DataService {
 
         // Clear existing splines
         this.splines.clear()
+        this.sequences.clear()
         this.linesGroup.clear()
         this.edgesGroup.clear()
 
@@ -141,6 +149,7 @@ class DataService {
         // Create splines & lines
         this.#createSplinesAndNodeLines(bbox, json.node);
         this.#createEdgeLines(json.edge);
+        this.#createSequences(json.sequence);
     }
 
     addToScene(scene) {

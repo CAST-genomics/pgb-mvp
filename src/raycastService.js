@@ -6,6 +6,8 @@ class RayCastService {
         this.raycaster = new THREE.Raycaster();
         this.setup(threshold);
         this.setupEventListeners(container);
+        this.clickCallbacks = new Set();
+        this.currentIntersection = null;
     }
 
     setup(threshold) {
@@ -16,11 +18,23 @@ class RayCastService {
     setupEventListeners(container) {
         this.container = container;
         container.addEventListener('pointermove', this.onPointerMove.bind(this));
+        container.addEventListener('click', this.onClick.bind(this));
     }
 
     cleanup() {
         if (this.container) {
             this.container.removeEventListener('pointermove', this.onPointerMove.bind(this));
+            this.container.removeEventListener('click', this.onClick.bind(this));
+        }
+        this.clickCallbacks.clear();
+    }
+
+    onClick(event) {
+        if (this.currentIntersection) {
+            const { t, nodeName, nodeLine } = this.currentIntersection;
+            for (const callback of this.clickCallbacks) {
+                callback(nodeLine, nodeName, t);
+            }
         }
     }
 
@@ -35,7 +49,7 @@ class RayCastService {
     }
 
     intersectObject(camera, object) {
-        this.updateRaycaster(camera)
+        this.updateRaycaster(camera);
         return this.raycaster.intersectObject(object)
     }
 
@@ -65,6 +79,57 @@ class RayCastService {
 
     clearVisualFeedback() {
         this.raycastVisualFeedback.visible = false;
+    }
+
+    handleIntersection(dataService, nodeLine, pointOnLine, faceIndex) {
+
+        this.showVisualFeedback(pointOnLine, nodeLine.material.color)
+        console.log(`Line intersection(${ pointOnLine.x }, ${ pointOnLine.y }, ${ pointOnLine.z })`)
+
+        const { userData } = nodeLine;
+        const { nodeName } = userData;
+        const spline = dataService.splines.get(nodeName);
+        const segments = nodeLine.geometry.getAttribute('instanceStart');
+        const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
+
+        const sanityCheck = spline.getPoint(t);
+        console.log(`sanityCheck(${sanityCheck.x}, ${sanityCheck.y}, ${sanityCheck.z})`)
+
+        this.currentIntersection = { t, nodeName, nodeLine };
+
+        return this.currentIntersection;
+    }
+
+    findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
+        // Convert segment index to parameter range
+        const segmentSize = 1 / totalSegments;
+        const left = segmentIndex * segmentSize;
+        const right = (segmentIndex + 1) * segmentSize;
+
+        // Do a local search within this segment
+        let iterations = 0;
+        const maxIterations = 16;
+        let bestT = left;
+        let bestDist = spline.getPoint(left).distanceTo(targetPoint);
+
+        // Sample points within the segment to find closest
+        const samples = 10;
+        for (let i = 0; i <= samples; i++) {
+            const t = left + (right - left) * (i / samples);
+            const dist = spline.getPoint(t).distanceTo(targetPoint);
+
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestT = t;
+            }
+        }
+
+        return bestT;
+    }
+
+    registerClickHandler(callback) {
+        this.clickCallbacks.add(callback);
+        return () => this.clickCallbacks.delete(callback); // Return cleanup function
     }
 }
 
