@@ -31,9 +31,9 @@ class RayCastService {
 
     onClick(event) {
         if (this.currentIntersection) {
-            const { t, nodeName } = this.currentIntersection;
+            const { t, nodeName, nodeLine } = this.currentIntersection;
             for (const callback of this.clickCallbacks) {
-                callback(nodeName, t);
+                callback(nodeLine, nodeName, t);
             }
         }
     }
@@ -83,13 +83,19 @@ class RayCastService {
 
     handleIntersection(dataService, nodeLine, pointOnLine, faceIndex) {
 
+        this.showVisualFeedback(pointOnLine, nodeLine.material.color)
+        console.log(`Line intersection(${ pointOnLine.x }, ${ pointOnLine.y }, ${ pointOnLine.z })`)
+
         const { userData } = nodeLine;
         const { nodeName } = userData;
         const spline = dataService.splines.get(nodeName);
         const segments = nodeLine.geometry.getAttribute('instanceStart');
         const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
 
-        this.currentIntersection = { t, nodeName };
+        const sanityCheck = spline.getPoint(t);
+        console.log(`sanityCheck(${sanityCheck.x}, ${sanityCheck.y}, ${sanityCheck.z})`)
+
+        this.currentIntersection = { t, nodeName, nodeLine };
 
         return this.currentIntersection;
     }
@@ -119,11 +125,6 @@ class RayCastService {
         }
 
         return bestT;
-    }
-
-    clearIntersectionFeedback() {
-        this.currentIntersection = null;
-        this.raycastVisualFeedback.visible = false;
     }
 
     registerClickHandler(callback) {

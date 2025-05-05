@@ -30,8 +30,8 @@ class SceneManager {
         this.raycastService.setupVisualFeedback(this.scene)
 
         // Register Raycast click handler
-        this.raycastService.registerClickHandler((nodeName, t) => {
-            console.log(`Line(${nodeName}) t(${t})`);
+        this.raycastService.registerClickHandler((nodeLine, nodeName, ignore) => {
+            this.sequenceService.renderWithNode(nodeLine, nodeName)
         });
 
         // Setup resize handler
@@ -49,6 +49,7 @@ class SceneManager {
     }
 
     handleIntersection(intersections) {
+
         if (undefined === intersections || 0 === intersections.length) {
             this.clearIntersectionFeedback()
             return
@@ -59,17 +60,10 @@ class SceneManager {
 
 		const { faceIndex, pointOnLine, object:nodeLine } = intersections[0];
 
-        // Show feedback for line intersection
-		this.raycastService.showVisualFeedback(pointOnLine, nodeLine.material.color)
         this.renderer.domElement.style.cursor = 'none';
 
         const { t, nodeName } = this.raycastService.handleIntersection(this.dataService, nodeLine, pointOnLine, faceIndex);
-        // console.log(`line(${ nodeName }) t(${ t })`);
 
-        if (nodeName !== previousNodeName) {
-            previousNodeName = nodeName
-            this.sequenceService.renderSequenceString(this.dataService.sequences.get(nodeName))
-        }
 	}
 
     clearIntersectionFeedback() {

@@ -14,9 +14,10 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const container = document.getElementById('pgb-three-container')
     const threshold = 8
+    const dataService = new DataService()
     const raycastService = new RayCastService(container, threshold)
-    const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'))
-    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, new DataService(), sequenceService)
+    const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), dataService, raycastService)
+    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService)
 
     sceneManager.startAnimation()
 
