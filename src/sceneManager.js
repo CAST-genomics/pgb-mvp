@@ -4,14 +4,19 @@ import CameraRig from "./cameraRig.js"
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 
+let previousNodeName = undefined
+
 class SceneManager {
 
-    constructor(container, backgroundColor, frustumSize, raycastService, dataService) {
+    constructor(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService) {
         this.container = container
         this.scene = new THREE.Scene()
         this.scene.background = backgroundColor
         this.initialFrustumSize = frustumSize
+
         this.dataService = dataService
+        this.sequenceService = sequenceService
+
         // Initialize renderer
         this.renderer = RendererFactory.create(container)
 
@@ -55,6 +60,11 @@ class SceneManager {
 
         const { t, nodeName } = this.raycastService.handleIntersection(this.dataService, nodeLine, pointOnLine, faceIndex);
         console.log(`line(${ nodeName }) t(${ t })`);
+
+        if (nodeName !== previousNodeName) {
+            previousNodeName = nodeName
+            this.sequenceService.renderSequenceString(this.dataService.sequences.get(nodeName))
+        }
 	}
 
     clearIntersectionFeedback() {
