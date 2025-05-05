@@ -66,6 +66,42 @@ class RayCastService {
     clearVisualFeedback() {
         this.raycastVisualFeedback.visible = false;
     }
+
+    handleIntersection(dataService, nodeLine, pointOnLine, faceIndex) {
+        const { userData } = nodeLine;
+        const { nodeName } = userData;
+        const spline = dataService.splines.get(nodeName);
+        const segments = nodeLine.geometry.getAttribute('instanceStart');
+        const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
+        return { t, nodeName };
+    }
+
+    findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
+        // Convert segment index to parameter range
+        const segmentSize = 1 / totalSegments;
+        const left = segmentIndex * segmentSize;
+        const right = (segmentIndex + 1) * segmentSize;
+
+        // Do a local search within this segment
+        let iterations = 0;
+        const maxIterations = 16;
+        let bestT = left;
+        let bestDist = spline.getPoint(left).distanceTo(targetPoint);
+
+        // Sample points within the segment to find closest
+        const samples = 10;
+        for (let i = 0; i <= samples; i++) {
+            const t = left + (right - left) * (i / samples);
+            const dist = spline.getPoint(t).distanceTo(targetPoint);
+
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestT = t;
+            }
+        }
+
+        return bestT;
+    }
 }
 
 export default RayCastService;
