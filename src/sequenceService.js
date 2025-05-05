@@ -1,4 +1,5 @@
 import { getRandomVibrantAppleCrayonColor } from './utils/color.js';
+import { defaultNucleotideRGBStrings } from './utils/nucleotideRGBStrings.js';
 
 class SequenceService {
     constructor(container) {
@@ -44,14 +45,9 @@ class SequenceService {
 
         // Draw a rectangle for each character
         for (let i = 0; i < sequence.length; i++) {
-            const color = getRandomVibrantAppleCrayonColor();
-            this.ctx.fillStyle = `#${color.getHexString()}`;
-            this.ctx.fillRect(
-                i * sectionWidth,
-                0,
-                sectionWidth,
-                height
-            );
+            const color = defaultNucleotideRGBStrings[sequence[i]];
+            this.ctx.fillStyle = color;
+            this.ctx.fillRect(i * sectionWidth, 0, sectionWidth, height);
         }
     }
     
