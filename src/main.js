@@ -3,12 +3,15 @@ import SceneManager from './sceneManager.js'
 import RayCastService from './raycastService.js'
 import DataService from './dataService.js'
 import SequenceService from './sequenceService.js'
+import LocusInput from './locusInput.js'
 import './styles/app.scss'
 
 let sceneManager
-
+let locusInput
 document.addEventListener("DOMContentLoaded", async (event) => {
 
+    locusInput = new LocusInput(document.querySelector('#pgb-locus-input-container'))
+    
     const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
 
