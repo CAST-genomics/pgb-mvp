@@ -11,9 +11,12 @@ const LOCUS_PATTERNS = {
     REGION: /^(?:chr)?(\d{1,2}|[XY]):([0-9,]+)-([0-9,]+)$/i
 };
 
+const pangenomeURLTemplate = 'https://3.145.184.140:8440/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&exact_overlap=true&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
+
 class LocusInput {
-    constructor(container) {
+    constructor(container, sceneManager) {
         this.container = container;
+        this.sceneManager = sceneManager;
         this.render();
         this.setupEventListeners();
     }
@@ -112,10 +115,10 @@ class LocusInput {
         this.errorDiv.style.display = 'block';
     }
 
-    ingestLocus(chr, startBP, endBP) {
-        // Add 1 to startBP. User input is 1-based, genomic ruler is 0-based
-        const str = `${chr}:${prettyPrint(1 + startBP)}-${prettyPrint(endBP)}`;
-        console.log(`Genomic locus changed: ${str}`);
+    async ingestLocus(chr, startBP, endBP) {
+        const path = pangenomeURLTemplate.replace('_CHR_', chr).replace('_START_', startBP).replace('_END_', endBP);
+        console.log(`Pangenome URL: ${path}`);
+        await this.sceneManager.handleSearch(path);
     }
 }
 

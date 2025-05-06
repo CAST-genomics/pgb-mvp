@@ -9,8 +9,6 @@ import './styles/app.scss'
 let sceneManager
 let locusInput
 document.addEventListener("DOMContentLoaded", async (event) => {
-
-    locusInput = new LocusInput(document.querySelector('#pgb-locus-input-container'))
     
     const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
@@ -21,6 +19,9 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const raycastService = new RayCastService(container, threshold)
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), dataService, raycastService)
     sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService)
+
+
+    locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
 
     sceneManager.startAnimation()
 
