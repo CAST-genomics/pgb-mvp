@@ -17,13 +17,17 @@ class SequenceService {
         // Initialize the canvas size
         this.resizeCanvas();
 
-        // Bind the resize handler to this instance
+        // Bind the handlers to this instance
         this.boundResizeHandler = this.resizeCanvas.bind(this);
         this.boundMouseMoveHandler = this.handleMouseMove.bind(this);
+        this.boundMouseEnterHandler = this.handleMouseEnter.bind(this);
+        this.boundMouseLeaveHandler = this.handleMouseLeave.bind(this);
 
         // Add event listeners
         window.addEventListener('resize', this.boundResizeHandler);
         this.canvas.addEventListener('mousemove', this.boundMouseMoveHandler);
+        this.canvas.addEventListener('mouseenter', this.boundMouseEnterHandler);
+        this.canvas.addEventListener('mouseleave', this.boundMouseLeaveHandler);
     }
 
     resizeCanvas() {
@@ -80,20 +84,38 @@ class SequenceService {
         const { left, width } = this.canvas.getBoundingClientRect();
         const x = event.clientX - left;
         const t = (x / width);
-        // console.log(`t(${t})`);
 
         const spline = this.dataService.splines.get(this.currentNodeName);
         const pointOnLine = spline.getPoint(t);
 
-        console.log(`sequenceService intersection(${ pointOnLine.x }, ${ pointOnLine.y }, ${ pointOnLine.z })`)
         this.raycastService.showVisualFeedback(pointOnLine, this.currentNodeLine.material.color)
 
+    }
+
+    handleMouseEnter(event) {
+        if (!this.currentNodeName) {
+            return;
+        }
+
+        this.canvas.style.cursor = 'pointer';
+        this.raycastService.disable();
+    }
+
+    handleMouseLeave(event) {
+        if (!this.currentNodeName) {
+            return;
+        }
+
+        this.canvas.style.cursor = 'default';
+        this.raycastService.enable();
     }
 
     dispose() {
         // Remove event listeners
         window.removeEventListener('resize', this.boundResizeHandler);
         this.canvas.removeEventListener('mousemove', this.boundMouseMoveHandler);
+        this.canvas.removeEventListener('mouseenter', this.boundMouseEnterHandler);
+        this.canvas.removeEventListener('mouseleave', this.boundMouseLeaveHandler);
     }
 
     // Add methods for sequence visualization and interaction here

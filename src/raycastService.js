@@ -4,6 +4,7 @@ class RayCastService {
     constructor(container, threshold) {
         this.pointer = new THREE.Vector2();
         this.raycaster = new THREE.Raycaster();
+        this.isEnabled = true;
         this.setup(threshold);
         this.setupEventListeners(container);
         this.clickCallbacks = new Set();
@@ -84,16 +85,13 @@ class RayCastService {
     handleIntersection(dataService, nodeLine, pointOnLine, faceIndex) {
 
         this.showVisualFeedback(pointOnLine, nodeLine.material.color)
-        console.log(`Line intersection(${ pointOnLine.x }, ${ pointOnLine.y }, ${ pointOnLine.z })`)
+        // console.log(`Line intersection(${ pointOnLine.x }, ${ pointOnLine.y }, ${ pointOnLine.z })`)
 
         const { userData } = nodeLine;
         const { nodeName } = userData;
         const spline = dataService.splines.get(nodeName);
         const segments = nodeLine.geometry.getAttribute('instanceStart');
         const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
-
-        const sanityCheck = spline.getPoint(t);
-        console.log(`sanityCheck(${sanityCheck.x}, ${sanityCheck.y}, ${sanityCheck.z})`)
 
         this.currentIntersection = { t, nodeName, nodeLine };
 
@@ -125,6 +123,15 @@ class RayCastService {
         }
 
         return bestT;
+    }
+
+    disable() {
+        this.isEnabled = false;
+        this.clearVisualFeedback();
+    }
+
+    enable() {
+        this.isEnabled = true;
     }
 
     registerClickHandler(callback) {
