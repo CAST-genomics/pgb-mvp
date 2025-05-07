@@ -43,13 +43,14 @@ class EventBus {
     publish(event, data) {
         const callbacks = this.subscribers.get(event);
         if (callbacks) {
-            callbacks.forEach(callback => {
+
+            for (const callback of callbacks) { 
                 try {
                     callback(data);
                 } catch (error) {
                     console.error(`Error in event handler for ${event}:`, error);
                 }
-            });
+            }
         }
     }
 

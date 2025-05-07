@@ -75,12 +75,12 @@ class SceneManager {
 	}
 
     animate() {
-
         if (true === this.raycastService.isEnabled) {
             const intersections = this.raycastService.intersectObject(this.cameraRig.camera, this.dataService.linesGroup)
             this.handleIntersection(intersections)
         }
 
+        this.sequenceService.update();
         this.cameraRig.update()
         this.renderer.render(this.scene, this.cameraRig.camera)
     }

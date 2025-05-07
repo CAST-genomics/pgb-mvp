@@ -18,6 +18,8 @@ class SequenceService {
 
         this.currentNodeLine = null;
         this.currentNodeName = null;
+        this.lastMousePosition = { x: 0, t: 0 };
+        this.needsUpdate = false;
 
         // Initialize the canvas size
         this.resizeCanvas();
@@ -27,6 +29,7 @@ class SequenceService {
         this.boundMouseMoveHandler = this.handleMouseMove.bind(this);
         this.boundMouseEnterHandler = this.handleMouseEnter.bind(this);
         this.boundMouseLeaveHandler = this.handleMouseLeave.bind(this);
+        this.boundUpdateHandler = this.update.bind(this);
 
         // Add event listeners
         window.addEventListener('resize', this.boundResizeHandler);
@@ -35,17 +38,6 @@ class SequenceService {
         this.canvas.addEventListener('mouseleave', this.boundMouseLeaveHandler);
 
         this.unsubscribeEventBus = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this));
-    }
-
-    handleLineIntersection({ t, nodeName, nodeLine }) {
-        
-        if (!this.currentNodeName) return;
-
-        this.feedbackElement.style.display = 'block';
-
-        const { width } = this.container.getBoundingClientRect();
-        const feedbackElementRadius = parseInt(this.feedbackElement.style.width) / 2;
-        this.feedbackElement.style.left = `${(t * width) - feedbackElementRadius}px`;
     }
 
     resizeCanvas() {
@@ -85,6 +77,11 @@ class SequenceService {
 
         const sequence = this.dataService.sequences.get(this.currentNodeName);
 
+        if (!sequence) {
+            console.error(`No sequence found for ${this.currentNodeName}`);
+            return;
+        }   
+
         const { width, height } = this.container.getBoundingClientRect();
         const sectionWidth = width / sequence.length;
 
@@ -99,6 +96,17 @@ class SequenceService {
         }
     }
 
+    handleLineIntersection({ t, nodeName, nodeLine }) {
+        
+        if (!this.currentNodeName) return;
+
+        this.feedbackElement.style.display = 'block';
+
+        const { width } = this.container.getBoundingClientRect();
+        const feedbackElementRadius = parseInt(this.feedbackElement.style.width) / 2;
+        this.feedbackElement.style.left = `${(t * width) - feedbackElementRadius}px`;
+    }
+
     handleMouseMove(event) {
         if (!this.currentNodeName) return;
 
@@ -106,14 +114,19 @@ class SequenceService {
         const x = event.clientX - left;
         const t = (x / width);
 
-        const spline = this.dataService.splines.get(this.currentNodeName);
+        this.lastMouseMovePayload = { x, t };
+        this.needsUpdate = true;
+    }
 
+    update() {
+        if (!this.needsUpdate || !this.currentNodeName) return;
+
+        const spline = this.dataService.splines.get(this.currentNodeName);
         if (spline) {
-            const pointOnLine = spline.getPoint(t);
+            const pointOnLine = spline.getPoint(this.lastMouseMovePayload.t);
             this.raycastService.showVisualFeedback(pointOnLine, this.currentNodeLine.material.color);
-        } else {
-            console.error(`No spline found for ${this.currentNodeName}`);
         }
+        this.needsUpdate = false;
     }
 
     handleMouseEnter(event) {
