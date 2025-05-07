@@ -39,10 +39,10 @@ class RayCastService {
         }
     }
 
-    onPointerMove(event) {
-        const rect = this.container.getBoundingClientRect();
-        this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    onPointerMove({ clientX, clientY }) {
+        const { left, top, width, height } = this.container.getBoundingClientRect();
+        this.pointer.x = ((clientX - left) / width) * 2 - 1;
+        this.pointer.y = -((clientY - top) / height) * 2 + 1;
     }
 
     updateRaycaster(camera) {
