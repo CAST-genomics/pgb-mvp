@@ -9,7 +9,7 @@ import './styles/app.scss'
 let sceneManager
 let locusInput
 document.addEventListener("DOMContentLoaded", async (event) => {
-    
+
     const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
 
@@ -25,23 +25,4 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     sceneManager.startAnimation()
 
-    // Add search handlers
-    const searchButton = document.querySelector('.btn-outline-secondary');
-    const urlInput = document.getElementById('urlInput');
-
-    // Handle manual URL entry
-    searchButton.addEventListener('click', () => {
-        const url = urlInput.value;
-        sceneManager.handleSearch(url);
-    });
-
-    // Handle dropdown selection
-    document.querySelectorAll('.dropdown-item').forEach(item => {
-        item.addEventListener('click', (event) => {
-            event.preventDefault();
-            const url = event.target.href;
-            urlInput.value = url;
-            sceneManager.handleSearch(url);
-        });
-    });
 })

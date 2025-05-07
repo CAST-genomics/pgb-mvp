@@ -86,9 +86,13 @@ class SequenceService {
         const t = (x / width);
 
         const spline = this.dataService.splines.get(this.currentNodeName);
-        const pointOnLine = spline.getPoint(t);
 
-        this.raycastService.showVisualFeedback(pointOnLine, this.currentNodeLine.material.color)
+        if (spline) {
+            const pointOnLine = spline.getPoint(t);
+            this.raycastService.showVisualFeedback(pointOnLine, this.currentNodeLine.material.color)
+        } else {
+            console.error(`No spline found for ${ this.currentNodeName }`);
+        }
 
     }
 
