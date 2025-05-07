@@ -1,17 +1,13 @@
-import * as THREE from 'three';
 
-async function loadTexture(url) {
+function prettyPrint(number) {
 
-    const loader = new THREE.TextureLoader()
+    if (typeof number !== "number") {
+        console.error(`${ number } must be a number`)
+        return
+    }
 
-    return new Promise((resolve, reject) => {
-        loader.load(
-            url,
-            (texture) => resolve(texture),
-            undefined,
-            (err) => reject(err)
-        );
-    });
+    const integerPart = Math.trunc(number)
+    return integerPart.toLocaleString()
 }
 
-export { loadTexture }
+export { prettyPrint }
