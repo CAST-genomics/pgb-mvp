@@ -1,5 +1,5 @@
-import { getRandomVibrantAppleCrayonColor } from './utils/color.js';
 import { defaultNucleotideRGBStrings } from './utils/nucleotideRGBStrings.js';
+import eventBus from './utils/eventBus.js';
 
 class SequenceService {
     constructor(container, dataService, raycastService) {
@@ -10,6 +10,11 @@ class SequenceService {
 
         this.canvas = container.querySelector('canvas');
         this.ctx = this.canvas.getContext('2d');
+
+        // Create visual feedback element
+        this.feedbackElement = document.createElement('div');
+        this.feedbackElement.classList.add('pgb-sequence-container__feedback');
+        this.container.appendChild(this.feedbackElement);
 
         this.currentNodeLine = null;
         this.currentNodeName = null;
@@ -28,6 +33,19 @@ class SequenceService {
         this.canvas.addEventListener('mousemove', this.boundMouseMoveHandler);
         this.canvas.addEventListener('mouseenter', this.boundMouseEnterHandler);
         this.canvas.addEventListener('mouseleave', this.boundMouseLeaveHandler);
+
+        this.unsubscribeEventBus = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this));
+    }
+
+    handleLineIntersection({ t, nodeName, nodeLine }) {
+        
+        if (!this.currentNodeName) return;
+
+        this.feedbackElement.style.display = 'block';
+
+        const { width } = this.container.getBoundingClientRect();
+        const feedbackElementRadius = parseInt(this.feedbackElement.style.width) / 2;
+        this.feedbackElement.style.left = `${(t * width) - feedbackElementRadius}px`;
     }
 
     resizeCanvas() {
@@ -44,6 +62,10 @@ class SequenceService {
         // Set the canvas CSS size to match the container
         this.canvas.style.width = `${width}px`;
         this.canvas.style.height = `${height}px`;
+
+        // Update feedback element size to match canvas height
+        this.feedbackElement.style.width = `${height}px`;
+        this.feedbackElement.style.height = `${height}px`;
 
         // Repaint the current sequence if one exists
         if (this.currentNodeName) {
@@ -78,7 +100,6 @@ class SequenceService {
     }
 
     handleMouseMove(event) {
-
         if (!this.currentNodeName) return;
 
         const { left, width } = this.canvas.getBoundingClientRect();
@@ -89,11 +110,10 @@ class SequenceService {
 
         if (spline) {
             const pointOnLine = spline.getPoint(t);
-            this.raycastService.showVisualFeedback(pointOnLine, this.currentNodeLine.material.color)
+            this.raycastService.showVisualFeedback(pointOnLine, this.currentNodeLine.material.color);
         } else {
-            console.error(`No spline found for ${ this.currentNodeName }`);
+            console.error(`No spline found for ${this.currentNodeName}`);
         }
-
     }
 
     handleMouseEnter(event) {
@@ -103,6 +123,7 @@ class SequenceService {
 
         this.canvas.style.cursor = 'pointer';
         this.raycastService.disable();
+        this.feedbackElement.style.display = 'none';
     }
 
     handleMouseLeave(event) {
@@ -112,6 +133,7 @@ class SequenceService {
 
         this.canvas.style.cursor = 'default';
         this.raycastService.enable();
+        this.feedbackElement.style.display = 'none';
     }
 
     dispose() {
@@ -120,9 +142,13 @@ class SequenceService {
         this.canvas.removeEventListener('mousemove', this.boundMouseMoveHandler);
         this.canvas.removeEventListener('mouseenter', this.boundMouseEnterHandler);
         this.canvas.removeEventListener('mouseleave', this.boundMouseLeaveHandler);
-    }
 
-    // Add methods for sequence visualization and interaction here
+        // Remove feedback element
+        this.feedbackElement.remove();
+
+        // Unsubscribe from the event bus
+        this.unsubscribeEventBus();
+    }
 }
 
 export default SequenceService;

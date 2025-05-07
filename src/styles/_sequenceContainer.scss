@@ -1,0 +1,18 @@
+.pgb-sequence-container {
+    position: relative;
+    height: 32px;
+
+    &__canvas {
+        cursor: pointer;
+    }
+
+    &__feedback {
+        position: absolute;
+        top: 0;
+        left: 0;
+        border: 2px solid rgb(71, 71, 71);
+        border-radius: 50%;
+        pointer-events: none;
+        display: none;
+    }
+} 
