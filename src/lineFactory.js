@@ -33,15 +33,16 @@ class LineFactory {
 
         // Calculate perpendicular vector (90 degrees rotation in XY plane)
         const perpendicular = new THREE.Vector3(-direction.y, direction.x, 0);
-        
+
         // Calculate the four corners of the rectangle
         const halfWidth = lineMaterial.linewidth / 2;
-        const corners = [
-            new THREE.Vector3().copy(startXYZ).addScaledVector(perpendicular, halfWidth),
-            new THREE.Vector3().copy(startXYZ).addScaledVector(perpendicular, -halfWidth),
-            new THREE.Vector3().copy(endXYZ).addScaledVector(perpendicular, -halfWidth),
-            new THREE.Vector3().copy(endXYZ).addScaledVector(perpendicular, halfWidth)
-        ];
+        const corners =
+            [
+                new THREE.Vector3().copy(startXYZ).addScaledVector(perpendicular, halfWidth),
+                new THREE.Vector3().copy(startXYZ).addScaledVector(perpendicular, -halfWidth),
+                new THREE.Vector3().copy(endXYZ).addScaledVector(perpendicular, -halfWidth),
+                new THREE.Vector3().copy(endXYZ).addScaledVector(perpendicular, halfWidth)
+            ];
 
         const vertices = [];
         for (const {x, y, z} of corners){
@@ -51,17 +52,10 @@ class LineFactory {
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
 
-        const indices = [0, 1, 2, 0, 2, 3]; // Two triangles to form the rectangle
-        geometry.setIndex(indices);
+        // Two triangles to form the rectangle
+        geometry.setIndex([0, 1, 2, 0, 2, 3]);
 
-        // Create mesh with the same material color but as a MeshBasicMaterial
-        const material = new THREE.MeshBasicMaterial({
-            color: lineMaterial.color,
-            side: THREE.DoubleSide
-        });
-
-        const rect = new THREE.Mesh(geometry, material);
-        return rect;
+        return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: lineMaterial.color, side: THREE.DoubleSide }));
     }
 
     static createNodeLine(nodeName, spline, divisionsMultiplier, zOffset, lineMaterial) {

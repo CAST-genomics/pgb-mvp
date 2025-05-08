@@ -4,10 +4,12 @@ import RayCastService from './raycastService.js'
 import DataService from './dataService.js'
 import SequenceService from './sequenceService.js'
 import LocusInput from './locusInput.js'
+import textureService from './utils/textureService.js'
 import './styles/app.scss'
 
 let sceneManager
 let locusInput
+
 document.addEventListener("DOMContentLoaded", async (event) => {
 
     const backgroundColor = new THREE.Color(0xffffff)
@@ -20,8 +22,9 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), dataService, raycastService)
     sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService)
 
-
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
+
+    await textureService.initialize({ textures: { 'uv': '/src/assets/textures/uv128x128.png' } })  
 
     sceneManager.startAnimation()
 
