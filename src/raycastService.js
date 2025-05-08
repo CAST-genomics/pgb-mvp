@@ -98,6 +98,10 @@ class RayCastService {
         return this.currentIntersection;
     }
 
+    clearIntersection() {
+        this.currentIntersection = null;
+        this.clearVisualFeedback();
+    }
     findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
         // Convert segment index to parameter range
         const segmentSize = 1 / totalSegments;
@@ -127,7 +131,7 @@ class RayCastService {
 
     disable() {
         this.isEnabled = false;
-        this.clearVisualFeedback();
+        this.clearIntersection();
     }
 
     enable() {

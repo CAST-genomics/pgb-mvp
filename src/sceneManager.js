@@ -52,7 +52,7 @@ class SceneManager {
     handleIntersection(intersections) {
 
         if (undefined === intersections || 0 === intersections.length) {
-            this.clearIntersectionFeedback()
+            this.clearIntersection()
             return
         }
 
@@ -69,8 +69,8 @@ class SceneManager {
 
 	}
 
-    clearIntersectionFeedback() {
-		this.raycastService.clearVisualFeedback()
+    clearIntersection() {
+		this.raycastService.clearIntersection()
         this.renderer.domElement.style.cursor = '';
 	}
 
