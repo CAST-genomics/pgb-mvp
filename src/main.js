@@ -26,10 +26,10 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const textures =
     {
-        'arrow-alpha': '/src/assets/textures/arrow-alpha.png',
-        'arrow': '/src/assets/textures/arrow.png',
-        'uv': '/src/assets/textures/uv128x128.png',
-        'u': '/src/assets/textures/u128x128.png'
+        'arrow-alpha': new URL('./assets/textures/arrow-alpha.png', import.meta.url).href,
+        'arrow': new URL('./assets/textures/arrow.png', import.meta.url).href,
+        'uv': new URL('./assets/textures/uv128x128.png', import.meta.url).href,
+        'u': new URL('./assets/textures/u128x128.png', import.meta.url).href
     }
         
     await textureService.initialize({ textures })  
