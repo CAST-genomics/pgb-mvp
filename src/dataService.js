@@ -96,8 +96,10 @@ class DataService {
 
             const materialConfig = {
                 color: getAppleCrayonColorByName('snow2'),
-                map: textureService.getTexture('u'),
-                side: THREE.DoubleSide
+                map: textureService.getTexture('arrow-alpha'),
+                side: THREE.DoubleSide,
+                transparent: true,
+                alphaTest: 0.1
             };
 
             // position edge lines behind nodes in z coordinate
