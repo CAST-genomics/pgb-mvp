@@ -95,7 +95,7 @@ class DataService {
 
             const lineMaterialConfig = {
                 color: getAppleCrayonColorByName('tin'),
-                linewidth: 4,
+                linewidth: 16,
                 worldUnits: true
             };
 
@@ -103,7 +103,7 @@ class DataService {
             xyzStart.z = this.#EDGE_Z_OFFSET
             xyzEnd.z = this.#EDGE_Z_OFFSET
 
-            const edgeLine = LineFactory.createEdgeLine(xyzStart, xyzEnd, new LineMaterial(lineMaterialConfig))
+            const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, new LineMaterial(lineMaterialConfig))
             this.edgesGroup.add(edgeLine)
         }
     }
