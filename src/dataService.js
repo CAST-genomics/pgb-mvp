@@ -99,7 +99,9 @@ class DataService {
                 map: textureService.getTexture('arrow-alpha'),
                 side: THREE.DoubleSide,
                 transparent: true,
-                alphaTest: 0.1
+                alphaTest: 0.1,
+                opacity: 0.5,
+                depthWrite: false,
             };
 
             // position edge lines behind nodes in z coordinate
