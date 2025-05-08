@@ -24,7 +24,13 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
 
-    await textureService.initialize({ textures: { 'uv': '/src/assets/textures/uv128x128.png' } })  
+    const textures =
+    {
+       'uv': '/src/assets/textures/uv128x128.png',
+       'u': '/src/assets/textures/u128x128.png'
+    }
+        
+    await textureService.initialize({ textures })  
 
     sceneManager.startAnimation()
 

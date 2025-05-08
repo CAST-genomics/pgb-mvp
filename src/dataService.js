@@ -96,7 +96,7 @@ class DataService {
 
             const materialConfig = {
                 color: getAppleCrayonColorByName('snow2'),
-                map: textureService.getTexture('uv'),
+                map: textureService.getTexture('u'),
                 side: THREE.DoubleSide
             };
 
