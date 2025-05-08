@@ -103,6 +103,11 @@ class SceneManager {
                 const objectBox = object.geometry.boundingBox.clone()
                 objectBox.applyMatrix4(object.matrixWorld)
                 bbox.union(objectBox)
+            } else if (object.isMesh && object.name !== 'boundingSphereHelper') {
+                object.geometry.computeBoundingBox()
+                const objectBox = object.geometry.boundingBox.clone()
+                objectBox.applyMatrix4(object.matrixWorld)
+                bbox.union(objectBox)
             }
         })
 
