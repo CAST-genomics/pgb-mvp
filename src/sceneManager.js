@@ -3,6 +3,7 @@ import CameraManager from './cameraManager.js'
 import CameraRig from "./cameraRig.js"
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
+import eventBus from './utils/eventBus.js';
 
 let previousNodeName = undefined
 
@@ -51,33 +52,35 @@ class SceneManager {
     handleIntersection(intersections) {
 
         if (undefined === intersections || 0 === intersections.length) {
-            this.clearIntersectionFeedback()
+            this.clearIntersection()
             return
         }
 
         // Sort by distance to get the closest intersection
         intersections.sort((a, b) => a.distance - b.distance);
 
-		const { faceIndex, pointOnLine, object:nodeLine } = intersections[0];
+		const { faceIndex, pointOnLine, object } = intersections[0];
 
         this.renderer.domElement.style.cursor = 'none';
 
-        const { t, nodeName } = this.raycastService.handleIntersection(this.dataService, nodeLine, pointOnLine, faceIndex);
+        const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.dataService, object, pointOnLine, faceIndex);
+
+        eventBus.publish('lineIntersection', { t, nodeName, nodeLine })
 
 	}
 
-    clearIntersectionFeedback() {
-		this.raycastService.clearVisualFeedback()
+    clearIntersection() {
+		this.raycastService.clearIntersection()
         this.renderer.domElement.style.cursor = '';
 	}
 
     animate() {
-
         if (true === this.raycastService.isEnabled) {
             const intersections = this.raycastService.intersectObject(this.cameraRig.camera, this.dataService.linesGroup)
             this.handleIntersection(intersections)
         }
 
+        this.sequenceService.update();
         this.cameraRig.update()
         this.renderer.render(this.scene, this.cameraRig.camera)
     }

@@ -70,7 +70,6 @@ class DataService {
         for (const { starting_node, ending_node } of Object.values(edges)) {
             let spline
             let node
-            let t
 
             // Start node
             const { sign: signStart, remainder: remainderStart } = edgeNodeSign(starting_node)
@@ -78,10 +77,10 @@ class DataService {
             spline = this.splines.get(node)
             if (!spline) {
                 console.error(`Could not find start spline at node ${node}`)
+                continue
             }
 
-            t = signStart === '+' ? 1 : 0
-            const xyzStart = spline.getPoint(t)
+            const xyzStart = spline.getPoint(signStart === '+' ? 1 : 0)
 
             // End node
             const { sign: signEnd, remainder: remainderEnd } = edgeNodeSign(ending_node)
@@ -89,18 +88,18 @@ class DataService {
             spline = this.splines.get(node)
             if (!spline) {
                 console.error(`Could not find end spline at node ${node}`)
+                continue
             }
 
-            t = signEnd === '+' ? 0 : 1
-            const xyzEnd = spline.getPoint(t)
+            const xyzEnd = spline.getPoint(signEnd === '+' ? 0 : 1)
 
             const lineMaterialConfig = {
                 color: getAppleCrayonColorByName('tin'),
-                linewidth: 8,
+                linewidth: 4,
                 worldUnits: true
             };
 
-            // position edge lines behind nodes in z-axis
+            // position edge lines behind nodes in z coordinate
             xyzStart.z = this.#EDGE_Z_OFFSET
             xyzEnd.z = this.#EDGE_Z_OFFSET
 

@@ -1,1 +1,1 @@
-{"version":3,"sourceRoot":"","sources":["_locus-input.scss"],"names":[],"mappings":"AAAA;EACE;;AAGE;EACE;EACA;EACA;;AAKF;EACE;EACA;EACA","file":"app.css"}
+{"version":3,"sourceRoot":"","sources":["_locusInput.scss","_sequenceContainer.scss"],"names":[],"mappings":"AAAA;EACE;;AAGE;EACE;EACA;EACA;;AAKF;EACE;EACA;EACA;;;ACfN;EACI;EACA;;AAEA;EACI;;AAGJ;EACI;EACA;EACA;EACA;EACA;EACA;EACA","file":"app.css"}

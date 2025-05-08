@@ -39,10 +39,10 @@ class RayCastService {
         }
     }
 
-    onPointerMove(event) {
-        const rect = this.container.getBoundingClientRect();
-        this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    onPointerMove({ clientX, clientY }) {
+        const { left, top, width, height } = this.container.getBoundingClientRect();
+        this.pointer.x = ((clientX - left) / width) * 2 - 1;
+        this.pointer.y = -((clientY - top) / height) * 2 + 1;
     }
 
     updateRaycaster(camera) {
@@ -98,6 +98,10 @@ class RayCastService {
         return this.currentIntersection;
     }
 
+    clearIntersection() {
+        this.currentIntersection = null;
+        this.clearVisualFeedback();
+    }
     findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
         // Convert segment index to parameter range
         const segmentSize = 1 / totalSegments;
@@ -127,7 +131,7 @@ class RayCastService {
 
     disable() {
         this.isEnabled = false;
-        this.clearVisualFeedback();
+        this.clearIntersection();
     }
 
     enable() {
