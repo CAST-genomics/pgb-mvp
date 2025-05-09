@@ -95,7 +95,7 @@ class DataService {
             const xyzEnd = spline.getPoint(signEnd === '+' ? 0 : 1)
 
             const materialConfig = {
-                color: getAppleCrayonColorByName('snow2'),
+                color: getAppleCrayonColorByName('snow'),
                 map: textureService.getTexture('arrow-alpha'),
                 side: THREE.DoubleSide,
                 transparent: true,
