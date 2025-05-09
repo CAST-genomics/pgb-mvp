@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import {getAppleCrayonColorByName, generateUniqueColors} from './utils/color.js';
+import textureService from './utils/textureService.js';
 
 class DataService {
     #EDGE_Z_OFFSET = -4
@@ -93,17 +94,21 @@ class DataService {
 
             const xyzEnd = spline.getPoint(signEnd === '+' ? 0 : 1)
 
-            const lineMaterialConfig = {
-                color: getAppleCrayonColorByName('tin'),
-                linewidth: 4,
-                worldUnits: true
+            const materialConfig = {
+                color: getAppleCrayonColorByName('snow'),
+                map: textureService.getTexture('arrow-alpha'),
+                side: THREE.DoubleSide,
+                transparent: true,
+                alphaTest: 0.1,
+                opacity: 0.5,
+                depthWrite: false,
             };
 
             // position edge lines behind nodes in z coordinate
             xyzStart.z = this.#EDGE_Z_OFFSET
             xyzEnd.z = this.#EDGE_Z_OFFSET
 
-            const edgeLine = LineFactory.createEdgeLine(xyzStart, xyzEnd, new LineMaterial(lineMaterialConfig))
+            const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, new THREE.MeshBasicMaterial(materialConfig))
             this.edgesGroup.add(edgeLine)
         }
     }

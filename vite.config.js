@@ -6,6 +6,11 @@ export default defineConfig({
     build: {
         target: 'es2020',
         assetsDir: 'assets', // Organizes assets in a specific folder in the build output
+        rollupOptions: {
+            output: {
+                assetFileNames: 'assets/[name][extname]'
+            }
+        }
     },
     css: {
         preprocessorOptions: {
