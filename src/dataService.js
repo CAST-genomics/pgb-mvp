@@ -9,9 +9,6 @@ class DataService {
 
     constructor() {
         this.splines = new Map()
-        this.sequences = new Map()
-        this.metadata = new Map()
-
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
     }
@@ -115,25 +112,6 @@ class DataService {
         }
     }
 
-    #createSequences(sequences) {
-        for (const [ nodeName, sequenceString ] of Object.entries(sequences)) {
-            this.sequences.set(nodeName, sequenceString)
-        }
-    }
-
-    #createMetadata(nodes) {
-        for (const [nodeName, nodeData] of Object.entries(nodes)) {
-            const { length:bpLength, assembly, range:genomicRange } = nodeData
-            let metadata
-            if (typeof genomicRange === 'string' && genomicRange.trim().length > 0) {
-                metadata = { nodeName, bpLength, assembly, genomicRange }
-            } else {
-                metadata = { nodeName, bpLength, assembly }
-            }
-            this.metadata.set(nodeName, metadata)
-        }
-    }
-
     async loadPath(url) {
         try {
             const response = await fetch(url);
@@ -150,28 +128,26 @@ class DataService {
         }
     }
 
-    ingestData(json) {
+    ingestData(json, genomicService) {
         if (!json || !json.node) {
             console.error('Invalid data format: missing node section')
             return
         }
 
         this.splines.clear()
-        this.sequences.clear()
-        this.metadata.clear()
+        genomicService.clear()
 
         this.linesGroup.clear()
         this.edgesGroup.clear()
 
-        this.#createMetadata(json.node);
+        genomicService.createMetadata(json.node);
 
         // Use bounding box to recenter coordinates
         const bbox = this.#calculateBoundingBox(json);
 
         this.#createSplinesAndNodeLines(bbox, json.node);
         this.#createEdgeLines(json.edge);
-        this.#createSequences(json.sequence);
-        
+        genomicService.createSequences(json.sequence);
     }
 
     addToScene(scene) {

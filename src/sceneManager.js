@@ -9,7 +9,7 @@ let previousNodeName = undefined
 
 class SceneManager {
 
-    constructor(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService) {
+    constructor(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService, genomicService) {
         this.container = container
         this.scene = new THREE.Scene()
         this.scene.background = backgroundColor
@@ -17,7 +17,7 @@ class SceneManager {
 
         this.dataService = dataService
         this.sequenceService = sequenceService
-
+        this.genomicService = genomicService
         // Initialize renderer
         this.renderer = RendererFactory.create(container)
 
@@ -174,7 +174,7 @@ class SceneManager {
 
         this.dataService.dispose()
 
-        this.dataService.ingestData(json)
+        this.dataService.ingestData(json, this.genomicService)
 
         this.dataService.addToScene(this.scene)
 

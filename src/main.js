@@ -5,6 +5,7 @@ import DataService from './dataService.js'
 import SequenceService from './sequenceService.js'
 import LocusInput from './locusInput.js'
 import textureService from './utils/textureService.js'
+import GenomicService from './genomicService.js'
 import './styles/app.scss'
 
 let sceneManager
@@ -19,8 +20,9 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const threshold = 8
     const dataService = new DataService()
     const raycastService = new RayCastService(container, threshold)
+
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), dataService, raycastService)
-    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService)
+    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService, new GenomicService())
 
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
 
