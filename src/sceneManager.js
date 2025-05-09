@@ -4,19 +4,19 @@ import CameraRig from "./cameraRig.js"
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
-import { genomicService } from './main.js';
-let previousNodeName = undefined
 
 class SceneManager {
 
-    constructor(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService) {
+    constructor(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService, genomicService, geometryManager) {
         this.container = container
         this.scene = new THREE.Scene()
         this.scene.background = backgroundColor
         this.initialFrustumSize = frustumSize
 
         this.dataService = dataService
+        this.geometryManager = geometryManager
         this.sequenceService = sequenceService
+        this.genomicService = genomicService
        
         // Initialize renderer
         this.renderer = RendererFactory.create(container)
@@ -62,7 +62,7 @@ class SceneManager {
 
         this.renderer.domElement.style.cursor = 'none';
 
-        const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.dataService.geometryManager, object, pointOnLine, faceIndex);
+        const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.geometryManager, object, pointOnLine, faceIndex);
 
         eventBus.publish('lineIntersection', { t, nodeName, nodeLine })
     }
@@ -74,7 +74,7 @@ class SceneManager {
 
     animate() {
         if (true === this.raycastService.isEnabled) {
-            const intersections = this.raycastService.intersectObjects(this.cameraRig.camera, this.dataService.geometryManager.linesGroup.children)
+            const intersections = this.raycastService.intersectObjects(this.cameraRig.camera, this.geometryManager.linesGroup.children)
             this.handleIntersection(intersections)
         }
 
@@ -169,11 +169,11 @@ class SceneManager {
             console.error(`Error loading ${url}:`, error)
         }
 
-        this.dataService.dispose()
+        this.dataService.dispose(this.geometryManager)
 
-        this.dataService.ingestData(json, genomicService)
+        this.dataService.ingestData(json, this.genomicService, this.geometryManager)
 
-        this.dataService.addToScene(this.scene)
+        this.dataService.addToScene(this.scene, this.geometryManager)
 
         this.updateViewToFitScene()
 

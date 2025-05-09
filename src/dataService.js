@@ -1,9 +1,7 @@
 import * as THREE from 'three'
-import GeometryManager from './geometryManager.js'
 
 class DataService {
     constructor() {
-        this.geometryManager = new GeometryManager()
     }
 
     async loadPath(url) {
@@ -22,28 +20,29 @@ class DataService {
         }
     }
 
-    ingestData(json, genomicService) {
+    ingestData(json, genomicService, geometryManager) {
         if (!json || !json.node) {
             console.error('Invalid data format: missing node section')
             return
         }
 
         genomicService.clear()
-        this.geometryManager.createGeometry(json)
         genomicService.createMetadata(json.node)
         genomicService.createSequences(json.sequence)
+
+        geometryManager.createGeometry(json)
     }
 
-    addToScene(scene) {
-        this.geometryManager.addToScene(scene)
+    addToScene(scene, geometryManager) {
+        geometryManager.addToScene(scene)
     }
 
-    dispose() {
-        this.geometryManager.dispose()
+    dispose(geometryManager) {
+        geometryManager.dispose()
     }
 
-    getSpline(nodeName) {
-        return this.geometryManager.getSpline(nodeName)
+    getSpline(nodeName, geometryManager) {
+        return geometryManager.getSpline(nodeName)
     }
 }
 
