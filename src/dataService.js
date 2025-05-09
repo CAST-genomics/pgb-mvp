@@ -16,8 +16,8 @@ class DataService {
     #calculateBoundingBox(json) {
         // Accumulate all coordinates
         const acc = []
-        for (const { odgf_coordinates } of Object.values(json.node)) {
-            const xyzList = odgf_coordinates.map(({ x, y }) => { return [x, y] })
+        for (const { ogdf_coordinates } of Object.values(json.node)) {
+            const xyzList = ogdf_coordinates.map(({ x, y }) => { return [x, y] })
             acc.push(...xyzList)
         }
 
@@ -41,7 +41,7 @@ class DataService {
         for (const [nodeName, nodeData] of Object.entries(nodes)) {
 
             // Build spline from coordinates recentered around origin
-            const coordinates = nodeData.odgf_coordinates.map(({ x, y }) => new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0))
+            const coordinates = nodeData.ogdf_coordinates.map(({ x, y }) => new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0))
             const spline = new THREE.CatmullRomCurve3(coordinates)
 
             this.splines.set(nodeName, spline)

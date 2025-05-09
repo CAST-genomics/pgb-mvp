@@ -11,7 +11,9 @@ const LOCUS_PATTERNS = {
     REGION: /^(?:chr)?(\d{1,2}|[XY]):([0-9,]+)-([0-9,]+)$/i
 };
 
-const pangenomeURLTemplate = 'https://3.145.184.140:8440/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&exact_overlap=true&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
+const DEPRICATED_pangenomeURLTemplate = 'https://3.145.184.140:8440/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&exact_overlap=true&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
+
+const pangenomeURLTemplate = 'https://3.145.184.140:8440/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
 
 class LocusInput {
     constructor(container, sceneManager) {
