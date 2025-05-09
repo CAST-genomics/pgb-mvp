@@ -10,6 +10,8 @@ class DataService {
     constructor() {
         this.splines = new Map()
         this.sequences = new Map()
+        this.metadata = new Map()
+
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
     }
@@ -119,6 +121,19 @@ class DataService {
         }
     }
 
+    #createMetadata(nodes) {
+        for (const [nodeName, nodeData] of Object.entries(nodes)) {
+            const { length:bpLength, assembly, range:genomicRange } = nodeData
+            let metadata
+            if (typeof genomicRange === 'string' && genomicRange.trim().length > 0) {
+                metadata = { nodeName, bpLength, assembly, genomicRange }
+            } else {
+                metadata = { nodeName, bpLength, assembly }
+            }
+            this.metadata.set(nodeName, metadata)
+        }
+    }
+
     async loadPath(url) {
         try {
             const response = await fetch(url);
@@ -141,19 +156,22 @@ class DataService {
             return
         }
 
-        // Clear existing splines
         this.splines.clear()
         this.sequences.clear()
+        this.metadata.clear()
+
         this.linesGroup.clear()
         this.edgesGroup.clear()
+
+        this.#createMetadata(json.node);
 
         // Use bounding box to recenter coordinates
         const bbox = this.#calculateBoundingBox(json);
 
-        // Create splines & lines
         this.#createSplinesAndNodeLines(bbox, json.node);
         this.#createEdgeLines(json.edge);
         this.#createSequences(json.sequence);
+        
     }
 
     addToScene(scene) {
@@ -167,19 +185,29 @@ class DataService {
         this.edgesGroup.parent?.remove(this.edgesGroup);
 
         // Dispose of all geometries and materials
-        [this.linesGroup, this.edgesGroup].forEach(group => {
+
+        for (const group of [this.linesGroup, this.edgesGroup]) {
+
             group.traverse((object) => {
-                if (object.geometry) object.geometry.dispose();
+
+                if (object.geometry) {
+                    object.geometry.dispose();
+                }
+
                 if (object.material) {
                     if (Array.isArray(object.material)) {
-                        object.material.forEach(material => material.dispose());
+                        for (const material of object.material) {
+                            material.dispose();
+                        }
                     } else {
                         object.material.dispose();
                     }
                 }
+
             });
+
             group.clear();
-        });
+        }
 
         // Clear the maps
         this.splines.clear();
