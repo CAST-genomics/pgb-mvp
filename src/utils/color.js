@@ -7,7 +7,7 @@ import * as THREE from 'three'
  */
 const appleCrayonColors = new Map([
     // Colors
-    ['snow', new THREE.Color(0xFFFAFA)],
+    ['snow', new THREE.Color(0xFFFFFF)],
     ['salmon', new THREE.Color(0xFF6F61)],
     ['tangerine', new THREE.Color(0xFFA500)],
     ['marigold', new THREE.Color(0xFFD700)],
@@ -31,8 +31,7 @@ const appleCrayonColors = new Map([
     ['aluminum', new THREE.Color(0xCCCCCC)],
     ['magnesium', new THREE.Color(0xDDDDDD)],
     ['silver', new THREE.Color(0xEEEEEE)],
-    ['mercury', new THREE.Color(0xF3F3F3)],
-    ['snow2', new THREE.Color(0xFFFFFF)]
+    ['mercury', new THREE.Color(0xF3F3F3)]
 ]);
 
 // Predefined color categories
@@ -61,7 +60,7 @@ const colorCategories = {
         'magnesium',
         'silver',
         'mercury',
-        'snow2'
+        'snow'
     ],
     pastels: [
         'snow',
@@ -96,7 +95,7 @@ const colorComplements = new Map([
     ['magnesium', 'blueberry'],
     ['silver', 'plum'],
     ['mercury', 'magenta'],
-    ['snow2', 'bubblegum'],
+    ['snow', 'bubblegum'],
     // For pastels, return a vibrant color
     ['snow', 'blueberry'],
     ['honeydew', 'plum'],
