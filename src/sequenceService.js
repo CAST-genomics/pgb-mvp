@@ -1,9 +1,9 @@
 import { defaultNucleotideRGBStrings } from './utils/nucleotideRGBStrings.js';
 import eventBus from './utils/eventBus.js';
+import { genomicService } from './main.js';
 
 class SequenceService {
     constructor(container, dataService, raycastService) {
-
         this.container = container;
         this.dataService = dataService;
         this.raycastService = raycastService;
@@ -72,10 +72,9 @@ class SequenceService {
     }
 
     repaint() {
-
         if (!this.currentNodeName) return;
 
-        const sequence = this.dataService.sequences.get(this.currentNodeName);
+        const sequence = genomicService.getSequence(this.currentNodeName);
 
         if (!sequence) {
             console.error(`No sequence found for ${this.currentNodeName}`);
@@ -97,7 +96,6 @@ class SequenceService {
     }
 
     handleLineIntersection({ t, nodeName, nodeLine }) {
-        
         if (!this.currentNodeName) return;
 
         this.feedbackElement.style.display = 'block';
@@ -121,7 +119,7 @@ class SequenceService {
     update() {
         if (!this.needsUpdate || !this.currentNodeName) return;
 
-        const spline = this.dataService.splines.get(this.currentNodeName);
+        const spline = this.dataService.geometryManager.getSpline(this.currentNodeName);
         if (spline) {
             const pointOnLine = spline.getPoint(this.lastMouseMovePayload.t);
             this.raycastService.showVisualFeedback(pointOnLine, this.currentNodeLine.material.color);

@@ -10,7 +10,7 @@ import './styles/app.scss'
 
 let sceneManager
 let locusInput
-
+let genomicService
 document.addEventListener("DOMContentLoaded", async (event) => {
 
     const backgroundColor = new THREE.Color(0xffffff)
@@ -21,8 +21,9 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const dataService = new DataService()
     const raycastService = new RayCastService(container, threshold)
 
+    genomicService = new GenomicService()
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), dataService, raycastService)
-    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService, new GenomicService())
+    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService)
 
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
 
@@ -39,3 +40,5 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     sceneManager.startAnimation()
 
 })
+
+export { genomicService }

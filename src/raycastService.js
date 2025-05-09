@@ -60,36 +60,34 @@ class RayCastService {
     }
 
     setupVisualFeedback(scene) {
-		this.raycastVisualFeedback = this.createVisualFeeback(0x00ff00);
-		scene.add(this.raycastVisualFeedback);
-	}
+        this.raycastVisualFeedback = this.createVisualFeeback(0x00ff00);
+        scene.add(this.raycastVisualFeedback);
+    }
 
     createVisualFeeback(color) {
-		const sphere = new THREE.Mesh(new THREE.SphereGeometry(16, 32, 16), new THREE.MeshBasicMaterial({ color, depthTest: false }))
-		sphere.name = 'raycastVisualFeedback'
-		sphere.visible = false
-		sphere.renderOrder = 10
-		return sphere
-	}
+        const sphere = new THREE.Mesh(new THREE.SphereGeometry(16, 32, 16), new THREE.MeshBasicMaterial({ color, depthTest: false }))
+        sphere.name = 'raycastVisualFeedback'
+        sphere.visible = false
+        sphere.renderOrder = 10
+        return sphere
+    }
 
     showVisualFeedback(pointOnLine, visualFeedbackColor) {
         this.raycastVisualFeedback.visible = true;
-		this.raycastVisualFeedback.position.copy(pointOnLine);
-		this.raycastVisualFeedback.material.color.copy(visualFeedbackColor).offsetHSL(0.7, 0, 0);
+        this.raycastVisualFeedback.position.copy(pointOnLine);
+        this.raycastVisualFeedback.material.color.copy(visualFeedbackColor).offsetHSL(0.7, 0, 0);
     }
 
     clearVisualFeedback() {
         this.raycastVisualFeedback.visible = false;
     }
 
-    handleIntersection(dataService, nodeLine, pointOnLine, faceIndex) {
-
+    handleIntersection(geometryManager, nodeLine, pointOnLine, faceIndex) {
         this.showVisualFeedback(pointOnLine, nodeLine.material.color)
-        // console.log(`Line intersection(${ pointOnLine.x }, ${ pointOnLine.y }, ${ pointOnLine.z })`)
 
         const { userData } = nodeLine;
         const { nodeName } = userData;
-        const spline = dataService.splines.get(nodeName);
+        const spline = geometryManager.getSpline(nodeName);
         const segments = nodeLine.geometry.getAttribute('instanceStart');
         const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
 
@@ -102,6 +100,7 @@ class RayCastService {
         this.currentIntersection = null;
         this.clearVisualFeedback();
     }
+
     findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
         // Convert segment index to parameter range
         const segmentSize = 1 / totalSegments;
