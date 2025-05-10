@@ -1,5 +1,3 @@
-import * as THREE from 'three'
-
 class DataService {
     constructor() {
     }
@@ -33,17 +31,6 @@ class DataService {
         geometryManager.createGeometry(json)
     }
 
-    addToScene(scene, geometryManager) {
-        geometryManager.addToScene(scene)
-    }
-
-    dispose(geometryManager) {
-        geometryManager.dispose()
-    }
-
-    getSpline(nodeName, geometryManager) {
-        return geometryManager.getSpline(nodeName)
-    }
 }
 
 export default DataService

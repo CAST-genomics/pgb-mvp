@@ -1,6 +1,6 @@
 import { template, ELEMENT_IDS } from './locusInput.template.js';
 import { prettyPrint } from './utils/utils.js';
-import {getChromosomeLength} from "./genomicUtils.js"
+import {getChromosomeLength} from "./utils/genomicUtils.js"
 
 // Regular expressions for parsing genomic loci
 const LOCUS_PATTERNS = {

@@ -17,7 +17,7 @@ class SceneManager {
         this.geometryManager = geometryManager
         this.sequenceService = sequenceService
         this.genomicService = genomicService
-       
+
         // Initialize renderer
         this.renderer = RendererFactory.create(container)
 
@@ -169,11 +169,11 @@ class SceneManager {
             console.error(`Error loading ${url}:`, error)
         }
 
-        this.dataService.dispose(this.geometryManager)
+        this.geometryManager.dispose()
 
         this.dataService.ingestData(json, this.genomicService, this.geometryManager)
 
-        this.dataService.addToScene(this.scene, this.geometryManager)
+        this.geometryManager.addToScene(this.scene)
 
         this.updateViewToFitScene()
 

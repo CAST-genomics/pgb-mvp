@@ -80,7 +80,7 @@ class SequenceService {
         if (!sequence) {
             console.error(`No sequence found for ${this.currentNodeName}`);
             return;
-        }   
+        }
 
         const { width, height } = this.container.getBoundingClientRect();
         const sectionWidth = width / sequence.length;
@@ -120,7 +120,7 @@ class SequenceService {
     update() {
         if (!this.needsUpdate || !this.currentNodeName) return;
 
-        const spline = this.dataService.getSpline(this.currentNodeName, this.geometryManager);
+        const spline = this.geometryManager.getSpline(this.currentNodeName)
         if (spline) {
             const pointOnLine = spline.getPoint(this.lastMouseMovePayload.t);
             this.raycastService.showVisualFeedback(pointOnLine, this.currentNodeLine.material.color);

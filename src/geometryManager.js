@@ -93,7 +93,7 @@ class GeometryManager {
 
             const materialConfig = {
                 color: getAppleCrayonColorByName('snow'),
-                map: textureService.getTexture('arrow-alpha'),
+                map: textureService.getTexture('arrow-margin'),
                 side: THREE.DoubleSide,
                 transparent: true,
                 alphaTest: 0.1,
@@ -160,4 +160,4 @@ class GeometryManager {
     }
 }
 
-export default GeometryManager; 
+export default GeometryManager;
