@@ -4,16 +4,15 @@ import CameraRig from "./cameraRig.js"
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
+import { loadPath, ingestData } from './dataService.js'
 
 class SceneManager {
 
-    constructor(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService, genomicService, geometryManager) {
+    constructor(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager) {
         this.container = container
         this.scene = new THREE.Scene()
         this.scene.background = backgroundColor
-        this.initialFrustumSize = frustumSize
 
-        this.dataService = dataService
         this.geometryManager = geometryManager
         this.sequenceService = sequenceService
         this.genomicService = genomicService
@@ -151,12 +150,6 @@ class SceneManager {
         return boundingSphereHelper
     }
 
-    handleLineClick(nodeName, pointOnLine) {
-        // This method can be overridden or extended to handle line clicks
-        // For now, we'll just log the click
-        console.log(`Line ${nodeName} clicked at point:`, pointOnLine);
-    }
-
     async handleSearch(url) {
         console.log('Search URL:', url);
 
@@ -164,14 +157,14 @@ class SceneManager {
 
         let json
         try {
-            json = await this.dataService.loadPath(url)
+            json = await loadPath(url)
         } catch (error) {
             console.error(`Error loading ${url}:`, error)
         }
 
         this.geometryManager.dispose()
 
-        this.dataService.ingestData(json, this.genomicService, this.geometryManager)
+        ingestData(json, this.genomicService, this.geometryManager)
 
         this.geometryManager.addToScene(this.scene)
 

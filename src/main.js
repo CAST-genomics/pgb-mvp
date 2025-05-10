@@ -1,7 +1,6 @@
 import * as THREE from 'three'
 import SceneManager from './sceneManager.js'
 import RayCastService from './raycastService.js'
-import DataService from './dataService.js'
 import LocusInput from './locusInput.js'
 import GenomicService from './genomicService.js'
 import SequenceService from './sequenceService.js'
@@ -19,17 +18,15 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const container = document.getElementById('pgb-three-container')
     const threshold = 8
 
-    const dataService = new DataService()
-    
     const raycastService = new RayCastService(container, threshold)
 
     const genomicService = new GenomicService()
 
     const geometryManager = new GeometryManager()
 
-    const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), dataService, raycastService, genomicService, geometryManager)
+    const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), raycastService, genomicService, geometryManager)
 
-    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService, genomicService, geometryManager)
+    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager)
 
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
 

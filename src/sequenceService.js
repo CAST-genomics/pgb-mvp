@@ -2,9 +2,8 @@ import { defaultNucleotideRGBStrings } from './utils/nucleotideRGBStrings.js';
 import eventBus from './utils/eventBus.js';
 
 class SequenceService {
-    constructor(container, dataService, raycastService, genomicService, geometryManager) {
+    constructor(container, raycastService, genomicService, geometryManager) {
         this.container = container;
-        this.dataService = dataService;
         this.raycastService = raycastService;
         this.genomicService = genomicService;
         this.geometryManager = geometryManager;
