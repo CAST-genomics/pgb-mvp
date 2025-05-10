@@ -24,8 +24,8 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
 
-    const textures =
-    {
+    const textures = {
+        'arrow-margin': new URL('./assets/textures/arrow-margin.png', import.meta.url).href,
         'arrow-alpha': new URL('./assets/textures/arrow-alpha.png', import.meta.url).href,
         'arrow': new URL('./assets/textures/arrow.png', import.meta.url).href,
         'uv': new URL('./assets/textures/uv128x128.png', import.meta.url).href,

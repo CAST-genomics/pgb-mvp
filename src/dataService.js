@@ -98,7 +98,7 @@ class DataService {
 
             const materialConfig = {
                 color: getAppleCrayonColorByName('snow'),
-                map: textureService.getTexture('arrow-alpha'),
+                map: textureService.getTexture('arrow-margin'),
                 side: THREE.DoubleSide,
                 transparent: true,
                 alphaTest: 0.1,
