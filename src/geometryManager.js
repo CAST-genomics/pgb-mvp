@@ -92,12 +92,12 @@ class GeometryManager {
             const xyzEnd = spline.getPoint(signEnd === '+' ? 0 : 1)
 
             const materialConfig = {
-                color: getAppleCrayonColorByName('snow'),
-                map: textureService.getTexture('arrow-margin'),
+                color: getAppleCrayonColorByName('carnation'),
+                map: textureService.getTexture('arrow-white'),
                 side: THREE.DoubleSide,
                 transparent: true,
                 alphaTest: 0.1,
-                opacity: 0.5,
+                opacity: 0.75,
                 depthWrite: false,
             };
 
