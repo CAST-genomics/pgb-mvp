@@ -22,7 +22,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const genomicService = new GenomicService()
 
-    const geometryManager = new GeometryManager()
+    const geometryManager = new GeometryManager(genomicService)
 
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), raycastService, genomicService, geometryManager)
 

@@ -7,7 +7,8 @@ import textureService from './utils/textureService.js';
 class GeometryManager {
     #EDGE_Z_OFFSET = -4
 
-    constructor() {
+    constructor(genomicService) {
+        this.genomicService = genomicService
         this.splines = new Map()
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
@@ -92,7 +93,8 @@ class GeometryManager {
             const xyzEnd = spline.getPoint(signEnd === '+' ? 0 : 1)
 
             const materialConfig = {
-                color: getAppleCrayonColorByName('carnation'),
+                color: this.genomicService.getAssemblyColor(ending_node),
+                // color: getAppleCrayonColorByName('carnation'),
                 map: textureService.getTexture('arrow-white'),
                 side: THREE.DoubleSide,
                 transparent: true,
