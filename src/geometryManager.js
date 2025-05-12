@@ -101,6 +101,10 @@ class GeometryManager {
                 depthWrite: false,
             };
 
+            // Enable texture wrapping
+            materialConfig.map.wrapS = THREE.RepeatWrapping;
+            materialConfig.map.wrapT = THREE.RepeatWrapping;
+
             // position edge lines behind nodes in z coordinate
             xyzStart.z = this.#EDGE_Z_OFFSET
             xyzEnd.z = this.#EDGE_Z_OFFSET
@@ -123,6 +127,23 @@ class GeometryManager {
     addToScene(scene) {
         scene.add(this.linesGroup);
         scene.add(this.edgesGroup);
+    }
+
+    getSpline(nodeName) {
+        return this.splines.get(nodeName)
+    }
+
+    animateEdgeTextures(deltaTime) {
+        const baseSpeed = 0.025; // Base speed in units per second
+        const speed = baseSpeed * deltaTime;
+        
+        // Update all edge materials
+        this.edgesGroup.traverse((object) => {
+            if (object.material && object.material.map) {
+                // Animate the U coordinate (equivalent to offset.x)
+                object.material.map.offset.x = (object.material.map.offset.x - speed) % 1;
+            }
+        });
     }
 
     dispose() {
@@ -153,10 +174,6 @@ class GeometryManager {
 
         // Clear the maps
         this.splines.clear();
-    }
-
-    getSpline(nodeName) {
-        return this.splines.get(nodeName)
     }
 }
 

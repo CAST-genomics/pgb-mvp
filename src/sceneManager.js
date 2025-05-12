@@ -17,6 +17,10 @@ class SceneManager {
         this.sequenceService = sequenceService
         this.genomicService = genomicService
 
+        // Initialize time tracking
+        this.clock = new THREE.Clock()
+        this.lastTime = 0
+
         // Initialize renderer
         this.renderer = RendererFactory.create(container)
 
@@ -72,6 +76,8 @@ class SceneManager {
     }
 
     animate() {
+        const deltaTime = this.clock.getDelta()
+        
         if (true === this.raycastService.isEnabled) {
             const intersections = this.raycastService.intersectObjects(this.cameraRig.camera, this.geometryManager.linesGroup.children)
             this.handleIntersection(intersections)
@@ -79,6 +85,7 @@ class SceneManager {
 
         this.sequenceService.update();
         this.cameraRig.update()
+        this.geometryManager.animateEdgeTextures(deltaTime)
         this.renderer.render(this.scene, this.cameraRig.camera)
     }
 
