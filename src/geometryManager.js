@@ -3,7 +3,7 @@ import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import {getAppleCrayonColorByName, generateUniqueColors} from './utils/color.js';
 import textureService from './utils/textureService.js';
-
+import { getColorRampArrowMaterial, getArrowMaterial } from './materialLibrary.js';
 class GeometryManager {
     #EDGE_Z_OFFSET = -4
 
@@ -49,7 +49,7 @@ class GeometryManager {
 
             const lineMaterialConfig = {
                 // color: uniqueColors[i],
-                color: getAppleCrayonColorByName('ocean'),
+                color: getAppleCrayonColorByName('clover'),
                 linewidth: 16,
                 worldUnits: true
             }
@@ -61,7 +61,8 @@ class GeometryManager {
     }
 
     #createEdgeLines(edges) {
-        const edgeNodeSign = node => {
+
+        const getEdgeNodeSign = node => {
             const parts = node.split('')
             const sign = parts.pop()
             const remainder = parts.join('')
@@ -69,54 +70,39 @@ class GeometryManager {
         }
 
         for (const { starting_node, ending_node } of Object.values(edges)) {
+
             let spline
-            let node
+
+
 
             // Start node
-            const { sign: signStart, remainder: remainderStart } = edgeNodeSign(starting_node)
-            node = `${remainderStart}+`
-            spline = this.splines.get(node)
+            const { sign: signStart, remainder: remainderStart } = getEdgeNodeSign(starting_node)
+            spline = this.splines.get(`${remainderStart}+`)
             if (!spline) {
-                console.error(`Could not find start spline at node ${node}`)
+                console.error(`Could not find start spline at node ${remainderStart}+`)
                 continue
             }
-
             const xyzStart = spline.getPoint(signStart === '+' ? 1 : 0)
 
+
+
             // End node
-            const { sign: signEnd, remainder: remainderEnd } = edgeNodeSign(ending_node)
-            node = `${remainderEnd}+`
-            spline = this.splines.get(node)
+            const { sign: signEnd, remainder: remainderEnd } = getEdgeNodeSign(ending_node)
+            spline = this.splines.get(`${remainderEnd}+`)
             if (!spline) {
-                console.error(`Could not find end spline at node ${node}`)
+                console.error(`Could not find end spline at node ${remainderEnd}+`)
                 continue
             }
-
             const xyzEnd = spline.getPoint(signEnd === '+' ? 0 : 1)
-
-
-            const { remainder } = edgeNodeSign(ending_node)
-            const key = `${remainder}+`
-            const materialConfig = {
-                color: this.genomicService.getAssemblyColor(key),
-                // color: getAppleCrayonColorByName('carnation'),
-                map: textureService.getTexture('arrow-white'),
-                side: THREE.DoubleSide,
-                transparent: true,
-                alphaTest: 0.1,
-                opacity: 0.98,
-                depthWrite: false,
-            };
-
-            // Enable texture wrapping
-            materialConfig.map.wrapS = THREE.RepeatWrapping;
-            materialConfig.map.wrapT = THREE.RepeatWrapping;
 
             // position edge lines behind nodes in z coordinate
             xyzStart.z = this.#EDGE_Z_OFFSET
             xyzEnd.z = this.#EDGE_Z_OFFSET
 
-            const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, new THREE.MeshBasicMaterial(materialConfig))
+            const heroTexture = textureService.getTexture('arrow-white')
+            const color = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
+            const material = getArrowMaterial(heroTexture, color)
+            const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, material)
             this.edgesGroup.add(edgeLine)
         }
     }
@@ -142,7 +128,7 @@ class GeometryManager {
 
     animateEdgeTextures(deltaTime) {
         if (!this.isEdgeAnimationEnabled) return;
-        
+
         const baseSpeed = 0.025; // Base speed in units per second
         const speed = baseSpeed * deltaTime;
 
