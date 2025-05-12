@@ -49,7 +49,7 @@ class GeometryManager {
 
             const lineMaterialConfig = {
                 // color: uniqueColors[i],
-                color: getAppleCrayonColorByName('clover'),
+                color: getAppleCrayonColorByName('tin'),
                 linewidth: 16,
                 worldUnits: true
             }
@@ -138,7 +138,7 @@ class GeometryManager {
             return;
         }
 
-        const baseSpeed = 0.25; // Base speed in units per second
+        const baseSpeed = 0.5; // Base speed in units per second
         const speed = baseSpeed * deltaTime;
 
         // Update all edge materials
