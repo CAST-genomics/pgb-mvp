@@ -14,14 +14,16 @@ uniform vec3 startColor;
 uniform vec3 endColor;
 uniform sampler2D map;
 uniform sampler2D gradientMap;
+uniform vec2 uvOffset;
 varying vec2 vUv;
 
 void main() {
     // Sample the gradient texture
     vec4 gradient = texture2D(gradientMap, vUv);
     
-    // Sample the arrow texture
-    vec4 arrow = texture2D(map, vUv);
+    // Sample the arrow texture with animation
+    vec2 animatedUv = vUv + uvOffset;
+    vec4 arrow = texture2D(map, animatedUv);
     
     // Mix the colors based on the gradient
     vec3 mixedColor = mix(startColor, endColor, gradient.r);
@@ -84,14 +86,16 @@ function getColorRampArrowMaterial(startColor, endColor, heroTexture) {
     // Configure hero texture wrapping
     heroTexture.wrapS = THREE.RepeatWrapping;
     heroTexture.wrapT = THREE.RepeatWrapping;
-
+    heroTexture.needsUpdate = true;
+    
     // Create the shader material
     const material = new THREE.ShaderMaterial({
         uniforms: {
             startColor: { value: startColor },
             endColor: { value: endColor },
             map: { value: heroTexture },
-            gradientMap: { value: gradientTexture }
+            gradientMap: { value: gradientTexture },
+            uvOffset: { value: new THREE.Vector2(0.0, 0.0) }
         },
         vertexShader,
         fragmentShader,

@@ -12,7 +12,7 @@ class GeometryManager {
         this.splines = new Map()
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
-        this.isEdgeAnimationEnabled = false;
+        this.isEdgeAnimationEnabled = true;
     }
 
     #calculateBoundingBox(json) {
@@ -99,10 +99,17 @@ class GeometryManager {
             xyzStart.z = this.#EDGE_Z_OFFSET
             xyzEnd.z = this.#EDGE_Z_OFFSET
 
+            // const heroTexture = textureService.getTexture('arrow-white')
+            // const color = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
+            // const material = getArrowMaterial(heroTexture, color)
+            // const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, material)
+
+            const startColor = this.genomicService.getAssemblyColor(`${remainderStart}+`)
+            const endColor = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
             const heroTexture = textureService.getTexture('arrow-white')
-            const color = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
-            const material = getArrowMaterial(heroTexture, color)
-            const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, material)
+            const colorRampMaterial = getColorRampArrowMaterial(startColor, endColor, heroTexture)
+            const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, colorRampMaterial)
+
             this.edgesGroup.add(edgeLine)
         }
     }
@@ -127,16 +134,25 @@ class GeometryManager {
     }
 
     animateEdgeTextures(deltaTime) {
-        if (!this.isEdgeAnimationEnabled) return;
+        if (false === this.isEdgeAnimationEnabled) {
+            return;
+        }
 
-        const baseSpeed = 0.025; // Base speed in units per second
+        const baseSpeed = 0.25; // Base speed in units per second
         const speed = baseSpeed * deltaTime;
 
         // Update all edge materials
         this.edgesGroup.traverse((object) => {
-            if (object.material && object.material.map) {
-                // Animate the U coordinate (equivalent to offset.x)
-                object.material.map.offset.x = (object.material.map.offset.x - speed) % 1;
+            if (object.material) {
+                if (object.material.uniforms) {
+                    // Handle ShaderMaterial
+                    object.material.uniforms.uvOffset.value.x = (object.material.uniforms.uvOffset.value.x - speed) % 1.0;
+                } else {
+                    // Handle MeshBasicMaterial
+                    if (object.material.map) {
+                        object.material.map.offset.x = (object.material.map.offset.x - speed) % 1;
+                    }
+                }
             }
         });
     }
