@@ -4,7 +4,7 @@ import CameraRig from "./cameraRig.js"
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
-import { loadPath, ingestData } from './dataService.js'
+import { loadPath, ingestData } from './utils/utils.js'
 
 class SceneManager {
 
