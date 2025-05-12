@@ -77,7 +77,7 @@ class SceneManager {
 
     animate() {
         const deltaTime = this.clock.getDelta()
-        
+
         if (true === this.raycastService.isEnabled) {
             const intersections = this.raycastService.intersectObjects(this.cameraRig.camera, this.geometryManager.linesGroup.children)
             this.handleIntersection(intersections)
@@ -158,7 +158,6 @@ class SceneManager {
     }
 
     async handleSearch(url) {
-        console.log('Search URL:', url);
 
         this.stopAnimation()
 

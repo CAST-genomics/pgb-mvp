@@ -12,6 +12,7 @@ class GeometryManager {
         this.splines = new Map()
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
+        this.isEdgeAnimationEnabled = false;
     }
 
     #calculateBoundingBox(json) {
@@ -47,7 +48,8 @@ class GeometryManager {
             this.splines.set(nodeName, spline)
 
             const lineMaterialConfig = {
-                color: uniqueColors[i],
+                // color: uniqueColors[i],
+                color: getAppleCrayonColorByName('ocean'),
                 linewidth: 16,
                 worldUnits: true
             }
@@ -92,14 +94,17 @@ class GeometryManager {
 
             const xyzEnd = spline.getPoint(signEnd === '+' ? 0 : 1)
 
+
+            const { remainder } = edgeNodeSign(ending_node)
+            const key = `${remainder}+`
             const materialConfig = {
-                color: this.genomicService.getAssemblyColor(ending_node),
+                color: this.genomicService.getAssemblyColor(key),
                 // color: getAppleCrayonColorByName('carnation'),
                 map: textureService.getTexture('arrow-white'),
                 side: THREE.DoubleSide,
                 transparent: true,
                 alphaTest: 0.1,
-                opacity: 0.75,
+                opacity: 0.98,
                 depthWrite: false,
             };
 
@@ -136,9 +141,11 @@ class GeometryManager {
     }
 
     animateEdgeTextures(deltaTime) {
+        if (!this.isEdgeAnimationEnabled) return;
+        
         const baseSpeed = 0.025; // Base speed in units per second
         const speed = baseSpeed * deltaTime;
-        
+
         // Update all edge materials
         this.edgesGroup.traverse((object) => {
             if (object.material && object.material.map) {
@@ -146,6 +153,14 @@ class GeometryManager {
                 object.material.map.offset.x = (object.material.map.offset.x - speed) % 1;
             }
         });
+    }
+
+    enableEdgeAnimation() {
+        this.isEdgeAnimationEnabled = true;
+    }
+
+    disableEdgeAnimation() {
+        this.isEdgeAnimationEnabled = false;
     }
 
     dispose() {
