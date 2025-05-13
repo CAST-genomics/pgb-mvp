@@ -3,17 +3,16 @@ import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import {getAppleCrayonColorByName, generateUniqueColors} from './utils/color.js';
 import textureService from './utils/textureService.js';
-
-class DataService {
+import { getColorRampArrowMaterial, getArrowMaterial } from './materialLibrary.js';
+class GeometryManager {
     #EDGE_Z_OFFSET = -4
 
-    constructor() {
+    constructor(genomicService) {
+        this.genomicService = genomicService
         this.splines = new Map()
-        this.sequences = new Map()
-        this.metadata = new Map()
-
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
+        this.isEdgeAnimationEnabled = true;
     }
 
     #calculateBoundingBox(json) {
@@ -39,10 +38,10 @@ class DataService {
     }
 
     #createSplinesAndNodeLines(bbox, nodes) {
-        const uniqueColors = generateUniqueColors(Object.keys(nodes).length, { minSaturation: 60 })
+        // const uniqueColors = generateUniqueColors(Object.keys(nodes).length, { minSaturation: 60 })
         let i = 0
         for (const [nodeName, nodeData] of Object.entries(nodes)) {
-
+            
             // Build spline from coordinates recentered around origin
             const coordinates = nodeData.ogdf_coordinates.map(({ x, y }) => new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0))
             const spline = new THREE.CatmullRomCurve3(coordinates)
@@ -50,7 +49,8 @@ class DataService {
             this.splines.set(nodeName, spline)
 
             const lineMaterialConfig = {
-                color: uniqueColors[i],
+                // color: uniqueColors[i],
+                color: this.genomicService.getAssemblyColor(nodeName),
                 linewidth: 16,
                 worldUnits: true
             }
@@ -63,7 +63,7 @@ class DataService {
 
     #createEdgeLines(edges) {
 
-        const edgeNodeSign = node => {
+        const getEdgeNodeSign = node => {
             const parts = node.split('')
             const sign = parts.pop()
             const remainder = parts.join('')
@@ -71,112 +71,99 @@ class DataService {
         }
 
         for (const { starting_node, ending_node } of Object.values(edges)) {
+
             let spline
-            let node
+
+
 
             // Start node
-            const { sign: signStart, remainder: remainderStart } = edgeNodeSign(starting_node)
-            node = `${remainderStart}+`
-            spline = this.splines.get(node)
+            const { sign: signStart, remainder: remainderStart } = getEdgeNodeSign(starting_node)
+            spline = this.splines.get(`${remainderStart}+`)
             if (!spline) {
-                console.error(`Could not find start spline at node ${node}`)
+                console.error(`Could not find start spline at node ${remainderStart}+`)
                 continue
             }
-
             const xyzStart = spline.getPoint(signStart === '+' ? 1 : 0)
 
+
+
             // End node
-            const { sign: signEnd, remainder: remainderEnd } = edgeNodeSign(ending_node)
-            node = `${remainderEnd}+`
-            spline = this.splines.get(node)
+            const { sign: signEnd, remainder: remainderEnd } = getEdgeNodeSign(ending_node)
+            spline = this.splines.get(`${remainderEnd}+`)
             if (!spline) {
-                console.error(`Could not find end spline at node ${node}`)
+                console.error(`Could not find end spline at node ${remainderEnd}+`)
                 continue
             }
-
             const xyzEnd = spline.getPoint(signEnd === '+' ? 0 : 1)
-
-            const materialConfig = {
-                color: getAppleCrayonColorByName('snow'),
-                map: textureService.getTexture('arrow-margin'),
-                side: THREE.DoubleSide,
-                transparent: true,
-                alphaTest: 0.1,
-                opacity: 0.5,
-                depthWrite: false,
-            };
 
             // position edge lines behind nodes in z coordinate
             xyzStart.z = this.#EDGE_Z_OFFSET
             xyzEnd.z = this.#EDGE_Z_OFFSET
 
-            const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, new THREE.MeshBasicMaterial(materialConfig))
+            // const heroTexture = textureService.getTexture('arrow-white')
+            // const color = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
+            // const material = getArrowMaterial(heroTexture, color)
+            // const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, material)
+
+            const startColor = this.genomicService.getAssemblyColor(`${remainderStart}+`)
+            const endColor = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
+            const heroTexture = textureService.getTexture('arrow-white')
+            const colorRampMaterial = getColorRampArrowMaterial(startColor, endColor, heroTexture)
+            const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, colorRampMaterial)
+
             this.edgesGroup.add(edgeLine)
         }
     }
 
-    #createSequences(sequences) {
-        for (const [ nodeName, sequenceString ] of Object.entries(sequences)) {
-            this.sequences.set(nodeName, sequenceString)
-        }
-    }
-
-    #createMetadata(nodes) {
-        for (const [nodeName, nodeData] of Object.entries(nodes)) {
-            const { length:bpLength, assembly, range:genomicRange } = nodeData
-            let metadata
-            if (typeof genomicRange === 'string' && genomicRange.trim().length > 0) {
-                metadata = { nodeName, bpLength, assembly, genomicRange }
-            } else {
-                metadata = { nodeName, bpLength, assembly }
-            }
-            this.metadata.set(nodeName, metadata)
-        }
-    }
-
-    async loadPath(url) {
-        try {
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const json = await response.json();
-            console.log(`Successfully loaded data from ${url}`);
-
-            return json;
-        } catch (error) {
-            console.error(`Error loading ${url}:`, error);
-            throw error;
-        }
-    }
-
-    ingestData(json) {
-        if (!json || !json.node) {
-            console.error('Invalid data format: missing node section')
-            return
-        }
-
+    createGeometry(json) {
         this.splines.clear()
-        this.sequences.clear()
-        this.metadata.clear()
-
         this.linesGroup.clear()
         this.edgesGroup.clear()
 
-        this.#createMetadata(json.node);
-
-        // Use bounding box to recenter coordinates
         const bbox = this.#calculateBoundingBox(json);
-
         this.#createSplinesAndNodeLines(bbox, json.node);
         this.#createEdgeLines(json.edge);
-        this.#createSequences(json.sequence);
-        
     }
 
     addToScene(scene) {
         scene.add(this.linesGroup);
         scene.add(this.edgesGroup);
+    }
+
+    getSpline(nodeName) {
+        return this.splines.get(nodeName)
+    }
+
+    animateEdgeTextures(deltaTime) {
+        if (false === this.isEdgeAnimationEnabled) {
+            return;
+        }
+
+        const baseSpeed = 0.5; // Base speed in units per second
+        const speed = baseSpeed * deltaTime;
+
+        // Update all edge materials
+        this.edgesGroup.traverse((object) => {
+            if (object.material) {
+                if (object.material.uniforms) {
+                    // Handle ShaderMaterial
+                    object.material.uniforms.uvOffset.value.x = (object.material.uniforms.uvOffset.value.x - speed) % 1.0;
+                } else {
+                    // Handle MeshBasicMaterial
+                    if (object.material.map) {
+                        object.material.map.offset.x = (object.material.map.offset.x - speed) % 1;
+                    }
+                }
+            }
+        });
+    }
+
+    enableEdgeAnimation() {
+        this.isEdgeAnimationEnabled = true;
+    }
+
+    disableEdgeAnimation() {
+        this.isEdgeAnimationEnabled = false;
     }
 
     dispose() {
@@ -185,11 +172,8 @@ class DataService {
         this.edgesGroup.parent?.remove(this.edgesGroup);
 
         // Dispose of all geometries and materials
-
         for (const group of [this.linesGroup, this.edgesGroup]) {
-
             group.traverse((object) => {
-
                 if (object.geometry) {
                     object.geometry.dispose();
                 }
@@ -203,7 +187,6 @@ class DataService {
                         object.material.dispose();
                     }
                 }
-
             });
 
             group.clear();
@@ -211,12 +194,7 @@ class DataService {
 
         // Clear the maps
         this.splines.clear();
-
-    }
-
-    getSpline(nodeName) {
-        return this.splines.get(nodeName)
     }
 }
 
-export default DataService
+export default GeometryManager;

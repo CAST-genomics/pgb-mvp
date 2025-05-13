@@ -1,6 +1,6 @@
 import { template, ELEMENT_IDS } from './locusInput.template.js';
 import { prettyPrint } from './utils/utils.js';
-import {getChromosomeLength} from "./genomicUtils.js"
+import {getChromosomeLength} from "./utils/genomicUtils.js"
 
 // Regular expressions for parsing genomic loci
 const LOCUS_PATTERNS = {
@@ -11,9 +11,7 @@ const LOCUS_PATTERNS = {
     REGION: /^(?:chr)?(\d{1,2}|[XY]):([0-9,]+)-([0-9,]+)$/i
 };
 
-const DEPRICATED_pangenomeURLTemplate = 'https://3.145.184.140:8440/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&exact_overlap=true&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
-
-const pangenomeURLTemplate = 'https://3.145.184.140:8440/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
+const pangenomeURLTemplate = 'https://3.145.184.140:8443/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
 
 class LocusInput {
     constructor(container, sceneManager) {

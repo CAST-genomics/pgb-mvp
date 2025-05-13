@@ -4,19 +4,22 @@ import CameraRig from "./cameraRig.js"
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
-
-let previousNodeName = undefined
+import { loadPath, ingestData } from './utils/utils.js'
 
 class SceneManager {
 
-    constructor(container, backgroundColor, frustumSize, raycastService, dataService, sequenceService) {
+    constructor(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager) {
         this.container = container
         this.scene = new THREE.Scene()
         this.scene.background = backgroundColor
-        this.initialFrustumSize = frustumSize
 
-        this.dataService = dataService
+        this.geometryManager = geometryManager
         this.sequenceService = sequenceService
+        this.genomicService = genomicService
+
+        // Initialize time tracking
+        this.clock = new THREE.Clock()
+        this.lastTime = 0
 
         // Initialize renderer
         this.renderer = RendererFactory.create(container)
@@ -50,7 +53,6 @@ class SceneManager {
     }
 
     handleIntersection(intersections) {
-
         if (undefined === intersections || 0 === intersections.length) {
             this.clearIntersection()
             return
@@ -59,29 +61,31 @@ class SceneManager {
         // Sort by distance to get the closest intersection
         intersections.sort((a, b) => a.distance - b.distance);
 
-		const { faceIndex, pointOnLine, object } = intersections[0];
+        const { faceIndex, pointOnLine, object } = intersections[0];
 
         this.renderer.domElement.style.cursor = 'none';
 
-        const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.dataService, object, pointOnLine, faceIndex);
+        const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.geometryManager, object, pointOnLine, faceIndex);
 
         eventBus.publish('lineIntersection', { t, nodeName, nodeLine })
-
-	}
+    }
 
     clearIntersection() {
-		this.raycastService.clearIntersection()
+        this.raycastService.clearIntersection()
         this.renderer.domElement.style.cursor = '';
-	}
+    }
 
     animate() {
+        const deltaTime = this.clock.getDelta()
+
         if (true === this.raycastService.isEnabled) {
-            const intersections = this.raycastService.intersectObject(this.cameraRig.camera, this.dataService.linesGroup)
+            const intersections = this.raycastService.intersectObjects(this.cameraRig.camera, this.geometryManager.linesGroup.children)
             this.handleIntersection(intersections)
         }
 
         this.sequenceService.update();
         this.cameraRig.update()
+        this.geometryManager.animateEdgeTextures(deltaTime)
         this.renderer.render(this.scene, this.cameraRig.camera)
     }
 
@@ -94,7 +98,6 @@ class SceneManager {
     }
 
     updateViewToFitScene() {
-
         // Create a bounding box that encompasses all objects in the scene
         const bbox = new THREE.Box3()
         this.scene.traverse((object) => {
@@ -154,29 +157,22 @@ class SceneManager {
         return boundingSphereHelper
     }
 
-    handleLineClick(nodeName, pointOnLine) {
-        // This method can be overridden or extended to handle line clicks
-        // For now, we'll just log the click
-        console.log(`Line ${nodeName} clicked at point:`, pointOnLine);
-    }
-
     async handleSearch(url) {
-        console.log('Search URL:', url);
 
         this.stopAnimation()
 
         let json
         try {
-            json = await this.dataService.loadPath(url)
+            json = await loadPath(url)
         } catch (error) {
             console.error(`Error loading ${url}:`, error)
         }
 
-        this.dataService.dispose()
+        this.geometryManager.dispose()
 
-        this.dataService.ingestData(json)
+        ingestData(json, this.genomicService, this.geometryManager)
 
-        this.dataService.addToScene(this.scene)
+        this.geometryManager.addToScene(this.scene)
 
         this.updateViewToFitScene()
 

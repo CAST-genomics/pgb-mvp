@@ -2,11 +2,11 @@ import { defaultNucleotideRGBStrings } from './utils/nucleotideRGBStrings.js';
 import eventBus from './utils/eventBus.js';
 
 class SequenceService {
-    constructor(container, dataService, raycastService) {
-
+    constructor(container, raycastService, genomicService, geometryManager) {
         this.container = container;
-        this.dataService = dataService;
         this.raycastService = raycastService;
+        this.genomicService = genomicService;
+        this.geometryManager = geometryManager;
 
         this.canvas = container.querySelector('canvas');
         this.ctx = this.canvas.getContext('2d');
@@ -72,15 +72,14 @@ class SequenceService {
     }
 
     repaint() {
-
         if (!this.currentNodeName) return;
 
-        const sequence = this.dataService.sequences.get(this.currentNodeName);
+        const sequence = this.genomicService.getSequence(this.currentNodeName);
 
         if (!sequence) {
             console.error(`No sequence found for ${this.currentNodeName}`);
             return;
-        }   
+        }
 
         const { width, height } = this.container.getBoundingClientRect();
         const sectionWidth = width / sequence.length;
@@ -97,7 +96,6 @@ class SequenceService {
     }
 
     handleLineIntersection({ t, nodeName, nodeLine }) {
-        
         if (!this.currentNodeName) return;
 
         this.feedbackElement.style.display = 'block';
@@ -121,7 +119,7 @@ class SequenceService {
     update() {
         if (!this.needsUpdate || !this.currentNodeName) return;
 
-        const spline = this.dataService.splines.get(this.currentNodeName);
+        const spline = this.geometryManager.getSpline(this.currentNodeName)
         if (spline) {
             const pointOnLine = spline.getPoint(this.lastMouseMovePayload.t);
             this.raycastService.showVisualFeedback(pointOnLine, this.currentNodeLine.material.color);
