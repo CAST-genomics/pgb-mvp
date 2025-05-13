@@ -38,9 +38,10 @@ class GeometryManager {
     }
 
     #createSplinesAndNodeLines(bbox, nodes) {
-        const uniqueColors = generateUniqueColors(Object.keys(nodes).length, { minSaturation: 60 })
+        // const uniqueColors = generateUniqueColors(Object.keys(nodes).length, { minSaturation: 60 })
         let i = 0
         for (const [nodeName, nodeData] of Object.entries(nodes)) {
+            
             // Build spline from coordinates recentered around origin
             const coordinates = nodeData.ogdf_coordinates.map(({ x, y }) => new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0))
             const spline = new THREE.CatmullRomCurve3(coordinates)
@@ -49,7 +50,7 @@ class GeometryManager {
 
             const lineMaterialConfig = {
                 // color: uniqueColors[i],
-                color: getAppleCrayonColorByName('tin'),
+                color: this.genomicService.getAssemblyColor(nodeName),
                 linewidth: 16,
                 worldUnits: true
             }
