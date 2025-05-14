@@ -1,5 +1,6 @@
 // genomeWidget.js
 // A widget class for genome-related UI functionality
+import { Draggable } from './utils/draggable.js';
 
 class GenomeWidget {
   constructor(container) {
@@ -7,12 +8,15 @@ class GenomeWidget {
     this.card = document.getElementById('pgb-gear-card');
     this.container.addEventListener('click', this.onGearClick.bind(this));
     
+    // Initialize draggable functionality
+    this.draggable = new Draggable(this.card);
+    
     // Close card when clicking outside
-    document.addEventListener('click', (event) => {
-      if (!this.container.contains(event.target) && !this.card.contains(event.target)) {
-        this.hideCard();
-      }
-    });
+    // document.addEventListener('click', (event) => {
+    //   if (!this.container.contains(event.target) && !this.card.contains(event.target)) {
+    //     this.hideCard();
+    //   }
+    // });
   }
 
   onGearClick(event) {
@@ -38,6 +42,11 @@ class GenomeWidget {
     setTimeout(() => {
       this.card.style.display = 'none';
     }, 200);
+  }
+
+  destroy() {
+    // Clean up draggable instance
+    this.draggable.destroy();
   }
 }
 
