@@ -70,22 +70,17 @@ class LineFactory {
     }
 
     static createNodeLine(nodeName, spline, divisionsMultiplier, zOffset, lineMaterial) {
-
+        // Calculate number of divisions
         const divisions = Math.round(divisionsMultiplier * spline.points.length);
 
-        const xyz = new THREE.Vector3();
-        const xyzList = [];
+        // Sample the spline with getPoints (returns an array of Vector3)
+        const points = spline.getPoints(divisions);
 
-        for (let i = 0; i < 1 + divisions; i++) {
+        // Set z for each point to 2 * zOffset
+        points.forEach(p => { p.z = 2 * zOffset });
 
-            const t = i/divisions;
-            spline.getPoint(t, xyz);
-
-            // use zOffset to disambiguate node lines
-            xyz.z = 2 * zOffset
-
-            xyzList.push(xyz.x, xyz.y, xyz.z);
-        }
+        // Flatten the points into an array of xyz
+        const xyzList = points.flatMap(p => [p.x, p.y, p.z]);
 
         const lineGeometry = new LineGeometry();
         lineGeometry.setPositions(xyzList);

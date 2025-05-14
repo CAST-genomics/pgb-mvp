@@ -51,7 +51,7 @@ class GeometryManager {
                 color: this.genomicService.getAssemblyColor(nodeName),
                 linewidth: 16,
                 worldUnits: true,
-                opacity: .125,
+                opacity: 1,
                 transparent: true
             }
             const line = LineFactory.createNodeLine(nodeName, spline, 4, 1 + i, new LineMaterial(lineMaterialConfig))
