@@ -1,4 +1,4 @@
-import { loadTexture } from './utils.js'
+import * as THREE from 'three';
 
 class TextureService {
     constructor() {
@@ -117,3 +117,64 @@ class TextureService {
 // Create and export a singleton instance
 const textureService = new TextureService()
 export default textureService 
+
+/**
+ * Loads a texture asynchronously
+ * @param {string} url - The URL of the texture to load
+ * @param {Object} options - Optional texture loading options
+ * @param {boolean} options.flipY - Whether to flip the texture vertically (default: true)
+ * @param {boolean} options.generateMipmaps - Whether to generate mipmaps (default: true)
+ * @returns {Promise<THREE.Texture>} A promise that resolves with the loaded texture
+ */
+async function loadTexture(url, options = {}) {
+    const loader = new THREE.TextureLoader()
+    
+    return new Promise((resolve, reject) => {
+        loader.load(
+            url,
+            (texture) => {
+                // Apply default options
+                texture.flipY = options.flipY !== undefined ? options.flipY : true
+                texture.generateMipmaps = options.generateMipmaps !== undefined ? options.generateMipmaps : true
+                
+                // Apply any additional options
+                Object.entries(options).forEach(([key, value]) => {
+                    if (key !== 'flipY' && key !== 'generateMipmaps') {
+                        texture[key] = value
+                    }
+                })
+                
+                resolve(texture)
+            },
+            undefined, // onProgress callback not implemented
+            (error) => {
+                console.error(`Error loading texture from ${url}:`, error)
+                reject(error)
+            }
+        )
+    })
+}
+
+/**
+ * Creates a 1x256 horizontal black-to-white gradient texture as a THREE.CanvasTexture.
+ * @returns {THREE.CanvasTexture} The generated gradient texture
+ */
+function createGradientTexture() {
+    // Create gradient texture (1x256 pixels, black to white)
+    const gradientCanvas = document.createElement('canvas');
+    gradientCanvas.width = 256;
+    gradientCanvas.height = 1;
+    const ctx = gradientCanvas.getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 256, 0);
+    gradient.addColorStop(0, 'black');
+    gradient.addColorStop(1, 'white');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 256, 1);
+
+    const gradientTexture = new THREE.CanvasTexture(gradientCanvas);
+    gradientTexture.wrapS = THREE.ClampToEdgeWrapping;
+    gradientTexture.wrapT = THREE.ClampToEdgeWrapping;
+    return gradientTexture;
+}
+
+export { loadTexture, createGradientTexture } 

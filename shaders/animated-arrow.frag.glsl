@@ -3,6 +3,7 @@ uniform vec3 endColor;
 uniform sampler2D map;
 uniform sampler2D gradientMap;
 uniform vec2 uvOffset;
+uniform float opacity;
 varying vec2 vUv;
 
 void main() {
@@ -17,5 +18,5 @@ void main() {
     vec3 mixedColor = mix(startColor, endColor, gradient.r);
     
     // Combine with the arrow texture
-    gl_FragColor = vec4(mixedColor, arrow.a);
+    gl_FragColor = vec4(mixedColor, arrow.a * opacity);
 } 
