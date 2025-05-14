@@ -65,7 +65,7 @@ class RayCastService {
     }
 
     createVisualFeeback(color) {
-        const sphere = new THREE.Mesh(new THREE.SphereGeometry(16, 32, 16), new THREE.MeshBasicMaterial({ color, depthTest: false }))
+        const sphere = new THREE.Mesh(new THREE.SphereGeometry(16, 32, 16), new THREE.MeshBasicMaterial({ color, transparent: true, depthTest: false }))
         sphere.name = 'raycastVisualFeedback'
         sphere.visible = false
         sphere.renderOrder = 10
