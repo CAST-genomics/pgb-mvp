@@ -13,10 +13,8 @@ class MapControlsFactory {
 
         // Add safety handlers for mouseup events
         const handleMouseUp = () => {
-            if (controls.enabled) {
                 controls.enabled = false
                 controls.enabled = true
-            }
         }
 
         // Listen for mouseup events on the window to catch cases where mouse is released outside container

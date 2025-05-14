@@ -22,6 +22,8 @@ class LineFactory {
         line.computeLineDistances();
         line.scale.set(1, 1, 1);
 
+        line.renderOrder = 2
+
         return line;
     }
 
@@ -66,32 +68,35 @@ class LineFactory {
         // Two triangles to form the rectangle
         geometry.setIndex([0, 1, 2, 0, 2, 3]);
 
-        return new THREE.Mesh(geometry, material);
+        const mesh = new THREE.Mesh(geometry, material)
+        
+        mesh.renderOrder = 2
+
+        return mesh;
     }
 
     static createNodeLine(nodeName, spline, divisionsMultiplier, zOffset, lineMaterial) {
-
+        // Calculate number of divisions
         const divisions = Math.round(divisionsMultiplier * spline.points.length);
 
-        const xyz = new THREE.Vector3();
-        const xyzList = [];
+        // Sample the spline with getPoints (returns an array of Vector3)
+        const points = spline.getPoints(divisions);
 
-        for (let i = 0; i < 1 + divisions; i++) {
-
-            const t = i/divisions;
-            spline.getPoint(t, xyz);
-
-            // use zOffset to disambiguate node lines
-            xyz.z = 2 * zOffset
-
-            xyzList.push(xyz.x, xyz.y, xyz.z);
+        // Set z for each point to 2 * zOffset
+        for (const point of points) {
+            point.z = 2 * zOffset
         }
+
+        // Flatten the points into an array of xyz
+        const xyzList = points.flatMap(p => [p.x, p.y, p.z]);
 
         const lineGeometry = new LineGeometry();
         lineGeometry.setPositions(xyzList);
 
         const line = new Line2(lineGeometry, lineMaterial);
         line.userData = { nodeName }
+
+        line.renderOrder = 4
 
         line.computeLineDistances();
         line.scale.set(1, 1, 1);

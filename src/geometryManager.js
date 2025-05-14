@@ -1,9 +1,9 @@
 import * as THREE from 'three'
 import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import {getAppleCrayonColorByName, generateUniqueColors} from './utils/color.js';
 import textureService from './utils/textureService.js';
-import { getColorRampArrowMaterial, getArrowMaterial } from './materialLibrary.js';
+import { getColorRampArrowMaterial } from './materialLibrary.js';
+
 class GeometryManager {
     #EDGE_Z_OFFSET = -4
 
@@ -38,7 +38,6 @@ class GeometryManager {
     }
 
     #createSplinesAndNodeLines(bbox, nodes) {
-        // const uniqueColors = generateUniqueColors(Object.keys(nodes).length, { minSaturation: 60 })
         let i = 0
         for (const [nodeName, nodeData] of Object.entries(nodes)) {
             
@@ -48,13 +47,14 @@ class GeometryManager {
 
             this.splines.set(nodeName, spline)
 
-            const lineMaterialConfig = {
-                // color: uniqueColors[i],
+            const materialConfig = {
                 color: this.genomicService.getAssemblyColor(nodeName),
                 linewidth: 16,
-                worldUnits: true
+                worldUnits: true,
+                opacity: 1,
+                transparent: true
             }
-            const line = LineFactory.createNodeLine(nodeName, spline, 4, 1 + i, new LineMaterial(lineMaterialConfig))
+            const line = LineFactory.createNodeLine(nodeName, spline, 4, 1 + i, new LineMaterial(materialConfig))
             this.linesGroup.add(line)
 
             i++
@@ -73,8 +73,6 @@ class GeometryManager {
         for (const { starting_node, ending_node } of Object.values(edges)) {
 
             let spline
-
-
 
             // Start node
             const { sign: signStart, remainder: remainderStart } = getEdgeNodeSign(starting_node)
@@ -100,15 +98,10 @@ class GeometryManager {
             xyzStart.z = this.#EDGE_Z_OFFSET
             xyzEnd.z = this.#EDGE_Z_OFFSET
 
-            // const heroTexture = textureService.getTexture('arrow-white')
-            // const color = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
-            // const material = getArrowMaterial(heroTexture, color)
-            // const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, material)
-
             const startColor = this.genomicService.getAssemblyColor(`${remainderStart}+`)
             const endColor = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
             const heroTexture = textureService.getTexture('arrow-white')
-            const colorRampMaterial = getColorRampArrowMaterial(startColor, endColor, heroTexture)
+            const colorRampMaterial = getColorRampArrowMaterial(startColor, endColor, heroTexture, 1)
             const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, colorRampMaterial)
 
             this.edgesGroup.add(edgeLine)
