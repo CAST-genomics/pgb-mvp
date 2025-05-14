@@ -47,14 +47,14 @@ class GeometryManager {
 
             this.splines.set(nodeName, spline)
 
-            const lineMaterialConfig = {
+            const materialConfig = {
                 color: this.genomicService.getAssemblyColor(nodeName),
                 linewidth: 16,
                 worldUnits: true,
                 opacity: 1,
                 transparent: true
             }
-            const line = LineFactory.createNodeLine(nodeName, spline, 4, 1 + i, new LineMaterial(lineMaterialConfig))
+            const line = LineFactory.createNodeLine(nodeName, spline, 4, 1 + i, new LineMaterial(materialConfig))
             this.linesGroup.add(line)
 
             i++

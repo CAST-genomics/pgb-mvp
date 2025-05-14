@@ -22,6 +22,8 @@ class LineFactory {
         line.computeLineDistances();
         line.scale.set(1, 1, 1);
 
+        line.renderOrder = 2
+
         return line;
     }
 
@@ -66,7 +68,11 @@ class LineFactory {
         // Two triangles to form the rectangle
         geometry.setIndex([0, 1, 2, 0, 2, 3]);
 
-        return new THREE.Mesh(geometry, material);
+        const mesh = new THREE.Mesh(geometry, material)
+        
+        mesh.renderOrder = 2
+
+        return mesh;
     }
 
     static createNodeLine(nodeName, spline, divisionsMultiplier, zOffset, lineMaterial) {
@@ -77,7 +83,9 @@ class LineFactory {
         const points = spline.getPoints(divisions);
 
         // Set z for each point to 2 * zOffset
-        points.forEach(p => { p.z = 2 * zOffset });
+        for (const point of points) {
+            point.z = 2 * zOffset
+        }
 
         // Flatten the points into an array of xyz
         const xyzList = points.flatMap(p => [p.x, p.y, p.z]);
@@ -87,6 +95,8 @@ class LineFactory {
 
         const line = new Line2(lineGeometry, lineMaterial);
         line.userData = { nodeName }
+
+        line.renderOrder = 4
 
         line.computeLineDistances();
         line.scale.set(1, 1, 1);
