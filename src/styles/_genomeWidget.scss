@@ -12,13 +12,31 @@
   }
 
   &__button {
-    transition: transform 0.1s ease;
+    transition: transform 0.2s ease;
     &:hover {
-      transform: scale(1.5);
+      transform: scale(1.2);
     }
   }
 
   &__icon {
     font-size: 2.0rem;
+  }
+
+  &__card {
+    z-index: 1000;
+    top: 0;
+    left: 0;
+    margin-left: 5rem;
+    margin-top: 12rem;
+    min-width: 300px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: opacity 0.2s ease;
+    opacity: 0;
+    pointer-events: none;
+
+    &.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
 } 
