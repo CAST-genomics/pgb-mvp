@@ -5,7 +5,16 @@ import textureService from './utils/textureService.js';
 import { getColorRampArrowMaterial } from './materialLibrary.js';
 
 class GeometryManager {
-    #EDGE_Z_OFFSET = -4
+
+    #EDGE_LINE_Z_OFFSET = -4
+    #NODE_LINE_DEEMPHASIS_Z_OFFSET = -8
+    
+    static #DEEMPHASIS_MATERIAL = new LineMaterial({
+        transparent: true,
+        opacity: 0.5,
+        depthWrite: false,
+        worldUnits: true
+    });
 
     constructor(genomicService) {
         this.genomicService = genomicService
@@ -13,6 +22,8 @@ class GeometryManager {
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
         this.isEdgeAnimationEnabled = true;
+        this.originalZOffsets = new Map(); // Store original z-offsets
+        this.deemphasizedNodes = new Set(); // Track which nodes are currently deemphasized
     }
 
     #calculateBoundingBox(json) {
@@ -54,7 +65,9 @@ class GeometryManager {
                 opacity: 1,
                 transparent: true
             }
-            const line = LineFactory.createNodeLine(nodeName, spline, 4, 1 + i, new LineMaterial(materialConfig))
+            const originalZOffset = 1 + i;
+            this.originalZOffsets.set(nodeName, originalZOffset);
+            const line = LineFactory.createNodeLine(nodeName, spline, 4, originalZOffset, new LineMaterial(materialConfig))
             this.linesGroup.add(line)
 
             i++
@@ -95,8 +108,8 @@ class GeometryManager {
             const xyzEnd = spline.getPoint(signEnd === '+' ? 0 : 1)
 
             // position edge lines behind nodes in z coordinate
-            xyzStart.z = this.#EDGE_Z_OFFSET
-            xyzEnd.z = this.#EDGE_Z_OFFSET
+            xyzStart.z = this.#EDGE_LINE_Z_OFFSET
+            xyzEnd.z = this.#EDGE_LINE_Z_OFFSET
 
             const startColor = this.genomicService.getAssemblyColor(`${remainderStart}+`)
             const endColor = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
@@ -187,6 +200,56 @@ class GeometryManager {
 
         // Clear the maps
         this.splines.clear();
+    }
+
+    deemphasizeLinesViaZOffset(nodeNames) {
+        this.linesGroup.traverse((object) => {
+            if (object.userData && nodeNames.includes(object.userData.nodeName)) {
+                const nodeName = object.userData.nodeName;
+                if (!this.deemphasizedNodes.has(nodeName)) {
+                    const positions = object.geometry.attributes.position.array;
+                    for (let i = 0; i < positions.length; i += 3) {
+                        positions[i + 2] += this.#NODE_LINE_DEEMPHASIS_Z_OFFSET;
+                    }
+                    object.geometry.attributes.position.needsUpdate = true;
+                    
+                    // Store original material if not already stored
+                    if (!object.userData.originalMaterial) {
+                        object.userData.originalMaterial = object.material;
+                    }
+                    
+                    // Apply deemphasis material
+                    object.material = GeometryManager.#DEEMPHASIS_MATERIAL;
+                    object.renderOrder = 1;
+                    
+                    this.deemphasizedNodes.add(nodeName);
+                }
+            }
+        });
+    }
+
+    restoreLinesViaZOffset(nodeNames) {
+        this.linesGroup.traverse((object) => {
+            if (object.userData && nodeNames.includes(object.userData.nodeName)) {
+                const nodeName = object.userData.nodeName;
+                if (this.deemphasizedNodes.has(nodeName)) {
+                    const originalZOffset = this.originalZOffsets.get(nodeName);
+                    const positions = object.geometry.attributes.position.array;
+                    for (let i = 0; i < positions.length; i += 3) {
+                        positions[i + 2] = originalZOffset;
+                    }
+                    object.geometry.attributes.position.needsUpdate = true;
+                    
+                    // Restore original material
+                    if (object.userData.originalMaterial) {
+                        object.material = object.userData.originalMaterial;
+                        object.renderOrder = 0;
+                    }
+                    
+                    this.deemphasizedNodes.delete(nodeName);
+                }
+            }
+        });
     }
 }
 

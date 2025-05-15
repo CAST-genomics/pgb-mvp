@@ -9,7 +9,7 @@ class SequenceService {
         this.geometryManager = geometryManager;
 
         this.canvas = container.querySelector('canvas');
-        this.ctx = this.canvas.getContext('2d');
+        this.ctx = this.canvas.getContext('2d', { alpha: true });
 
         // Create visual feedback element
         this.feedbackElement = document.createElement('div');
@@ -62,7 +62,9 @@ class SequenceService {
         // Repaint the current sequence if one exists
         if (this.currentNodeName) {
             this.repaint();
-        }
+        } else {
+            this.ctx.clearRect(0, 0, width, height);
+        }   
     }
 
     renderWithNode(nodeLine, nodeName) {
@@ -84,7 +86,7 @@ class SequenceService {
         const { width, height } = this.container.getBoundingClientRect();
         const sectionWidth = width / sequence.length;
 
-        // Clear the canvas
+        // Clear the canvas with transparency
         this.ctx.clearRect(0, 0, width, height);
 
         // Draw a rectangle for each character
