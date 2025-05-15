@@ -64,7 +64,7 @@ class SequenceService {
             this.repaint();
         } else {
             this.ctx.clearRect(0, 0, width, height);
-        }   
+        }
     }
 
     renderWithNode(nodeLine, nodeName) {
@@ -76,7 +76,7 @@ class SequenceService {
     repaint() {
         if (!this.currentNodeName) return;
 
-        const sequence = this.genomicService.getSequence(this.currentNodeName);
+        const sequence = this.genomicService.sequences.get(this.currentNodeName);
 
         if (!sequence) {
             console.error(`No sequence found for ${this.currentNodeName}`);

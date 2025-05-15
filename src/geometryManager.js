@@ -3,6 +3,7 @@ import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import textureService from './utils/textureService.js';
 import { getColorRampArrowMaterial } from './materialLibrary.js';
+import { getAppleCrayonColorByName } from './utils/color.js';
 
 class GeometryManager {
 
@@ -10,10 +11,12 @@ class GeometryManager {
     #NODE_LINE_DEEMPHASIS_Z_OFFSET = -8
     
     static #DEEMPHASIS_MATERIAL = new LineMaterial({
+        color: getAppleCrayonColorByName('mercury'),
+        linewidth: 16,
+        worldUnits: true,
+        opacity: 1,
         transparent: true,
-        opacity: 0.5,
-        depthWrite: false,
-        worldUnits: true
+        // depthWrite: false
     });
 
     constructor(genomicService) {
@@ -67,11 +70,14 @@ class GeometryManager {
             }
             const originalZOffset = 1 + i;
             this.originalZOffsets.set(nodeName, originalZOffset);
-            const line = LineFactory.createNodeLine(nodeName, spline, 4, originalZOffset, new LineMaterial(materialConfig))
+            
+            const assembly = this.genomicService.metadata.get(nodeName).assembly;
+            const line = LineFactory.createNodeLine(nodeName, assembly, spline, 4, originalZOffset, new LineMaterial(materialConfig))
             this.linesGroup.add(line)
 
             i++
         }
+        console.log(`GeometryManager: Created ${this.splines.size} splines`);
     }
 
     #createEdgeLines(edges) {
@@ -202,9 +208,12 @@ class GeometryManager {
         this.splines.clear();
     }
 
-    deemphasizeLinesViaZOffset(nodeNames) {
+    deemphasizeLinesViaNodeNameSet(nodeNameSet) {
+
+        this.deemphasizedNodes.clear();
+        
         this.linesGroup.traverse((object) => {
-            if (object.userData && nodeNames.includes(object.userData.nodeName)) {
+            if (object.userData && nodeNameSet.has(object.userData.nodeName)) {
                 const nodeName = object.userData.nodeName;
                 if (!this.deemphasizedNodes.has(nodeName)) {
                     const positions = object.geometry.attributes.position.array;
@@ -220,7 +229,7 @@ class GeometryManager {
                     
                     // Apply deemphasis material
                     object.material = GeometryManager.#DEEMPHASIS_MATERIAL;
-                    object.renderOrder = 1;
+                    // object.renderOrder = 1;
                     
                     this.deemphasizedNodes.add(nodeName);
                 }
@@ -228,9 +237,11 @@ class GeometryManager {
         });
     }
 
-    restoreLinesViaZOffset(nodeNames) {
+    restoreLinesViaZOffset(nodeNameSet) {
+
         this.linesGroup.traverse((object) => {
-            if (object.userData && nodeNames.includes(object.userData.nodeName)) {
+
+            if (object.userData && nodeNameSet.has(object.userData.nodeName)) {
                 const nodeName = object.userData.nodeName;
                 if (this.deemphasizedNodes.has(nodeName)) {
                     const originalZOffset = this.originalZOffsets.get(nodeName);
@@ -243,13 +254,15 @@ class GeometryManager {
                     // Restore original material
                     if (object.userData.originalMaterial) {
                         object.material = object.userData.originalMaterial;
-                        object.renderOrder = 0;
+                        // object.renderOrder = 0;
                     }
                     
                     this.deemphasizedNodes.delete(nodeName);
                 }
             }
         });
+
+        this.deemphasizedNodes.clear();
     }
 }
 

@@ -4,7 +4,7 @@ import { Draggable } from './utils/draggable.js';
 import { colorToRGBString } from './utils/color.js';
 
 class GenomeWidget {
-  constructor(gear, genomeWidgetContainer, genomicService) {
+  constructor(gear, genomeWidgetContainer, genomicService, geometryManager) {
     this.gear = gear;
     this.gear.addEventListener('click', this.onGearClick.bind(this));
 
@@ -12,6 +12,7 @@ class GenomeWidget {
     this.listGroup = this.genomeWidgetContainer.querySelector('.list-group');
 
     this.genomicService = genomicService;
+    this.geometryManager = geometryManager;
 
     this.draggable = new Draggable(this.genomeWidgetContainer);
     
@@ -62,8 +63,12 @@ class GenomeWidget {
 
   onGenomeSelectorClick(assembly, event) {
     event.stopPropagation();
-    // TODO: Handle genome selection
-    console.log('Genome selected:', assembly);
+
+    this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames)
+
+    const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
+    const deemphasizedNodeNames = this.genomicService.allNodeNames.difference(set);
+    this.geometryManager.deemphasizeLinesViaNodeNameSet(deemphasizedNodeNames);
   }
 
   onFlowSwitch(assembly, event) {

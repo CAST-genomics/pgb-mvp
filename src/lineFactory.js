@@ -75,7 +75,7 @@ class LineFactory {
         return mesh;
     }
 
-    static createNodeLine(nodeName, spline, divisionsMultiplier, zOffset, lineMaterial) {
+    static createNodeLine(nodeName, assembly, spline, divisionsMultiplier, zOffset, lineMaterial) {
         // Calculate number of divisions
         const divisions = Math.round(divisionsMultiplier * spline.points.length);
 
@@ -94,7 +94,7 @@ class LineFactory {
         lineGeometry.setPositions(xyzList);
 
         const line = new Line2(lineGeometry, lineMaterial);
-        line.userData = { nodeName }
+        line.userData = { nodeName, assembly }
 
         line.renderOrder = 4
 

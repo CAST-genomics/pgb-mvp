@@ -30,23 +30,4 @@ async function loadPath(url) {
     }
 }
 
-/**
- * Processes and ingests JSON data into genomic and geometry services
- * @param {Object} json - The JSON data to ingest
- * @param {Object} genomicService - Service for handling genomic data
- * @param {Object} geometryManager - Manager for handling geometry data
- */
-function ingestData(json, genomicService, geometryManager) {
-    if (!json || !json.node) {
-        console.error('Invalid data format: missing node section')
-        return
-    }
-
-    genomicService.clear()
-    genomicService.createMetadata(json.node)
-    genomicService.createSequences(json.sequence)
-
-    geometryManager.createGeometry(json)
-}
-
-export { prettyPrint, loadPath, ingestData }
+export { prettyPrint, loadPath }

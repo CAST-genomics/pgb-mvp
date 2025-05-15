@@ -4,7 +4,7 @@ import CameraRig from "./cameraRig.js"
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
-import { loadPath, ingestData } from './utils/utils.js'
+import { loadPath } from './utils/utils.js'
 
 class SceneManager {
 
@@ -168,10 +168,11 @@ class SceneManager {
             console.error(`Error loading ${url}:`, error)
         }
 
-        this.geometryManager.dispose()
+        this.genomicService.clear()
+        this.genomicService.createMetadata(json.node)
+        this.genomicService.createSequences(json.sequence)
 
-        ingestData(json, this.genomicService, this.geometryManager)
-
+        this.geometryManager.createGeometry(json)
         this.geometryManager.addToScene(this.scene)
 
         this.genomeWidget.populateList()

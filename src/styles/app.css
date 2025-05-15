@@ -15,6 +15,7 @@
 .pgb-sequence-container {
   position: relative;
   height: 32px;
+  background-color: transparent;
 }
 .pgb-sequence-container__canvas {
   cursor: pointer;
