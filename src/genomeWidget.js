@@ -17,42 +17,87 @@ class GenomeWidget {
     
   }
 
-  createListItem(color, name) {
-    const item = document.createElement('div');
-    item.className = 'list-group-item d-flex align-items-center gap-3';
+  createListItem(assembly, color) {
+    const container = document.createElement('div');
+    container.className = 'list-group-item d-flex align-items-center gap-3';
     
-    const disc = document.createElement('div');
-    disc.className = 'genome-widget__disc';
-    disc.style.width = '16px';
-    disc.style.height = '16px';
-    disc.style.borderRadius = '50%';
-    disc.style.backgroundColor = colorToRGBString(color);
-    
+    // genome selector
+    const genomeSelector = document.createElement('div');
+    genomeSelector.className = 'genome-widget__genome-selector';
+    genomeSelector.style.width = '16px';
+    genomeSelector.style.height = '16px';
+    genomeSelector.style.borderRadius = '50%';
+    genomeSelector.style.backgroundColor = colorToRGBString(color);
+
+    const onGenomeSelectorClick = this.onGenomeSelectorClick.bind(this, assembly);
+    genomeSelector.onGenomeSelectorClick = onGenomeSelectorClick;
+    genomeSelector.addEventListener('click', onGenomeSelectorClick);
+    container.appendChild(genomeSelector);
+
+    // genome name
     const label = document.createElement('span');
     label.className = 'flex-grow-1';
-    label.textContent = name;
+    label.textContent = assembly;
+    container.appendChild(label);
+
+    // genome flow switch
+    const genomeFlowSwitch = document.createElement('div');
+    genomeFlowSwitch.className = 'form-check form-switch';
     
-    const switchContainer = document.createElement('div');
-    switchContainer.className = 'form-check form-switch';
-    const switchInput = document.createElement('input');
-    switchInput.className = 'form-check-input';
-    switchInput.type = 'checkbox';
-    switchInput.role = 'switch';
-    switchContainer.appendChild(switchInput);
+    const genomeFlowSwitchInput = document.createElement('input');
+    genomeFlowSwitchInput.className = 'form-check-input';
+    genomeFlowSwitchInput.type = 'checkbox';
+    genomeFlowSwitchInput.role = 'switch';
+    genomeFlowSwitchInput.checked = true;
     
-    item.appendChild(disc);
-    item.appendChild(label);
-    item.appendChild(switchContainer);
+    const onFlowSwitch = this.onFlowSwitch.bind(this, assembly);
+    genomeFlowSwitchInput.onFlowSwitch = onFlowSwitch;
+    genomeFlowSwitchInput.addEventListener('change', onFlowSwitch);
     
-    return item;
+    genomeFlowSwitch.appendChild(genomeFlowSwitchInput);
+    container.appendChild(genomeFlowSwitch);
+    
+    return container;
+  }
+
+  onGenomeSelectorClick(assembly, event) {
+    event.stopPropagation();
+    // TODO: Handle genome selection
+    console.log('Genome selected:', assembly);
+  }
+
+  onFlowSwitch(assembly, event) {
+    event.stopPropagation();
+    // TODO: Handle flow switch toggle
+    console.log('Flow switch toggled for:', assembly, event.target.checked);
+  }
+
+  cleanupListItem(item) {
+
+    const genomeSelector = item.querySelector('.genome-widget__genome-selector');
+    if (genomeSelector && genomeSelector.onGenomeSelectorClick) {
+      genomeSelector.removeEventListener('click', genomeSelector.onGenomeSelectorClick);
+      delete genomeSelector.onGenomeSelectorClick;
+    }
+
+    const genomeFlowSwitchInput = item.querySelector('.form-check-input');
+    if (genomeFlowSwitchInput && genomeFlowSwitchInput.onFlowSwitch) {
+      genomeFlowSwitchInput.removeEventListener('change', genomeFlowSwitchInput.onFlowSwitch);
+      delete genomeFlowSwitchInput.onFlowSwitch;
+    }
+
   }
 
   populateList() {
-        
+
+    for (const item of this.listGroup.querySelectorAll('.list-group-item')) {
+      this.cleanupListItem(item);
+    }
+    
     this.listGroup.innerHTML = '';
 
     for (const [assembly, color] of this.genomicService.assemblyColors.entries()) {
-      const item = this.createListItem(color, assembly);
+      const item = this.createListItem(assembly, color);
       this.listGroup.appendChild(item);
     }
   }
