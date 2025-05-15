@@ -54,6 +54,16 @@ class GenomicService {
         return this.assemblyColors.get(metadata.assembly);
     }
 
+    getAllAssemblyColors() {
+        const colors = [...this.assemblyColors.values()];
+        return colors;
+    }
+
+    getAllAssemblyNames() {
+        const names = [...this.assemblyColors.keys()];
+        return names;
+    }
+
     clear() {
         this.sequences.clear();
         this.metadata.clear();

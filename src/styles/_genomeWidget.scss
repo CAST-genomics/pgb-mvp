@@ -43,9 +43,9 @@
     }
 
     .card-body {
-      height: calc(100% - 120px); // Subtract header and footer height
+      height: calc(100% - 120px);
       padding: 0;
-      overflow: hidden; // Prevent body from scrolling
+      overflow: hidden;
     }
   }
 
@@ -53,4 +53,4 @@
     height: 100%;
     overflow-y: auto;
   }
-} 
+}

@@ -274,6 +274,18 @@ function generateUniqueColors(N, options = {}) {
     return colors;
 }
 
+/**
+ * Converts a THREE.Color object to an RGB string in the format "rgb(255, 255, 255)"
+ * @param {THREE.Color} color - The THREE.Color object to convert
+ * @returns {string} RGB string representation of the color
+ */
+function colorToRGBString(color) {
+    const r = Math.round(color.r * 255);
+    const g = Math.round(color.g * 255);
+    const b = Math.round(color.b * 255);
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
 export {
     getRandomAppleCrayonColor,
     getRandomVibrantAppleCrayonColor,
@@ -281,5 +293,6 @@ export {
     getRandomGrayAppleCrayonColor,
     getAppleCrayonColorByName,
     getComplementaryColor,
-    generateUniqueColors
+    generateUniqueColors,
+    colorToRGBString
 };

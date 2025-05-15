@@ -11,7 +11,6 @@ import './styles/app.scss'
 
 let sceneManager
 let locusInput
-let genomeWidget
 
 document.addEventListener("DOMContentLoaded", async (event) => {
 
@@ -29,11 +28,13 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), raycastService, genomicService, geometryManager)
 
-    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager)
+    const gear = document.getElementById('pgb-gear-btn-container')
+    const genomeWidgetContainer = document.getElementById('pgb-gear-card')
+    const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService);
+
+    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget)
 
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
-
-    genomeWidget = new GenomeWidget(document.getElementById('pgb-gear-btn-container'));
 
     const textures = {
         'arrow-white': new URL('./assets/textures/arrow-margin-white.png', import.meta.url).href,

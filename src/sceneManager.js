@@ -8,7 +8,7 @@ import { loadPath, ingestData } from './utils/utils.js'
 
 class SceneManager {
 
-    constructor(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager) {
+    constructor(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget) {
         this.container = container
         this.scene = new THREE.Scene()
         this.scene.background = backgroundColor
@@ -16,7 +16,7 @@ class SceneManager {
         this.geometryManager = geometryManager
         this.sequenceService = sequenceService
         this.genomicService = genomicService
-
+        this.genomeWidget = genomeWidget
         // Initialize time tracking
         this.clock = new THREE.Clock()
         this.lastTime = 0
@@ -173,6 +173,8 @@ class SceneManager {
         ingestData(json, this.genomicService, this.geometryManager)
 
         this.geometryManager.addToScene(this.scene)
+
+        this.genomeWidget.populateList()
 
         this.updateViewToFitScene()
 

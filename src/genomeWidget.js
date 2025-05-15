@@ -1,27 +1,65 @@
 // genomeWidget.js
 // A widget class for genome-related UI functionality
 import { Draggable } from './utils/draggable.js';
+import { colorToRGBString } from './utils/color.js';
 
 class GenomeWidget {
-  constructor(container) {
-    this.container = container;
-    this.card = document.getElementById('pgb-gear-card');
-    this.container.addEventListener('click', this.onGearClick.bind(this));
+  constructor(gear, genomeWidgetContainer, genomicService) {
+    this.gear = gear;
+    this.gear.addEventListener('click', this.onGearClick.bind(this));
+
+    this.genomeWidgetContainer = genomeWidgetContainer;
+    this.listGroup = this.genomeWidgetContainer.querySelector('.list-group');
+
+    this.genomicService = genomicService;
+
+    this.draggable = new Draggable(this.genomeWidgetContainer);
     
-    // Initialize draggable functionality
-    this.draggable = new Draggable(this.card);
+  }
+
+  createListItem(color, name) {
+    const item = document.createElement('div');
+    item.className = 'list-group-item d-flex align-items-center gap-3';
     
-    // Close card when clicking outside
-    // document.addEventListener('click', (event) => {
-    //   if (!this.container.contains(event.target) && !this.card.contains(event.target)) {
-    //     this.hideCard();
-    //   }
-    // });
+    const disc = document.createElement('div');
+    disc.className = 'genome-widget__disc';
+    disc.style.width = '16px';
+    disc.style.height = '16px';
+    disc.style.borderRadius = '50%';
+    disc.style.backgroundColor = colorToRGBString(color);
+    
+    const label = document.createElement('span');
+    label.className = 'flex-grow-1';
+    label.textContent = name;
+    
+    const switchContainer = document.createElement('div');
+    switchContainer.className = 'form-check form-switch';
+    const switchInput = document.createElement('input');
+    switchInput.className = 'form-check-input';
+    switchInput.type = 'checkbox';
+    switchInput.role = 'switch';
+    switchContainer.appendChild(switchInput);
+    
+    item.appendChild(disc);
+    item.appendChild(label);
+    item.appendChild(switchContainer);
+    
+    return item;
+  }
+
+  populateList() {
+        
+    this.listGroup.innerHTML = '';
+
+    for (const [assembly, color] of this.genomicService.assemblyColors.entries()) {
+      const item = this.createListItem(color, assembly);
+      this.listGroup.appendChild(item);
+    }
   }
 
   onGearClick(event) {
     event.stopPropagation();
-    if (this.card.classList.contains('show')) {
+    if (this.genomeWidgetContainer.classList.contains('show')) {
       this.hideCard();
     } else {
       this.showCard();
@@ -29,23 +67,20 @@ class GenomeWidget {
   }
 
   showCard() {
-    this.card.style.display = '';
-    // Use setTimeout to ensure the display:block takes effect before adding the show class
+    this.genomeWidgetContainer.style.display = '';
     setTimeout(() => {
-      this.card.classList.add('show');
+      this.genomeWidgetContainer.classList.add('show');
     }, 0);
   }
 
   hideCard() {
-    this.card.classList.remove('show');
-    // Wait for the fade out transition to complete before hiding
+    this.genomeWidgetContainer.classList.remove('show');
     setTimeout(() => {
-      this.card.style.display = 'none';
+      this.genomeWidgetContainer.style.display = 'none';
     }, 200);
   }
 
   destroy() {
-    // Clean up draggable instance
     this.draggable.destroy();
   }
 }
