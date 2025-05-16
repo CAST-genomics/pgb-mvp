@@ -11,7 +11,7 @@ export const template = `
             <input type="text" 
                    class="pgb-locus-input__control form-control" 
                    id="${ELEMENT_IDS.INPUT}"
-                   placeholder="Enter locus (e.g., chr5 or chr12:50,464,921-53,983,987)"
+                   placeholder="Enter locus (e.g., chr8:30,000-50,000)"
                    aria-label="Genomic locus">
             <button class="pgb-locus-input__button btn btn-outline-secondary" 
                     type="button" 
@@ -19,4 +19,4 @@ export const template = `
         </div>
         <div class="invalid-feedback" id="${ELEMENT_IDS.ERROR}"></div>
     </div>
-`; 
+`;
