@@ -53,4 +53,17 @@
     height: 100%;
     overflow-y: auto;
   }
+
+  &__genome-selector {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+
+    &:hover {
+      transform: scale(1.2);
+    }
+  }
 }
