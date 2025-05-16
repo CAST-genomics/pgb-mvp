@@ -1,5 +1,5 @@
 # PGB MVP (Pangenome Browser - Minimal Viable Product)
-[![Netlify Status](https://api.netlify.com/api/v1/badges/5043661d-80e9-4756-bb49-8a3457d0af31/deploy-status)](https://app.netlify.com/sites/pgp-mvp/deploys)
+[![Netlify Status](https://api.netlify.com/api/v1/badges/824b1763-2af8-44d4-af3c-1a5d0c1f26d2/deploy-status)](https://app.netlify.com/projects/pgb-mvp/deploys)
 
 A web-based 3D visualization tool for exploring pangenome data.
 
