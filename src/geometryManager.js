@@ -7,10 +7,11 @@ import { getAppleCrayonColorByName } from './utils/color.js';
 
 class GeometryManager {
 
-    #EDGE_LINE_Z_OFFSET = -4
-    #NODE_LINE_DEEMPHASIS_Z_OFFSET = -8
+    static #EDGE_LINE_Z_OFFSET = -4
+
+    static #NODE_LINE_DEEMPHASIS_Z_OFFSET = -8
     
-    static #DEEMPHASIS_MATERIAL = new LineMaterial({
+    static #NODE_LINE_DEEMPHASIS_MATERIAL = new LineMaterial({
         color: getAppleCrayonColorByName('mercury'),
         linewidth: 16,
         worldUnits: true,
@@ -114,8 +115,8 @@ class GeometryManager {
             const xyzEnd = spline.getPoint(signEnd === '+' ? 0 : 1)
 
             // position edge lines behind nodes in z coordinate
-            xyzStart.z = this.#EDGE_LINE_Z_OFFSET
-            xyzEnd.z = this.#EDGE_LINE_Z_OFFSET
+            xyzStart.z = GeometryManager.#EDGE_LINE_Z_OFFSET
+            xyzEnd.z = GeometryManager.#EDGE_LINE_Z_OFFSET
 
             const startColor = this.genomicService.getAssemblyColor(`${remainderStart}+`)
             const endColor = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
@@ -218,7 +219,7 @@ class GeometryManager {
                 if (!this.deemphasizedNodes.has(nodeName)) {
                     const positions = object.geometry.attributes.position.array;
                     for (let i = 0; i < positions.length; i += 3) {
-                        positions[i + 2] += this.#NODE_LINE_DEEMPHASIS_Z_OFFSET;
+                        positions[i + 2] += GeometryManager.#NODE_LINE_DEEMPHASIS_Z_OFFSET;
                     }
                     object.geometry.attributes.position.needsUpdate = true;
                     
@@ -228,7 +229,7 @@ class GeometryManager {
                     }
                     
                     // Apply deemphasis material
-                    object.material = GeometryManager.#DEEMPHASIS_MATERIAL;
+                    object.material = GeometryManager.#NODE_LINE_DEEMPHASIS_MATERIAL;
                     // object.renderOrder = 1;
                     
                     this.deemphasizedNodes.add(nodeName);
