@@ -30,9 +30,9 @@ class GeometryManager {
         this.isEdgeAnimationEnabled = true;
         this.originalZOffsets = new Map(); // Store original z-offsets
         this.deemphasizedNodes = new Set(); // Track which nodes are currently deemphasized
-        
+
         // Initialize edge deemphasis material. Must be initialized after textureService is ready
-        this.#EDGE_LINE_DEEMPHASIS_MATERIAL = 
+        this.#EDGE_LINE_DEEMPHASIS_MATERIAL =
         getColorRampArrowMaterial(getAppleCrayonColorByName('mercury'), getAppleCrayonColorByName('mercury'), textureService.getTexture('arrow-white'), 1);
     }
 
@@ -238,7 +238,7 @@ class GeometryManager {
             this.originalZOffsets.set(nodeName, originalZOffset);
 
             const assembly = this.genomicService.metadata.get(nodeName).assembly;
-            const line = LineFactory.createNodeLine(nodeName, spline, 4, originalZOffset, new LineMaterial(materialConfig))
+            const line = LineFactory.createNodeLine(nodeName, assembly, spline, 4, originalZOffset, new LineMaterial(materialConfig))
             this.linesGroup.add(line)
 
             i++

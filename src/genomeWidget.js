@@ -2,6 +2,7 @@
 // A widget class for genome-related UI functionality
 import { Draggable } from './utils/draggable.js';
 import { colorToRGBString } from './utils/color.js';
+import eventBus from "./utils/eventBus.js"
 
 class GenomeWidget {
   constructor(gear, genomeWidgetContainer, genomicService, geometryManager) {
@@ -16,12 +17,20 @@ class GenomeWidget {
 
     this.draggable = new Draggable(this.genomeWidgetContainer);
     this.selectedGenomes = new Set(); // Track selected genomes
+
+    this.unsubscribeEventBus = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this));
+
+  }
+
+  handleLineIntersection(intersectionPayload) {
+    const { assembly } = intersectionPayload;
+    console.log(`genomeWidget: process intersection payload: ${assembly}`);
   }
 
   createListItem(assembly, color) {
     const container = document.createElement('div');
     container.className = 'list-group-item d-flex align-items-center gap-3';
-    
+
     // genome selector
     const genomeSelector = document.createElement('div');
     genomeSelector.className = 'genome-widget__genome-selector';
@@ -42,20 +51,20 @@ class GenomeWidget {
     // genome flow switch
     const genomeFlowSwitch = document.createElement('div');
     genomeFlowSwitch.className = 'form-check form-switch';
-    
+
     const genomeFlowSwitchInput = document.createElement('input');
     genomeFlowSwitchInput.className = 'form-check-input';
     genomeFlowSwitchInput.type = 'checkbox';
     genomeFlowSwitchInput.role = 'switch';
     genomeFlowSwitchInput.checked = true;
-    
+
     const onFlowSwitch = this.onFlowSwitch.bind(this, assembly);
     genomeFlowSwitchInput.onFlowSwitch = onFlowSwitch;
     genomeFlowSwitchInput.addEventListener('change', onFlowSwitch);
-    
+
     genomeFlowSwitch.appendChild(genomeFlowSwitchInput);
     container.appendChild(genomeFlowSwitch);
-    
+
     return container;
   }
 
@@ -116,7 +125,7 @@ class GenomeWidget {
     for (const item of this.listGroup.querySelectorAll('.list-group-item')) {
       this.cleanupListItem(item);
     }
-    
+
     this.listGroup.innerHTML = '';
 
     for (const [assembly, color] of this.genomicService.assemblyColors.entries()) {
