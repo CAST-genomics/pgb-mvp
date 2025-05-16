@@ -25,14 +25,8 @@ class GenomeWidget {
     // genome selector
     const genomeSelector = document.createElement('div');
     genomeSelector.className = 'genome-widget__genome-selector';
-    genomeSelector.style.width = '24px';
-    genomeSelector.style.height = '24px';
-    genomeSelector.style.borderRadius = '50%';
     genomeSelector.style.backgroundColor = colorToRGBString(color);
-    genomeSelector.style.cursor = 'pointer';
-    genomeSelector.style.transition = 'all 0.2s ease';
-    genomeSelector.style.border = '2px solid transparent';
-    genomeSelector.assembly = assembly;  // Store assembly directly on the element
+    genomeSelector.dataset.assembly = assembly;  // Use data attribute instead of direct property
 
     const onGenomeSelectorClick = this.onGenomeSelectorClick.bind(this, assembly);
     genomeSelector.onGenomeSelectorClick = onGenomeSelectorClick;
@@ -76,11 +70,10 @@ class GenomeWidget {
     } else {
       // Deselect any previously selected genome
       if (this.selectedGenomes.size > 0) {
-
         const previousAssembly = [...this.selectedGenomes][0];
         this.selectedGenomes.delete(previousAssembly);
         const previousSelector = Array.from(this.listGroup.querySelectorAll('.genome-widget__genome-selector'))
-          .find(selector => selector.assembly === previousAssembly);
+          .find(selector => selector.dataset.assembly === previousAssembly);
         if (previousSelector) {
           previousSelector.style.border = '2px solid transparent';
         }
