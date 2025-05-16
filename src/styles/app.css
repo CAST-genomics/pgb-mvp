@@ -15,6 +15,7 @@
 .pgb-sequence-container {
   position: relative;
   height: 32px;
+  background-color: transparent;
 }
 .pgb-sequence-container__canvas {
   cursor: pointer;
@@ -27,6 +28,55 @@
   border-radius: 50%;
   pointer-events: none;
   display: none;
+}
+
+.genome-widget__container {
+  z-index: 1000;
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin-left: 5rem;
+  margin-top: 8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.genome-widget__button {
+  transition: transform 0.2s ease;
+}
+.genome-widget__button:hover {
+  transform: scale(1.2);
+}
+.genome-widget__icon {
+  font-size: 2rem;
+}
+.genome-widget__card {
+  z-index: 1000;
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin-left: 5rem;
+  margin-top: 12rem;
+  min-width: 300px;
+  height: 400px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: opacity 0.2s ease;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(0, 0);
+}
+.genome-widget__card.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.genome-widget__card .card-body {
+  height: calc(100% - 120px);
+  padding: 0;
+  overflow: hidden;
+}
+.genome-widget__list-container {
+  height: 100%;
+  overflow-y: auto;
 }
 
 /*# sourceMappingURL=app.css.map */

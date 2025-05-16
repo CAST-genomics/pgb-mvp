@@ -4,6 +4,8 @@ class GenomicService {
     constructor() {
         this.sequences = new Map();
         this.metadata = new Map();
+        this.allNodeNames = new Set();
+        this.assemblySet = new Set();
         this.assemblyColors = new Map();
     }
 
@@ -11,6 +13,8 @@ class GenomicService {
         for (const [nodeName, sequenceString] of Object.entries(sequences)) {
             this.sequences.set(nodeName, sequenceString);
         }
+
+        console.log(`GenomicService: Created ${this.sequences.size} sequences`);
     }
 
     createMetadata(nodes) {
@@ -23,26 +27,20 @@ class GenomicService {
                 metadata = { nodeName, bpLength, assembly };
             }
             this.metadata.set(nodeName, metadata);
-            
+            this.assemblySet.add(assembly);
+            this.allNodeNames.add(nodeName);
         }
 
-        const uniqueAssemblies = [...new Set([...this.metadata.values()].map(item => item.assembly))];
-        const uniqueColors = generateUniqueColors(uniqueAssemblies.length, { minSaturation: 60 })
-        
+        const uniqueColors = generateUniqueColors(this.assemblySet.size, { minSaturation: 60 })
+
         let i = 0;
-        for (const assembly of uniqueAssemblies) {
+        for (const assembly of this.assemblySet) {
             this.assemblyColors.set(assembly, uniqueColors[i]);
             i++;
         }
 
-    }
+        console.log(`GenomicService: Created ${this.assemblyColors.size} assembly colors`);
 
-    getSequence(nodeName) {
-        return this.sequences.get(nodeName);
-    }
-
-    getMetadata(nodeName) {
-        return this.metadata.get(nodeName);
     }
 
     getAssemblyColor(nodeName) {
@@ -54,9 +52,17 @@ class GenomicService {
         return this.assemblyColors.get(metadata.assembly);
     }
 
+    getNodeNameSetWithAssembly(assembly) {
+        const metadataList = [ ...this.metadata.values() ]; 
+        const some = metadataList.filter(metadata => metadata.assembly === assembly);
+        return new Set(some.map(metadata => metadata.nodeName));
+    }
+
     clear() {
         this.sequences.clear();
         this.metadata.clear();
+        this.allNodeNames.clear();
+        this.assemblySet.clear();
         this.assemblyColors.clear();
     }
 }

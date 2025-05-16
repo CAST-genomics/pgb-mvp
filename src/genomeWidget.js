@@ -1,0 +1,163 @@
+// genomeWidget.js
+// A widget class for genome-related UI functionality
+import { Draggable } from './utils/draggable.js';
+import { colorToRGBString } from './utils/color.js';
+
+class GenomeWidget {
+  constructor(gear, genomeWidgetContainer, genomicService, geometryManager) {
+    this.gear = gear;
+    this.gear.addEventListener('click', this.onGearClick.bind(this));
+
+    this.genomeWidgetContainer = genomeWidgetContainer;
+    this.listGroup = this.genomeWidgetContainer.querySelector('.list-group');
+
+    this.genomicService = genomicService;
+    this.geometryManager = geometryManager;
+
+    this.draggable = new Draggable(this.genomeWidgetContainer);
+    this.selectedGenomes = new Set(); // Track selected genomes
+  }
+
+  createListItem(assembly, color) {
+    const container = document.createElement('div');
+    container.className = 'list-group-item d-flex align-items-center gap-3';
+    
+    // genome selector
+    const genomeSelector = document.createElement('div');
+    genomeSelector.className = 'genome-widget__genome-selector';
+    genomeSelector.style.width = '24px';
+    genomeSelector.style.height = '24px';
+    genomeSelector.style.borderRadius = '50%';
+    genomeSelector.style.backgroundColor = colorToRGBString(color);
+    genomeSelector.style.cursor = 'pointer';
+    genomeSelector.style.transition = 'all 0.2s ease';
+    genomeSelector.style.border = '2px solid transparent';
+    genomeSelector.assembly = assembly;  // Store assembly directly on the element
+
+    const onGenomeSelectorClick = this.onGenomeSelectorClick.bind(this, assembly);
+    genomeSelector.onGenomeSelectorClick = onGenomeSelectorClick;
+    genomeSelector.addEventListener('click', onGenomeSelectorClick);
+    container.appendChild(genomeSelector);
+
+    // genome name
+    const label = document.createElement('span');
+    label.className = 'flex-grow-1';
+    label.textContent = assembly;
+    container.appendChild(label);
+
+    // genome flow switch
+    const genomeFlowSwitch = document.createElement('div');
+    genomeFlowSwitch.className = 'form-check form-switch';
+    
+    const genomeFlowSwitchInput = document.createElement('input');
+    genomeFlowSwitchInput.className = 'form-check-input';
+    genomeFlowSwitchInput.type = 'checkbox';
+    genomeFlowSwitchInput.role = 'switch';
+    genomeFlowSwitchInput.checked = true;
+    
+    const onFlowSwitch = this.onFlowSwitch.bind(this, assembly);
+    genomeFlowSwitchInput.onFlowSwitch = onFlowSwitch;
+    genomeFlowSwitchInput.addEventListener('change', onFlowSwitch);
+    
+    genomeFlowSwitch.appendChild(genomeFlowSwitchInput);
+    container.appendChild(genomeFlowSwitch);
+    
+    return container;
+  }
+
+  onGenomeSelectorClick(assembly, event) {
+    event.stopPropagation();
+
+    if (this.selectedGenomes.has(assembly)) {
+      // Deselect
+      this.selectedGenomes.delete(assembly);
+      event.target.style.border = '2px solid transparent';
+      this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
+    } else {
+      // Deselect any previously selected genome
+      if (this.selectedGenomes.size > 0) {
+
+        const previousAssembly = [...this.selectedGenomes][0];
+        this.selectedGenomes.delete(previousAssembly);
+        const previousSelector = Array.from(this.listGroup.querySelectorAll('.genome-widget__genome-selector'))
+          .find(selector => selector.assembly === previousAssembly);
+        if (previousSelector) {
+          previousSelector.style.border = '2px solid transparent';
+        }
+        this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
+      }
+
+      // Select new genome
+      this.selectedGenomes.add(assembly);
+      event.target.style.border = '2px solid #000';
+      const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
+      const deemphasizedNodeNames = this.genomicService.allNodeNames.difference(set);
+      this.geometryManager.deemphasizeLinesViaNodeNameSet(deemphasizedNodeNames);
+    }
+  }
+
+  onFlowSwitch(assembly, event) {
+    event.stopPropagation();
+    // TODO: Handle flow switch toggle
+    console.log('Flow switch toggled for:', assembly, event.target.checked);
+  }
+
+  cleanupListItem(item) {
+
+    const genomeSelector = item.querySelector('.genome-widget__genome-selector');
+    if (genomeSelector && genomeSelector.onGenomeSelectorClick) {
+      genomeSelector.removeEventListener('click', genomeSelector.onGenomeSelectorClick);
+      delete genomeSelector.onGenomeSelectorClick;
+    }
+
+    const genomeFlowSwitchInput = item.querySelector('.form-check-input');
+    if (genomeFlowSwitchInput && genomeFlowSwitchInput.onFlowSwitch) {
+      genomeFlowSwitchInput.removeEventListener('change', genomeFlowSwitchInput.onFlowSwitch);
+      delete genomeFlowSwitchInput.onFlowSwitch;
+    }
+
+  }
+
+  populateList() {
+
+    for (const item of this.listGroup.querySelectorAll('.list-group-item')) {
+      this.cleanupListItem(item);
+    }
+    
+    this.listGroup.innerHTML = '';
+
+    for (const [assembly, color] of this.genomicService.assemblyColors.entries()) {
+      const item = this.createListItem(assembly, color);
+      this.listGroup.appendChild(item);
+    }
+  }
+
+  onGearClick(event) {
+    event.stopPropagation();
+    if (this.genomeWidgetContainer.classList.contains('show')) {
+      this.hideCard();
+    } else {
+      this.showCard();
+    }
+  }
+
+  showCard() {
+    this.genomeWidgetContainer.style.display = '';
+    setTimeout(() => {
+      this.genomeWidgetContainer.classList.add('show');
+    }, 0);
+  }
+
+  hideCard() {
+    this.genomeWidgetContainer.classList.remove('show');
+    setTimeout(() => {
+      this.genomeWidgetContainer.style.display = 'none';
+    }, 200);
+  }
+
+  destroy() {
+    this.draggable.destroy();
+  }
+}
+
+export default GenomeWidget;

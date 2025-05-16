@@ -6,11 +6,21 @@ import GenomicService from './genomicService.js'
 import SequenceService from './sequenceService.js'
 import GeometryManager from './geometryManager.js'
 import textureService from './utils/textureService.js'
+import GenomeWidget from './genomeWidget.js'
 import './styles/app.scss'
 
 let sceneManager
 let locusInput
+
 document.addEventListener("DOMContentLoaded", async (event) => {
+
+    const textures = {
+        'arrow-white': new URL('./assets/textures/arrow-margin-white.png', import.meta.url).href,
+        'uv': new URL('./assets/textures/uv128x128.png', import.meta.url).href,
+        'u': new URL('./assets/textures/u128x128.png', import.meta.url).href
+    }
+
+    await textureService.initialize({ textures })
 
     const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
@@ -26,17 +36,13 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), raycastService, genomicService, geometryManager)
 
-    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager)
+    const gear = document.getElementById('pgb-gear-btn-container')
+    const genomeWidgetContainer = document.getElementById('pgb-gear-card')
+    const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, geometryManager);
+
+    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget)
 
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
-
-    const textures = {
-        'arrow-white': new URL('./assets/textures/arrow-margin-white.png', import.meta.url).href,
-        'uv': new URL('./assets/textures/uv128x128.png', import.meta.url).href,
-        'u': new URL('./assets/textures/u128x128.png', import.meta.url).href
-    }
-        
-    await textureService.initialize({ textures })  
 
     sceneManager.startAnimation()
 

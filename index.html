@@ -27,11 +27,36 @@
     </div>
   </nav>
   <div class="h-100 w-100">
+    <div id="pgb-gear-btn-container" class="genome-widget__container">
+      <button id="pgb-gear-btn" class="btn btn-link p-0 genome-widget__button">
+        <i class="bi bi-gear-fill text-secondary genome-widget__icon"></i>
+      </button>
+    </div>
+    <div id="pgb-gear-card" class="genome-widget__card card position-absolute" style="display: none;">
+      <div class="card-header">
+        <h5 class="card-title mb-0">Genome Widget</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="genome-widget__list-container">
+          <div class="list-group list-group-flush">
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="d-flex align-items-center gap-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch">
+          </div>
+          <input type="range" class="form-range flex-grow-1" min="0" max="100" value="50">
+        </div>
+      </div>
+    </div>
     <div id="pgb-sequence-container" class="w-100 pgb-sequence-container">
       <canvas class="h-100 w-100 pgb-sequence-container__canvas"></canvas>
     </div>
     <div class="h-100 w-100">
-      <div id="pgb-three-container" class="h-100 w-100"></div>
+      <div id="pgb-three-container" class="h-100 w-100 position-relative">
+      </div>
     </div>
   </div>
 </body>
