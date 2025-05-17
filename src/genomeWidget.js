@@ -1,11 +1,8 @@
-// genomeWidget.js
-// A widget class for genome-related UI functionality
 import { Draggable } from './utils/draggable.js';
 import { colorToRGBString } from './utils/color.js';
-import eventBus from "./utils/eventBus.js"
 
 class GenomeWidget {
-  constructor(gear, genomeWidgetContainer, genomicService, geometryManager) {
+  constructor(gear, genomeWidgetContainer, genomicService, geometryManager, raycastService) {
     this.gear = gear;
     this.gear.addEventListener('click', this.onGearClick.bind(this));
 
@@ -15,16 +12,36 @@ class GenomeWidget {
     this.genomicService = genomicService;
     this.geometryManager = geometryManager;
 
+    raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
+
     this.draggable = new Draggable(this.genomeWidgetContainer);
     this.selectedGenomes = new Set(); // Track selected genomes
 
-    this.unsubscribeEventBus = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this));
-
   }
 
-  handleLineIntersection(intersectionPayload) {
-    const { assembly } = intersectionPayload;
-    console.log(`genomeWidget: process intersection payload: ${assembly}`);
+  raycastClickHandler(intersection) {
+
+    const { assembly } = intersection
+
+    if (this.selectedGenomes.has(assembly)) {
+
+      this.selectedGenomes.delete(assembly);
+      this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
+
+    } else {
+
+      if (this.selectedGenomes.size > 0) {
+        const previousAssembly = [...this.selectedGenomes][0];
+        this.selectedGenomes.delete(previousAssembly);
+        this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
+      }
+
+      this.selectedGenomes.add(assembly);
+      const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
+      const deemphasizedNodeNames = this.genomicService.allNodeNames.difference(set);
+      this.geometryManager.deemphasizeLinesViaNodeNameSet(deemphasizedNodeNames);
+
+    }
   }
 
   createListItem(assembly, color) {

@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const gear = document.getElementById('pgb-gear-btn-container')
     const genomeWidgetContainer = document.getElementById('pgb-gear-card')
-    const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, geometryManager);
+    const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, geometryManager, raycastService);
 
     sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget)
 

@@ -37,6 +37,12 @@ class SequenceService {
         this.canvas.addEventListener('mouseenter', this.boundMouseEnterHandler);
         this.canvas.addEventListener('mouseleave', this.boundMouseLeaveHandler);
 
+        // Register Raycast click handler
+        this.raycastService.registerClickHandler(intersection => {
+            const { nodeLine, nodeName } = intersection;
+            this.renderWithNode(nodeLine, nodeName)
+        });
+
         this.unsubscribeEventBus = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this));
     }
 
