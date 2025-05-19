@@ -41,6 +41,15 @@ class GenomicService {
 
     }
 
+    getAssemblyForNodeName(nodeName) {
+        const metadata = this.metadata.get(nodeName);
+        if (!metadata) {
+            console.error(`GenomicService: Metadata not found for node: ${nodeName}`);
+            return null;
+        }
+        return metadata.assembly;
+    }
+    
     getAssemblyColor(nodeName) {
         const metadata = this.metadata.get(nodeName);
         if (!metadata) {
