@@ -82,7 +82,7 @@ class SequenceService {
     repaint() {
         if (!this.currentNodeName) return;
 
-        const sequence = this.genomicService.sequences.get(this.currentNodeName);
+        const sequence = this.genomicService.metadata.get(this.currentNodeName).sequence;
 
         if (!sequence) {
             console.error(`No sequence found for ${this.currentNodeName}`);

@@ -221,8 +221,10 @@ class GeometryManager {
         let i = 0
         for (const [nodeName, nodeData] of Object.entries(nodes)) {
 
+            const { ogdf_coordinates } = nodeData;
+
             // Build spline from coordinates recentered around origin
-            const coordinates = nodeData.ogdf_coordinates.map(({ x, y }) => new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0))
+            const coordinates = ogdf_coordinates.map(({ x, y }) => new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0))
             const spline = new THREE.CatmullRomCurve3(coordinates)
 
             this.splines.set(nodeName, spline)

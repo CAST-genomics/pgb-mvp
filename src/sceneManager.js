@@ -165,8 +165,7 @@ class SceneManager {
         }
 
         this.genomicService.clear()
-        this.genomicService.createMetadata(json.node)
-        this.genomicService.createSequences(json.sequence)
+        this.genomicService.createMetadata(json.node, json.sequence)
 
         this.geometryManager.createGeometry(json)
         this.geometryManager.addToScene(this.scene)
