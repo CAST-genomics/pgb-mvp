@@ -21,6 +21,7 @@ class GenomicService {
                 // Internal to the app we use 0-indexed
                 locus.startBP -= 1
                 metadata.locus = locus
+                console.log(`GenomicService: locus: ${locusInput.prettyPrintLocus(locus)}`);
             }
 
             this.metadata.set(nodeName, metadata);

@@ -117,6 +117,11 @@ class LocusInput {
         return null;
     }
 
+    prettyPrintLocus(locus) {
+        const { chr, startBP, endBP } = locus;
+        return `${chr}:${prettyPrint(startBP)}-${prettyPrint(endBP)}`;
+    }
+
     showError(message) {
         this.inputElement.classList.add('is-invalid');
         this.errorDiv.textContent = message;
