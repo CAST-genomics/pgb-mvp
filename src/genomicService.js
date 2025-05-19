@@ -16,7 +16,11 @@ class GenomicService {
             const metadata =  { nodeName, bpLength, assembly, sequence: sequences[nodeName] };
 
             if (typeof range === 'string' && range.trim().length > 0) {
-                metadata.locus = locusInput.parseLocusString(range);
+                const locus = locusInput.parseLocusString(range);
+
+                // Internal to the app we use 0-indexed
+                locus.startBP -= 1
+                metadata.locus = locus
             }
 
             this.metadata.set(nodeName, metadata);
