@@ -1,5 +1,6 @@
 .pgb-sequence-container {
-    position: relative;
+    top: 0;
+    left: 0;
     height: 32px;
     background-color: transparent;
     &__canvas {
@@ -15,4 +16,4 @@
         pointer-events: none;
         display: none;
     }
-} 
+}
