@@ -37,6 +37,12 @@ class SequenceService {
         this.canvas.addEventListener('mouseenter', this.boundMouseEnterHandler);
         this.canvas.addEventListener('mouseleave', this.boundMouseLeaveHandler);
 
+        // Register Raycast click handler
+        this.raycastService.registerClickHandler(intersection => {
+            const { nodeLine, nodeName } = intersection;
+            this.renderWithNode(nodeLine, nodeName)
+        });
+
         this.unsubscribeEventBus = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this));
     }
 
@@ -76,7 +82,7 @@ class SequenceService {
     repaint() {
         if (!this.currentNodeName) return;
 
-        const sequence = this.genomicService.sequences.get(this.currentNodeName);
+        const sequence = this.genomicService.metadata.get(this.currentNodeName).sequence;
 
         if (!sequence) {
             console.error(`No sequence found for ${this.currentNodeName}`);

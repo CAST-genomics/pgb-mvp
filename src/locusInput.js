@@ -109,6 +109,14 @@ class LocusInput {
         }
     }
 
+    parseLocusString(locusString) {
+        const match = locusString.match(LOCUS_PATTERNS.REGION);
+        if (match) {
+            return { chr: match[1], startBP: this.parsePosition(match[2]), endBP: this.parsePosition(match[3]) };
+        }
+        return null;
+    }
+
     showError(message) {
         this.inputElement.classList.add('is-invalid');
         this.errorDiv.textContent = message;

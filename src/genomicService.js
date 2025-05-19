@@ -1,31 +1,28 @@
 import {generateUniqueColors} from "./utils/color.js"
-
+import { locusInput } from "./main.js"
 class GenomicService {
     constructor() {
-        this.sequences = new Map();
         this.metadata = new Map();
         this.allNodeNames = new Set();
         this.assemblySet = new Set();
         this.assemblyColors = new Map();
     }
+    createMetadata(nodes, sequences) {
 
-    createSequences(sequences) {
-        for (const [nodeName, sequenceString] of Object.entries(sequences)) {
-            this.sequences.set(nodeName, sequenceString);
-        }
-
-        console.log(`GenomicService: Created ${this.sequences.size} sequences`);
-    }
-
-    createMetadata(nodes) {
         for (const [nodeName, nodeData] of Object.entries(nodes)) {
-            const { length: bpLength, assembly, range: genomicRange } = nodeData;
-            let metadata;
-            if (typeof genomicRange === 'string' && genomicRange.trim().length > 0) {
-                metadata = { nodeName, bpLength, assembly, genomicRange };
-            } else {
-                metadata = { nodeName, bpLength, assembly };
+
+            const { length: bpLength, assembly, range } = nodeData;
+
+            const metadata =  { nodeName, bpLength, assembly, sequence: sequences[nodeName] };
+
+            if (typeof range === 'string' && range.trim().length > 0) {
+                const locus = locusInput.parseLocusString(range);
+
+                // Internal to the app we use 0-indexed
+                locus.startBP -= 1
+                metadata.locus = locus
             }
+
             this.metadata.set(nodeName, metadata);
             this.assemblySet.add(assembly);
             this.allNodeNames.add(nodeName);
@@ -53,13 +50,12 @@ class GenomicService {
     }
 
     getNodeNameSetWithAssembly(assembly) {
-        const metadataList = [ ...this.metadata.values() ]; 
+        const metadataList = [ ...this.metadata.values() ];
         const some = metadataList.filter(metadata => metadata.assembly === assembly);
         return new Set(some.map(metadata => metadata.nodeName));
     }
 
     clear() {
-        this.sequences.clear();
         this.metadata.clear();
         this.allNodeNames.clear();
         this.assemblySet.clear();

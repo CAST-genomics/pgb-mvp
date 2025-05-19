@@ -1,10 +1,8 @@
-// genomeWidget.js
-// A widget class for genome-related UI functionality
 import { Draggable } from './utils/draggable.js';
 import { colorToRGBString } from './utils/color.js';
 
 class GenomeWidget {
-  constructor(gear, genomeWidgetContainer, genomicService, geometryManager) {
+  constructor(gear, genomeWidgetContainer, genomicService, geometryManager, raycastService) {
     this.gear = gear;
     this.gear.addEventListener('click', this.onGearClick.bind(this));
 
@@ -14,14 +12,42 @@ class GenomeWidget {
     this.genomicService = genomicService;
     this.geometryManager = geometryManager;
 
+    raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
+
     this.draggable = new Draggable(this.genomeWidgetContainer);
     this.selectedGenomes = new Set(); // Track selected genomes
+
+  }
+
+  raycastClickHandler(intersection) {
+
+    const { assembly } = intersection
+
+    if (this.selectedGenomes.has(assembly)) {
+
+      this.selectedGenomes.delete(assembly);
+      this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
+
+    } else {
+
+      if (this.selectedGenomes.size > 0) {
+        const previousAssembly = [...this.selectedGenomes][0];
+        this.selectedGenomes.delete(previousAssembly);
+        this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
+      }
+
+      this.selectedGenomes.add(assembly);
+      const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
+      const deemphasizedNodeNames = this.genomicService.allNodeNames.difference(set);
+      this.geometryManager.deemphasizeLinesViaNodeNameSet(deemphasizedNodeNames);
+
+    }
   }
 
   createListItem(assembly, color) {
     const container = document.createElement('div');
     container.className = 'list-group-item d-flex align-items-center gap-3';
-    
+
     // genome selector
     const genomeSelector = document.createElement('div');
     genomeSelector.className = 'genome-widget__genome-selector';
@@ -42,20 +68,20 @@ class GenomeWidget {
     // genome flow switch
     const genomeFlowSwitch = document.createElement('div');
     genomeFlowSwitch.className = 'form-check form-switch';
-    
+
     const genomeFlowSwitchInput = document.createElement('input');
     genomeFlowSwitchInput.className = 'form-check-input';
     genomeFlowSwitchInput.type = 'checkbox';
     genomeFlowSwitchInput.role = 'switch';
     genomeFlowSwitchInput.checked = true;
-    
+
     const onFlowSwitch = this.onFlowSwitch.bind(this, assembly);
     genomeFlowSwitchInput.onFlowSwitch = onFlowSwitch;
     genomeFlowSwitchInput.addEventListener('change', onFlowSwitch);
-    
+
     genomeFlowSwitch.appendChild(genomeFlowSwitchInput);
     container.appendChild(genomeFlowSwitch);
-    
+
     return container;
   }
 
@@ -116,7 +142,7 @@ class GenomeWidget {
     for (const item of this.listGroup.querySelectorAll('.list-group-item')) {
       this.cleanupListItem(item);
     }
-    
+
     this.listGroup.innerHTML = '';
 
     for (const [assembly, color] of this.genomicService.assemblyColors.entries()) {

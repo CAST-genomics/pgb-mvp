@@ -33,10 +33,6 @@ class SceneManager {
         this.raycastService = raycastService
         this.raycastService.setupVisualFeedback(this.scene)
 
-        // Register Raycast click handler
-        this.raycastService.registerClickHandler((nodeLine, nodeName, ignore) => {
-            this.sequenceService.renderWithNode(nodeLine, nodeName)
-        });
 
         // Setup resize handler
         window.addEventListener('resize', () => this.handleResize())
@@ -169,8 +165,7 @@ class SceneManager {
         }
 
         this.genomicService.clear()
-        this.genomicService.createMetadata(json.node)
-        this.genomicService.createSequences(json.sequence)
+        this.genomicService.createMetadata(json.node, json.sequence)
 
         this.geometryManager.createGeometry(json)
         this.geometryManager.addToScene(this.scene)

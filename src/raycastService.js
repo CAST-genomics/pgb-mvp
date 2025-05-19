@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import eventBus from './utils/eventBus.js';
 
 class RayCastService {
     constructor(container, threshold) {
@@ -8,7 +9,7 @@ class RayCastService {
         this.setup(threshold);
         this.setupEventListeners(container);
         this.clickCallbacks = new Set();
-        this.currentIntersection = null;
+        this.currentIntersection = undefined;
     }
 
     setup(threshold) {
@@ -32,9 +33,8 @@ class RayCastService {
 
     onClick(event) {
         if (this.currentIntersection) {
-            const { t, nodeName, nodeLine } = this.currentIntersection;
             for (const callback of this.clickCallbacks) {
-                callback(nodeLine, nodeName, t);
+                callback(this.currentIntersection);
             }
         }
     }
@@ -89,18 +89,23 @@ class RayCastService {
         this.showVisualFeedback(pointOnLine, nodeLine.material.color)
 
         const { userData } = nodeLine;
-        const { nodeName } = userData;
+        const { nodeName, assembly } = userData;
         const spline = geometryManager.getSpline(nodeName);
         const segments = nodeLine.geometry.getAttribute('instanceStart');
         const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
 
-        this.currentIntersection = { t, nodeName, nodeLine };
+        const payload = { t, nodeName, assembly, nodeLine }
+        if(undefined === this.currentIntersection) {
+            eventBus.publish('newLineIntersection', payload)
+        }
+
+        this.currentIntersection = payload;
 
         return this.currentIntersection;
     }
 
     clearIntersection() {
-        this.currentIntersection = null;
+        this.currentIntersection = undefined;
         this.clearVisualFeedback();
     }
 
