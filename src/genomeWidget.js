@@ -42,7 +42,7 @@ class GenomeWidget {
       const deemphasizedNodeNames = this.genomicService.allNodeNames.difference(set);
       this.geometryManager.deemphasizeLinesViaNodeNameSet(deemphasizedNodeNames);
 
-    }
+     }
   }
 
   createListItem(assembly, color) {
