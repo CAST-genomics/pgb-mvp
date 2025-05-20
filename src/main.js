@@ -22,9 +22,6 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     await textureService.initialize({ textures })
 
-    const backgroundColor = new THREE.Color(0xffffff)
-    const frustumSize = 5
-
     const container = document.getElementById('pgb-three-container')
     const threshold = 8
 
@@ -39,6 +36,9 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const gear = document.getElementById('pgb-gear-btn-container')
     const genomeWidgetContainer = document.getElementById('pgb-gear-card')
     const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, geometryManager, raycastService);
+
+    const backgroundColor = new THREE.Color(0xffffff)
+    const frustumSize = 5
 
     sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget)
 

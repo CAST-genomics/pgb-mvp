@@ -21,7 +21,8 @@ class GenomeWidget {
 
   raycastClickHandler(intersection) {
 
-    const { assembly } = intersection
+    const { nodeName } = intersection
+    const assembly = this.genomicService.getAssemblyForNodeName(nodeName);
 
     if (this.selectedGenomes.has(assembly)) {
 
@@ -41,7 +42,7 @@ class GenomeWidget {
       const deemphasizedNodeNames = this.genomicService.allNodeNames.difference(set);
       this.geometryManager.deemphasizeLinesViaNodeNameSet(deemphasizedNodeNames);
 
-    }
+     }
   }
 
   createListItem(assembly, color) {

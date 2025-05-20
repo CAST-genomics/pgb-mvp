@@ -1,7 +1,8 @@
 .pgb-sequence-container {
-    position: relative;
+    top: 0;
+    left: 0;
     height: 32px;
-    background-color: transparent;
+    background-color: white;
     &__canvas {
         cursor: pointer;
     }
@@ -15,4 +16,4 @@
         pointer-events: none;
         display: none;
     }
-} 
+}

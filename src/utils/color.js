@@ -225,13 +225,26 @@ function getAppleCrayonColorByName(name) {
 }
 
 /**
- * Returns the complementary color for a given color name
- * @param {string} name - The name of the color to find the complement for
- * @returns {THREE.Color|undefined} The complementary color or undefined if not found
+ * Returns the complementary color for a given THREE.Color object
+ * @param {THREE.Color} threeJSColor - The color to find the complement for
+ * @returns {THREE.Color} The complementary color
  */
-function getComplementaryColor(name) {
-    const complementName = colorComplements.get(name);
-    return complementName ? getAppleCrayonColorByName(complementName) : undefined;
+function getComplementaryThreeJSColor(threeJSColor) {
+    // Create a new color object to avoid modifying the input
+    const color = threeJSColor.clone();
+    
+    // Get HSL values
+    const hsl = {};
+    color.getHSL(hsl);
+    
+    // Shift hue by 180 degrees (0.5 in normalized HSL)
+    hsl.h = (hsl.h + 0.5) % 1.0;
+    
+    // Create and return new color with complementary hue
+    const complementaryColor = new THREE.Color();
+    complementaryColor.setHSL(hsl.h, hsl.s, hsl.l);
+    
+    return complementaryColor;
 }
 
 /**
@@ -287,12 +300,12 @@ function colorToRGBString(color) {
 }
 
 export {
+    getComplementaryThreeJSColor,
     getRandomAppleCrayonColor,
     getRandomVibrantAppleCrayonColor,
     getRandomPastelAppleCrayonColor,
     getRandomGrayAppleCrayonColor,
     getAppleCrayonColorByName,
-    getComplementaryColor,
     generateUniqueColors,
     colorToRGBString
 };

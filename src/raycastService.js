@@ -89,12 +89,12 @@ class RayCastService {
         this.showVisualFeedback(pointOnLine, nodeLine.material.color)
 
         const { userData } = nodeLine;
-        const { nodeName, assembly } = userData;
+        const { nodeName } = userData;
         const spline = geometryManager.getSpline(nodeName);
         const segments = nodeLine.geometry.getAttribute('instanceStart');
         const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
 
-        const payload = { t, nodeName, assembly, nodeLine }
+        const payload = { t, nodeName, nodeLine }
         if(undefined === this.currentIntersection) {
             eventBus.publish('newLineIntersection', payload)
         }

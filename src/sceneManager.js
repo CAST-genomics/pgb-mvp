@@ -5,7 +5,7 @@ import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
 import { loadPath } from './utils/utils.js'
-
+import { getComplementaryThreeJSColor } from './utils/color.js';
 class SceneManager {
 
     constructor(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget) {
@@ -33,10 +33,18 @@ class SceneManager {
         this.raycastService = raycastService
         this.raycastService.setupVisualFeedback(this.scene)
 
+        // raycastService.registerClickHandler(this.raycastClickHandler.bind(this));   
+
 
         // Setup resize handler
         window.addEventListener('resize', () => this.handleResize())
     }
+
+    // raycastClickHandler(intersection) {
+    //     const { nodeName } = intersection
+    //     const color = this.genomicService.getAssemblyColor(nodeName);
+    //     this.setBackgroundColor(getComplementaryThreeJSColor(color));
+    // }
 
     addToScene(object) {
         this.scene.add(object)
@@ -151,6 +159,20 @@ class SceneManager {
         boundingSphereHelper.position.copy(boundingSphere.center)
         boundingSphereHelper.name = 'boundingSphereHelper'
         return boundingSphereHelper
+    }
+
+    /**
+     * Sets the background color of the scene
+     * @param {THREE.Color|string|number} color - The color to set as background. Can be a THREE.Color object, hex string, or hex number
+     */
+    setBackgroundColor(color) {
+        if (typeof color === 'string' || typeof color === 'number') {
+            this.scene.background = new THREE.Color(color);
+        } else if (color instanceof THREE.Color) {
+            this.scene.background = color;
+        } else {
+            console.error('Invalid color format. Please provide a THREE.Color object, hex string, or hex number.');
+        }
     }
 
     async handleSearch(url) {
