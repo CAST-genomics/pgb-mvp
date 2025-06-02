@@ -66,9 +66,9 @@ class GenomeWidget {
     label.textContent = assembly;
     container.appendChild(label);
 
-    // genome flow switch
+    // genome flow switch - for the time being, the flow switch is hidden
     const genomeFlowSwitch = document.createElement('div');
-    genomeFlowSwitch.className = 'form-check form-switch';
+    genomeFlowSwitch.className = 'form-check form-switch d-none';
 
     const genomeFlowSwitchInput = document.createElement('input');
     genomeFlowSwitchInput.className = 'form-check-input';
