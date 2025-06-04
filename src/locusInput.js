@@ -19,6 +19,21 @@ class LocusInput {
         this.sceneManager = sceneManager;
         this.render();
         this.setupEventListeners();
+        
+        // Check for locus parameter in URL
+        const urlLocus = this.getUrlParameter('locus');
+        if (urlLocus) {
+            this.processLocusInput(urlLocus);
+        } else {
+            // Default to chr1:25240000-25460000
+            this.processLocusInput("chr1:25240000-25460000");
+            this.inputElement.value = 'chr1:25240000-25460000';
+        }
+    }
+
+    getUrlParameter(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
     }
 
     render() {

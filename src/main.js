@@ -23,8 +23,8 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     await textureService.initialize({ textures })
 
     const container = document.getElementById('pgb-three-container')
-    const threshold = 8
 
+    const threshold = 8
     const raycastService = new RayCastService(container, threshold)
 
     const genomicService = new GenomicService()
@@ -42,9 +42,9 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget)
 
-    locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
-
     sceneManager.startAnimation()
+
+    locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
 
 })
 
