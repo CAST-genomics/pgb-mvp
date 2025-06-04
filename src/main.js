@@ -7,6 +7,7 @@ import SequenceService from './sequenceService.js'
 import GeometryManager from './geometryManager.js'
 import textureService from './utils/textureService.js'
 import GenomeWidget from './genomeWidget.js'
+import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
 import './styles/app.scss'
 
 let sceneManager
@@ -21,6 +22,8 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     }
 
     await textureService.initialize({ textures })
+
+    const pallete = getPerceptuallyDistinctColors(16)
 
     const container = document.getElementById('pgb-three-container')
 
