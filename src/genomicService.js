@@ -1,15 +1,18 @@
-import {generateUniqueColors} from "./utils/color.js"
 import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
+import AnnotationRenderService from "./annotationRenderService.js"
 import { locusInput } from "./main.js"
 
 class GenomicService {
+
     constructor() {
-        this.metadata = new Map();
-        this.allNodeNames = new Set();
-        this.assemblySet = new Set();
-        this.assemblyColors = new Map();
+        this.metadata = new Map()
+        this.allNodeNames = new Set()
+        this.assemblySet = new Set()
+        this.assemblyColors = new Map()
+        this.renderLibrary = new Map()
     }
-    createMetadata(nodes, sequences) {
+
+    async createMetadata(nodes, sequences, genomeLibrary) {
 
         for (const [nodeName, nodeData] of Object.entries(nodes)) {
 
@@ -18,12 +21,22 @@ class GenomicService {
             const metadata =  { nodeName, bpLength, assembly, sequence: sequences[nodeName] };
 
             if (typeof range === 'string' && range.trim().length > 0) {
-                const locus = locusInput.parseLocusString(range);
+                const locus = locusInput.parseLocusString(range)
 
                 // Internal to the app we use 0-indexed
                 locus.startBP -= 1
                 metadata.locus = locus
-                console.log(`GenomicService: locus: ${locusInput.prettyPrintLocus(locus)}`);
+                console.log(`GenomicService: genome: ${assembly} locus: ${locusInput.prettyPrintLocus(locus)}`)
+
+                if (!this.renderLibrary.has(assembly)) {
+
+                    const {geneFeatureSource, geneRenderer} = await genomeLibrary.getGenomePayload(assembly)
+                    const container = document.querySelector('#pgb-gene-render-container')
+                    const annotationRenderService = new AnnotationRenderService(container, geneFeatureSource, geneRenderer)
+                    this.renderLibrary.set(assembly, annotationRenderService)
+                }
+            } else {
+                console.log(`GenomicService: genome: ${assembly} no locus`);
             }
 
             this.metadata.set(nodeName, metadata);

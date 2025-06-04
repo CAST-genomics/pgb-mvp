@@ -5,26 +5,26 @@ import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
 import { loadPath } from './utils/utils.js'
-import { getComplementaryThreeJSColor } from './utils/color.js';
+
 class SceneManager {
 
-    constructor(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget) {
+    constructor(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary) {
         this.container = container
+
         this.scene = new THREE.Scene()
         this.scene.background = backgroundColor
-
-        this.geometryManager = geometryManager
+        this.renderer = RendererFactory.create(container)
+        
         this.sequenceService = sequenceService
         this.genomicService = genomicService
+        this.geometryManager = geometryManager
         this.genomeWidget = genomeWidget
+        this.genomeLibrary = genomeLibrary
+
         // Initialize time tracking
         this.clock = new THREE.Clock()
         this.lastTime = 0
-
-        // Initialize renderer
-        this.renderer = RendererFactory.create(container)
-
-        // Initialize camera system
+      
         const cameraManager = new CameraManager(frustumSize, container.clientWidth/container.clientHeight)
         const mapControl = MapControlsFactory.create(cameraManager.camera, container)
         this.cameraRig = new CameraRig(cameraManager, mapControl)
@@ -178,7 +178,7 @@ class SceneManager {
         }
 
         this.genomicService.clear()
-        this.genomicService.createMetadata(json.node, json.sequence)
+        await this.genomicService.createMetadata(json.node, json.sequence, this.genomeLibrary)
 
         this.geometryManager.createGeometry(json)
         this.geometryManager.addToScene(this.scene)

@@ -7,7 +7,7 @@ import SequenceService from './sequenceService.js'
 import GeometryManager from './geometryManager.js'
 import textureService from './utils/textureService.js'
 import GenomeWidget from './genomeWidget.js'
-import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
+import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
 import './styles/app.scss'
 
 let sceneManager
@@ -22,8 +22,6 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     }
 
     await textureService.initialize({ textures })
-
-    const pallete = getPerceptuallyDistinctColors(16)
 
     const container = document.getElementById('pgb-three-container')
 
@@ -43,7 +41,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
 
-    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget)
+    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, new GenomeLibrary())
 
     sceneManager.startAnimation()
 
