@@ -1,5 +1,7 @@
 import {generateUniqueColors} from "./utils/color.js"
+import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
 import { locusInput } from "./main.js"
+
 class GenomicService {
     constructor() {
         this.metadata = new Map();
@@ -29,7 +31,7 @@ class GenomicService {
             this.allNodeNames.add(nodeName);
         }
 
-        const uniqueColors = generateUniqueColors(this.assemblySet.size, { minSaturation: 60 })
+        const uniqueColors = getPerceptuallyDistinctColors(this.assemblySet.size)
 
         let i = 0;
         for (const assembly of this.assemblySet) {
@@ -49,7 +51,7 @@ class GenomicService {
         }
         return metadata.assembly;
     }
-    
+
     getAssemblyColor(nodeName) {
         const metadata = this.metadata.get(nodeName);
         if (!metadata) {
