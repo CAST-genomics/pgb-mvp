@@ -1,0 +1,121 @@
+// Apple Crayon color palette
+// A collection of 25 colors used in Apple's classic Mac OS
+
+// Grays
+$licorice: #000000;
+$lead: #1E1E1E;
+$tungsten: #3A3A3A;
+$iron: #545453;
+$steel: #6E6E6E;
+$tin: #878687;
+$nickel: #888787;
+$aluminum: #A09FA0;
+$magnesium: #B8B8B8;
+$silver: #D0D0D0;
+$mercury: #E8E8E8;
+$snow: #FFFFFF;
+
+// Earth tones
+$cayenne: #891100;
+$mocha: #894800;
+$asparagus: #888501;
+$fern: #458401;
+$clover: #028401;
+$moss: #018448;
+$teal: #008688;
+$ocean: #004A88;
+$midnight: #001888;
+$eggplant: #491A88;
+$plum: #891E88;
+$maroon: #891648;
+
+// Vibrant colors
+$maraschino: #FF2101;
+$tangerine: #FF8802;
+$lemon: #FFFA03;
+$lime: #83F902;
+$spring: #05F802;
+$sea-foam: #03F987;
+$turquoise: #00FDFF;
+$aqua: #008CFF;
+$blueberry: #002EFF;
+$grape: #8931FF;
+$magenta: #FF39FF;
+$strawberry: #FF2987;
+
+// Pastels
+$salmon: #FF726E;
+$cantaloupe: #FFCE6E;
+$banana: #FFFB6D;
+$honeydew: #CEFA6E;
+$flora: #68F96E;
+$spindrift: #68FBD0;
+$ice: #68FDFF;
+$sky: #6ACFFF;
+$orchid: #6E76FF;
+$lavender: #D278FF;
+$bubblegum: #FF7AFF;
+$carnation: #FF7FD3;
+
+// Color category maps
+$vibrant-colors: (
+  'maraschino',
+  'tangerine',
+  'lemon',
+  'lime',
+  'spring',
+  'sea-foam',
+  'turquoise',
+  'aqua',
+  'blueberry',
+  'grape',
+  'magenta',
+  'strawberry',
+  'carnation'
+);
+
+$gray-colors: (
+  'licorice',
+  'lead',
+  'tungsten',
+  'iron',
+  'steel',
+  'tin',
+  'nickel',
+  'aluminum',
+  'magnesium',
+  'silver',
+  'mercury',
+  'snow'
+);
+
+$pastel-colors: (
+  'snow',
+  'salmon',
+  'cantaloupe',
+  'banana',
+  'honeydew',
+  'flora',
+  'spindrift',
+  'ice',
+  'sky',
+  'orchid',
+  'lavender',
+  'bubblegum',
+  'carnation'
+);
+
+$earth-colors: (
+  'cayenne',
+  'mocha',
+  'asparagus',
+  'fern',
+  'clover',
+  'moss',
+  'teal',
+  'ocean',
+  'midnight',
+  'eggplant',
+  'plum',
+  'maroon'
+); 
