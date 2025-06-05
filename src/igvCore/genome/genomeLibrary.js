@@ -7,10 +7,10 @@ import { genomeIDAliases } from './genomeIDAliases.js';
 
 class GenomeLibrary {
     constructor() {
-        for (const [ key, value ] of Object.entries(knownGenomes)){
-            const { name } = value
-            console.log(`${ key }#${ name }`)
-        }
+        // for (const [ key, value ] of Object.entries(knownGenomes)){
+        //     const { name } = value
+        //     console.log(`${ key }#${ name }`)
+        // }
     }
 
     async getGenomePayload(genomeId) {
@@ -22,7 +22,7 @@ class GenomeLibrary {
         const genome = await Genome.createGenome(config)
 
         const [ refseqSelectTrackConfig ] = genome.config.tracks
-        const geneFeatureSource = new TextFeatureSource({ ...refseqSelectTrackConfig, type: "annotation" })
+        const geneFeatureSource = new TextFeatureSource({ ...refseqSelectTrackConfig, type: "annotation", expandQuery: false }, genome)
 
         const browser = { genome, qtlSelections: new QTLSelections() }
         const geneRendererConfig = { format: "refgene", type: "annotation", displayMode: "COLLAPSED", browser }

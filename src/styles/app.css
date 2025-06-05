@@ -13,11 +13,10 @@
 }
 
 .pgb-sequence-container {
-  position: absolute;
   top: 0;
   left: 0;
   height: 32px;
-  background-color: transparent;
+  background-color: #CEFA6E;
 }
 .pgb-sequence-container__canvas {
   cursor: pointer;
@@ -30,6 +29,11 @@
   border-radius: 50%;
   pointer-events: none;
   display: none;
+}
+
+#pgb-gene-render-container.pgb-sequence-container {
+  top: 32px;
+  background-color: #008CFF;
 }
 
 .genome-widget__container {

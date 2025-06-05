@@ -19,7 +19,7 @@ class LocusInput {
         this.sceneManager = sceneManager;
         this.render();
         this.setupEventListeners();
-        
+
         // Check for locus parameter in URL
         const urlLocus = this.getUrlParameter('locus');
         if (urlLocus) {
@@ -145,7 +145,7 @@ class LocusInput {
 
     async ingestLocus(chr, startBP, endBP) {
         const path = pangenomeURLTemplate.replace('_CHR_', chr).replace('_START_', startBP).replace('_END_', endBP);
-        console.log(`Pangenome URL: ${path}`);
+        // console.log(`Pangenome URL: ${path}`);
         await this.sceneManager.handleSearch(path);
     }
 }
