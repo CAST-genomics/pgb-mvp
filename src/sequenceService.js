@@ -52,6 +52,7 @@ class SequenceService {
     resizeCanvas() {
         const dpr = window.devicePixelRatio || 1;
         const { width, height } = this.container.getBoundingClientRect();
+        // console.log(`sequenceService resizeCanvas ${width}`);
 
         // Set the canvas size in pixels
         this.canvas.width = width * dpr;

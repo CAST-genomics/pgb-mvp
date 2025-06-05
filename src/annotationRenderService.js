@@ -1,19 +1,46 @@
+import {locusInput} from "./main.js"
+
 class AnnotationRenderService {
-    constructor(container, featureSource, featureRenderer) {
+
+    constructor(container, featureSource, featureRenderer, genomicService, raycastService) {
 
         this.featureSource = featureSource;
         this.featureRenderer = featureRenderer;
 
+        // Initial resize
+        this.resizeCanvas(container);
+
         this.boundResizeHandler = this.resizeCanvas.bind(this, container);
         window.addEventListener('resize', this.boundResizeHandler);
 
-        // Initial resize
-        this.resizeCanvas(container);
+        // Register Raycast click handler
+        raycastService.registerClickHandler(async intersection => {
+            const {nodeName} = intersection
+            const { locus, assembly } = genomicService.metadata.get(nodeName)
+
+            if (locus) {
+                const annotationRenderService = genomicService.renderLibrary.get(assembly)
+                if (annotationRenderService === this) { 
+                    const { chr, startBP, endBP } = locus
+                    const features = await this.getFeatures(chr, startBP, endBP)
+                    console.log(`AnnotationRenderService: features: ${features.length}`)
+                    // this.render({
+                    //     container,
+                    //     bpStart: startBP,
+                    //     bpEnd: endBP,
+                    //     features
+                    // })
+                }
+            }
+
+        });
+
     }
 
     resizeCanvas(container) {
         const dpr = window.devicePixelRatio || 1;
-        const { width, height } = container.getBoundingClientRect();
+        const {width, height} = container.getBoundingClientRect();
+        // console.log(`annotationRenderService resizeCanvas ${width}`);
 
         // Set the canvas size in pixels
         const canvas = container.querySelector('canvas')
@@ -38,22 +65,37 @@ class AnnotationRenderService {
 
     async getFeatures(chr, start, end) {
         return await this.featureSource.getFeatures({chr, start, end})
-    }   
+    }
 
     render(renderConfig) {
 
-        const { container, bpStart, bpEnd } = renderConfig
+        if (renderConfig) {
+            const {container, bpStart, bpEnd} = renderConfig
 
-        const canvas = container.querySelector('canvas')
-        const { width:pixelWidth, height:pixelHeight } = canvas.getBoundingClientRect()
+            const canvas = container.querySelector('canvas')
+            const {width: pixelWidth, height: pixelHeight} = canvas.getBoundingClientRect()
 
-        const bpPerPixel = (bpEnd - bpStart) / pixelWidth
-        const viewportWidth = pixelWidth
-        
-        const context = canvas.getContext('2d')
-        this.drawConfig = { ...renderConfig, context, bpPerPixel, viewportWidth, pixelWidth, pixelHeight }
-        this.featureRenderer.draw(this.drawConfig)
+            const bpPerPixel = (bpEnd - bpStart) / pixelWidth
+            const viewportWidth = pixelWidth
+
+            const context = canvas.getContext('2d')
+            this.drawConfig = {...renderConfig, context, bpPerPixel, viewportWidth, pixelWidth, pixelHeight}
+            this.featureRenderer.draw(this.drawConfig)
+        }
     }
+
+    dispose() {
+        // Remove the bound resize event listener
+        window.removeEventListener('resize', this.boundResizeHandler);
+        
+        // Clear any stored configuration
+        this.drawConfig = null;
+        
+        // Clear references to services
+        this.featureSource = null;
+        this.featureRenderer = null;
+    }
+
 }
 
 export default AnnotationRenderService;

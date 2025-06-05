@@ -15,14 +15,14 @@ class TextureService {
      */
     async initialize(textureConfig) {
         const { textures, defaultOptions = {} } = textureConfig
-        
-        const loadPromises = Object.entries(textures).map(([name, path]) => 
+
+        const loadPromises = Object.entries(textures).map(([name, path]) =>
             this.loadTexture(name, path, defaultOptions)
         )
 
         try {
             await Promise.all(loadPromises)
-            console.log('Texture library initialized successfully')
+            // console.log('Texture library initialized successfully')
         } catch (error) {
             console.error('Failed to initialize texture library:', error)
             throw error
@@ -37,8 +37,8 @@ class TextureService {
      * @returns {Promise<THREE.Texture>}
      */
     async loadTexture(name, path, options = {}) {
-        
-        console.log('Loading texture:', name, path)
+
+        // console.log('Loading texture:', name, path)
 
         // If texture is already loaded, return it
         if (this.textureLibrary.has(name)) {
@@ -116,7 +116,7 @@ class TextureService {
 
 // Create and export a singleton instance
 const textureService = new TextureService()
-export default textureService 
+export default textureService
 
 /**
  * Loads a texture asynchronously
@@ -128,7 +128,7 @@ export default textureService
  */
 async function loadTexture(url, options = {}) {
     const loader = new THREE.TextureLoader()
-    
+
     return new Promise((resolve, reject) => {
         loader.load(
             url,
@@ -136,14 +136,14 @@ async function loadTexture(url, options = {}) {
                 // Apply default options
                 texture.flipY = options.flipY !== undefined ? options.flipY : true
                 texture.generateMipmaps = options.generateMipmaps !== undefined ? options.generateMipmaps : true
-                
+
                 // Apply any additional options
                 Object.entries(options).forEach(([key, value]) => {
                     if (key !== 'flipY' && key !== 'generateMipmaps') {
                         texture[key] = value
                     }
                 })
-                
+
                 resolve(texture)
             },
             undefined, // onProgress callback not implemented
@@ -177,4 +177,4 @@ function createGradientTexture() {
     return gradientTexture;
 }
 
-export { loadTexture, createGradientTexture } 
+export { loadTexture, createGradientTexture }

@@ -14,7 +14,7 @@ class SceneManager {
         this.scene = new THREE.Scene()
         this.scene.background = backgroundColor
         this.renderer = RendererFactory.create(container)
-        
+
         this.sequenceService = sequenceService
         this.genomicService = genomicService
         this.geometryManager = geometryManager
@@ -24,7 +24,7 @@ class SceneManager {
         // Initialize time tracking
         this.clock = new THREE.Clock()
         this.lastTime = 0
-      
+
         const cameraManager = new CameraManager(frustumSize, container.clientWidth/container.clientHeight)
         const mapControl = MapControlsFactory.create(cameraManager.camera, container)
         this.cameraRig = new CameraRig(cameraManager, mapControl)
@@ -178,7 +178,7 @@ class SceneManager {
         }
 
         this.genomicService.clear()
-        await this.genomicService.createMetadata(json.node, json.sequence, this.genomeLibrary)
+        await this.genomicService.createMetadata(json.node, json.sequence, this.genomeLibrary, this.raycastService)
 
         this.geometryManager.createGeometry(json)
         this.geometryManager.addToScene(this.scene)

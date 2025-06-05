@@ -12,7 +12,7 @@ class GenomicService {
         this.renderLibrary = new Map()
     }
 
-    async createMetadata(nodes, sequences, genomeLibrary) {
+    async createMetadata(nodes, sequences, genomeLibrary, raycastService) {
 
         for (const [nodeName, nodeData] of Object.entries(nodes)) {
 
@@ -23,6 +23,10 @@ class GenomicService {
             if (typeof range === 'string' && range.trim().length > 0) {
                 const locus = locusInput.parseLocusString(range)
 
+                if (!locus.chr.startsWith('chr')) {
+                    locus.chr = `chr${locus.chr}`
+                }
+
                 // Internal to the app we use 0-indexed
                 locus.startBP -= 1
                 metadata.locus = locus
@@ -32,7 +36,7 @@ class GenomicService {
 
                     const {geneFeatureSource, geneRenderer} = await genomeLibrary.getGenomePayload(assembly)
                     const container = document.querySelector('#pgb-gene-render-container')
-                    const annotationRenderService = new AnnotationRenderService(container, geneFeatureSource, geneRenderer)
+                    const annotationRenderService = new AnnotationRenderService(container, geneFeatureSource, geneRenderer, this, raycastService)
                     this.renderLibrary.set(assembly, annotationRenderService)
                 }
             } else {
@@ -81,10 +85,18 @@ class GenomicService {
     }
 
     clear() {
+
         this.metadata.clear();
         this.allNodeNames.clear();
         this.assemblySet.clear();
         this.assemblyColors.clear();
+
+        // Dispose of all AnnotationRenderService instances
+        for (const renderService of this.renderLibrary.values()) {
+            renderService.dispose();
+        }
+
+        this.renderLibrary.clear();
     }
 }
 
