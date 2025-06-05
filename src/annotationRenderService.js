@@ -23,13 +23,10 @@ class AnnotationRenderService {
                 if (annotationRenderService === this) { 
                     const { chr, startBP, endBP } = locus
                     const features = await this.getFeatures(chr, startBP, endBP)
-                    console.log(`AnnotationRenderService: features: ${features.length}`)
-                    // this.render({
-                    //     container,
-                    //     bpStart: startBP,
-                    //     bpEnd: endBP,
-                    //     features
-                    // })
+                    // if (features.length > 0) {
+                        console.log(`AnnotationRenderService: genome: ${assembly} locus: ${locusInput.prettyPrintLocus(locus)} features: ${features.length}`)    
+                        this.render({ container, bpStart: startBP, bpEnd: endBP, features })
+                    // }
                 }
             }
 
