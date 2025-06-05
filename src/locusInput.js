@@ -1,15 +1,8 @@
 import { template, ELEMENT_IDS } from './locusInput.template.js';
 import { prettyPrint } from './utils/utils.js';
-import {getChromosomeLength} from "./utils/genomicUtils.js"
 
 // Regular expressions for parsing genomic loci
-const LOCUS_PATTERNS = {
-    // Matches "chr5" or "5"
-    CHROMOSOME_ONLY: /^(?:chr)?(\d{1,2}|[XY])$/i,
-
-    // Matches "chr12:50,464,921-53,983,987" or "12:50,464,921-53,983,987"
-    REGION: /^(?:chr)?(\d{1,2}|[XY]):([0-9,]+)-([0-9,]+)$/i
-};
+const LOCUS_PATTERN = { REGION: /^(chr\d+):([0-9,]+)-([0-9,]+)$/i };
 
 const pangenomeURLTemplate = 'https://3.145.184.140:8443/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
 
@@ -59,16 +52,6 @@ class LocusInput {
 
     }
 
-    handleLocusChange({ chr, startBP, endBP }) {
-        // If only chromosome is provided, show entire chromosome
-        if (!startBP || !endBP) {
-            const chrLength = getChromosomeLength(chr);
-            this.ingestLocus(chr, 0, chrLength);
-        } else {
-            this.ingestLocus(chr, startBP, endBP);
-        }
-    }
-
     processLocusInput(value) {
         // Reset error state
         this.inputElement.classList.remove('is-invalid');
@@ -79,40 +62,27 @@ class LocusInput {
             return;
         }
 
-        // Try chromosome-only pattern first
-        let match = value.match(LOCUS_PATTERNS.CHROMOSOME_ONLY);
-        if (match) {
-            const chr = this.formatChromosome(match[1]);
-            this.handleLocusChange({ chr });
-            return;
-        }
-
-        // Try region pattern
-        match = value.match(LOCUS_PATTERNS.REGION);
-        if (match) {
-            const chr = this.formatChromosome(match[1]);
-            const startBP = this.parsePosition(match[2]);
-            const endBP = this.parsePosition(match[3]);
+        const result = value.match(LOCUS_PATTERN.REGION);
+        if (result) {
+            let [_, chr, startBP, endBP] = result;
+            startBP = this.parsePosition(startBP);
+            endBP = this.parsePosition(endBP);
 
             if (startBP === null || endBP === null) {
-                this.showError('Invalid base pair position format');
+                this.showError(`Invalid base pair position format ${value}`);
                 return;
             }
 
             if (startBP >= endBP) {
-                this.showError('Start position must be less than end position');
+                this.showError(`Start position must be less than end position ${value}`);
                 return;
             }
 
-            this.handleLocusChange({ chr, startBP, endBP });
+            this.ingestLocus(chr, startBP, endBP);
             return;
         }
 
         this.showError('Invalid locus format');
-    }
-
-    formatChromosome(chr) {
-        return `chr${chr.toUpperCase()}`;
     }
 
     parsePosition(pos) {
@@ -125,7 +95,7 @@ class LocusInput {
     }
 
     parseLocusString(locusString) {
-        const match = locusString.match(LOCUS_PATTERNS.REGION);
+        const match = locusString.match(LOCUS_PATTERN.REGION);
         if (match) {
             return { chr: match[1], startBP: this.parsePosition(match[2]), endBP: this.parsePosition(match[3]) };
         }

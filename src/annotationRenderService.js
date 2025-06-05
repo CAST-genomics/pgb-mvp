@@ -28,6 +28,9 @@ class AnnotationRenderService {
                         this.render({ container, bpStart: startBP, bpEnd: endBP, features })
                     // }
                 }
+            } else {
+                // implement this
+                this.clearCanvas(container.querySelector('canvas'))
             }
 
         });
@@ -79,6 +82,17 @@ class AnnotationRenderService {
             this.drawConfig = {...renderConfig, context, bpPerPixel, viewportWidth, pixelWidth, pixelHeight}
             this.featureRenderer.draw(this.drawConfig)
         }
+    }
+
+    clearCanvas(canvas) {
+        const ctx = canvas.getContext('2d');
+        const { width, height } = canvas.getBoundingClientRect();
+        
+        // Clear the canvas
+        ctx.clearRect(0, 0, width, height);
+        
+        // Reset the draw configuration
+        this.drawConfig = null;
     }
 
     dispose() {
