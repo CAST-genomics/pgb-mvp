@@ -4,7 +4,7 @@
     top: 0;
     left: 0;
     height: 32px;
-    background-color: $honeydew;
+    background-color: white;
     &__canvas {
         cursor: pointer;
     }
@@ -22,5 +22,6 @@
 
 #pgb-gene-render-container.pgb-sequence-container {
     top: 32px;
-    background-color: $aqua;
+    height: 64px;
+    background-color: white;
 }
