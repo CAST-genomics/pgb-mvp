@@ -23,10 +23,6 @@ class GenomicService {
             if (typeof range === 'string' && range.trim().length > 0) {
                 const locus = locusInput.parseLocusString(range)
 
-                if (!locus.chr.startsWith('chr')) {
-                    locus.chr = `chr${locus.chr}`
-                }
-
                 // Internal to the app we use 0-indexed
                 locus.startBP -= 1
                 metadata.locus = locus
