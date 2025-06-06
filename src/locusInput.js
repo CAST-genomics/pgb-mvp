@@ -12,16 +12,6 @@ class LocusInput {
         this.sceneManager = sceneManager;
         this.render();
         this.setupEventListeners();
-
-        // Check for locus parameter in URL
-        const urlLocus = this.getUrlParameter('locus');
-        if (urlLocus) {
-            this.processLocusInput(urlLocus);
-        } else {
-            // Default to chr1:25240000-25460000
-            this.processLocusInput("chr1:25240000-25460000");
-            this.inputElement.value = 'chr1:25240000-25460000';
-        }
     }
 
     getUrlParameter(name) {
@@ -58,9 +48,13 @@ class LocusInput {
         this.errorDiv.style.display = 'none';
 
         if (!value) {
-            this.showError('Please enter a genomic locus');
+            this.showError('Please enter a genomic locus, e.g. chr1:25240000-25460000');
             return;
         }
+
+        // TODO: Implement gene name search
+        // TODO: Use defaultGenome declared in main.js
+        // let { chr, start, end, name } = await searchFeatures({ genome }, 'brca2')
 
         const result = value.match(LOCUS_PATTERN.REGION);
         if (result) {
@@ -79,10 +73,9 @@ class LocusInput {
             }
 
             this.ingestLocus(chr, startBP, endBP);
-            return;
+        } else {
+            this.showError(`Invalid locus format value: ${value}`);
         }
-
-        this.showError('Invalid locus format');
     }
 
     parsePosition(pos) {
@@ -90,6 +83,7 @@ class LocusInput {
             // Remove commas and convert to number
             return parseInt(pos.replace(/,/g, ''), 10);
         } catch {
+            console.error(`Error parsing position: ${pos}`);
             return null;
         }
     }

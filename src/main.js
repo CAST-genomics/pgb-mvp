@@ -12,7 +12,7 @@ import './styles/app.scss'
 
 let sceneManager
 let locusInput
-
+let defaultGenome
 document.addEventListener("DOMContentLoaded", async (event) => {
 
     const textures = {
@@ -22,6 +22,10 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     }
 
     await textureService.initialize({ textures })
+
+    const genomeLibrary = new GenomeLibrary()
+    const { genome } = await genomeLibrary.getGenomePayload('hg38')
+    defaultGenome = genome
 
     const container = document.getElementById('pgb-three-container')
 
@@ -41,13 +45,22 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
 
-    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, new GenomeLibrary())
+    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary)
 
     sceneManager.startAnimation()
 
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
 
+    const urlLocus = locusInput.getUrlParameter('locus');
+    if (urlLocus) {
+        locusInput.inputElement.value = urlLocus
+        locusInput.processLocusInput(locusInput.inputElement.value);
+    } else {
+        locusInput.inputElement.value = 'chr1:25240000-25460000';
+        locusInput.processLocusInput(locusInput.inputElement.value);
+    }
+
 })
 
-export { locusInput }
+export { locusInput, defaultGenome }
 
