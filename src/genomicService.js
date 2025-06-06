@@ -10,6 +10,7 @@ class GenomicService {
         this.assemblySet = new Set()
         this.assemblyColors = new Map()
         this.renderLibrary = new Map()
+        this.locusExtentMap = new Map()  // Map to store {chr, startBP, endBP} for each assembly's full extent
     }
 
     async createMetadata(nodes, sequences, genomeLibrary, raycastService) {
@@ -27,6 +28,22 @@ class GenomicService {
                 locus.startBP -= 1
                 metadata.locus = locus
                 console.log(`GenomicService: genome: ${assembly} locus: ${locusInput.prettyPrintLocus(locus)}`)
+
+                // Update locusExtentMap with the full extent for this assembly
+                // const currentExtent = this.locusExtentMap.get(assembly) || { chr: locus.chr, startBP: locus.startBP, endBP: locus.endBP }
+
+                // Update the extent if this locus extends beyond current bounds
+                const currentExtent = this.locusExtentMap.get(assembly)
+                if (currentExtent) {
+                    this.locusExtentMap.set(assembly, {
+                        chr: currentExtent.chr,
+                        startBP: Math.min(currentExtent.startBP, locus.startBP),
+                        endBP: Math.max(currentExtent.endBP, locus.endBP)
+                    })
+                } else {
+                    const { chr, startBP, endBP } = locus
+                    this.locusExtentMap.set(assembly, { chr, startBP, endBP })
+                }
 
                 if (!this.renderLibrary.has(assembly)) {
 
@@ -86,6 +103,7 @@ class GenomicService {
         this.allNodeNames.clear();
         this.assemblySet.clear();
         this.assemblyColors.clear();
+        this.locusExtentMap.clear();
 
         // Dispose of all AnnotationRenderService instances
         for (const renderService of this.renderLibrary.values()) {
