@@ -1,5 +1,7 @@
 import { template, ELEMENT_IDS } from './locusInput.template.js';
 import { prettyPrint } from './utils/utils.js';
+import {searchFeatures} from "./igvCore/search.js"
+import {defaultGenome} from "./main.js"
 
 // Regular expressions for parsing genomic loci
 const LOCUS_PATTERN = { REGION: /^(chr\d+):([0-9,]+)-([0-9,]+)$/i };
@@ -27,9 +29,20 @@ class LocusInput {
     }
 
     setupEventListeners() {
-
-        const handleLocusUpdate = () => {
-            this.processLocusInput(this.inputElement.value.trim())
+        const handleLocusUpdate = async () => {
+            const candidateLocus = this.inputElement.value.trim()
+            const locus = this.processLocusInput(candidateLocus);
+            if (locus) {
+                await this.ingestLocus(locus.chr, locus.startBP, locus.endBP);
+            } else {
+                const result = await searchFeatures({ genome: defaultGenome }, candidateLocus)
+                if (result) {
+                    const { chr, start, end, name } = result
+                    await this.ingestLocus(chr, start, end);
+                } else {
+                    this.showError(`Invalid locus format value: ${candidateLocus}`);
+                }
+            }
         };
 
         this.inputElement.addEventListener('keypress', (e) => {
@@ -39,7 +52,6 @@ class LocusInput {
         });
 
         this.goButton.addEventListener('click', handleLocusUpdate);
-
     }
 
     processLocusInput(value) {
@@ -49,7 +61,7 @@ class LocusInput {
 
         if (!value) {
             this.showError('Please enter a genomic locus, e.g. chr1:25240000-25460000');
-            return;
+            return null;
         }
 
         // TODO: Implement gene name search
@@ -64,17 +76,18 @@ class LocusInput {
 
             if (startBP === null || endBP === null) {
                 this.showError(`Invalid base pair position format ${value}`);
-                return;
+                return null;
             }
 
             if (startBP >= endBP) {
                 this.showError(`Start position must be less than end position ${value}`);
-                return;
+                return null;
             }
 
-            this.ingestLocus(chr, startBP, endBP);
+            return { chr, startBP, endBP };
         } else {
-            this.showError(`Invalid locus format value: ${value}`);
+            // this.showError(`Invalid locus format value: ${value}`);
+            return null;
         }
     }
 
@@ -102,6 +115,7 @@ class LocusInput {
     }
 
     showError(message) {
+        console.error(message)
         this.inputElement.classList.add('is-invalid');
         this.errorDiv.textContent = message;
         this.errorDiv.style.display = 'block';
@@ -109,7 +123,6 @@ class LocusInput {
 
     async ingestLocus(chr, startBP, endBP) {
         const path = pangenomeURLTemplate.replace('_CHR_', chr).replace('_START_', startBP).replace('_END_', endBP);
-        // console.log(`Pangenome URL: ${path}`);
         await this.sceneManager.handleSearch(path);
     }
 }
