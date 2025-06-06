@@ -17,4 +17,23 @@ const genomeIDAliases = new Map([
     ['GRCZ10', 'danRer10']
 ]); 
 
-export { genomeIDAliases };
+/**
+ * Reverse map of genome IDs to their version identifiers
+ * @type {Map<string, string>}
+ */
+const genomeIDReverseAliases = new Map([
+    ['hg38', 'GRCh38'],
+    ['hg19', 'GRCh37'],
+    ['mm39', 'GRCm39'],
+    ['mm10', 'GRCm38'],
+    ['mm9', 'NCBI37'],
+    ['gorGor6', 'Kamilah_GGO_v0'],
+    ['gorGor4', 'gorGor4.1'],
+    ['canFam4', 'UU_Cfam_GSD_1.0'],
+    ['bosTau9', 'ARS-UCD1.2'],
+    ['bosTau8', 'UMD_3.1.1'],
+    ['danRer11', 'GRCZ11'],
+    ['danRer10', 'GRCZ10']
+]);
+
+export { genomeIDAliases, genomeIDReverseAliases };
