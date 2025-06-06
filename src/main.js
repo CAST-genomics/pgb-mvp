@@ -51,13 +51,20 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
 
-    const urlLocus = locusInput.getUrlParameter('locus');
-    if (urlLocus) {
-        locusInput.inputElement.value = urlLocus
-        locusInput.processLocusInput(locusInput.inputElement.value);
+    const urlParameter = locusInput.getUrlParameter('locus');
+    let locus = null;
+    if (urlParameter) {
+        locusInput.inputElement.value = urlParameter
+        locus = locusInput.processLocusInput(locusInput.inputElement.value);
     } else {
         locusInput.inputElement.value = 'chr1:25240000-25460000';
-        locusInput.processLocusInput(locusInput.inputElement.value);
+        locus = locusInput.processLocusInput(locusInput.inputElement.value);
+    }
+
+    if (locus) {
+        await locusInput.ingestLocus(locus.chr, locus.startBP, locus.endBP);
+    } else {
+        locusInput.showError(`Invalid locus url parameter: ${urlParameter}`);
     }
 
 })
