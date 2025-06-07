@@ -95,7 +95,9 @@ class SequenceService {
         }
 
         const { width, height } = this.container.getBoundingClientRect();
+        const bpp = sequence.length / width;
         const sectionWidth = width / sequence.length;
+        console.log(`SequenceService - repaint bpp(${bpp}) feature width(${sectionWidth})`);
 
         // Clear the canvas with transparency
         this.ctx.clearRect(0, 0, width, height);
