@@ -96,7 +96,7 @@ class AnnotationRenderService {
             const { locus, assembly } = this.genomicService.metadata.get(nodeName)
 
             if (locus) {
-                const annotationRenderService = this.genomicService.renderLibrary.get(assembly)
+                const {annotationRenderService} = this.genomicService.assemblyPayload.get(assembly)
                 if (annotationRenderService === this) {
                     const { chr, startBP, endBP } = locus
                     const features = await this.getFeatures(chr, startBP, endBP)

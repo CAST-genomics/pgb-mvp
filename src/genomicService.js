@@ -6,14 +6,15 @@ class GenomicService {
 
     constructor() {
         this.metadata = new Map()
-        this.allNodeNames = new Set()
-        this.assemblySet = new Set()
-        this.assemblyColors = new Map()
-        this.renderLibrary = new Map()
-        this.locusExtentMap = new Map()  // Map to store {chr, startBP, endBP} for each assembly's full extent
+        this.assemblyPayload = new Map()
     }
 
     async createMetadata(nodes, sequences, genomeLibrary, raycastService) {
+        
+        const assemblySet = new Set()
+        const assemblyColors = new Map()
+        const renderLibrary = new Map()
+        const locusExtentMap = new Map()
 
         for (const [nodeName, nodeData] of Object.entries(nodes)) {
 
@@ -33,44 +34,51 @@ class GenomicService {
                 // const currentExtent = this.locusExtentMap.get(assembly) || { chr: locus.chr, startBP: locus.startBP, endBP: locus.endBP }
 
                 // Update the extent if this locus extends beyond current bounds
-                const currentExtent = this.locusExtentMap.get(assembly)
+                const currentExtent = locusExtentMap.get(assembly)
                 if (currentExtent) {
-                    this.locusExtentMap.set(assembly, {
+                    locusExtentMap.set(assembly, {
                         chr: currentExtent.chr,
                         startBP: Math.min(currentExtent.startBP, locus.startBP),
                         endBP: Math.max(currentExtent.endBP, locus.endBP)
                     })
                 } else {
                     const { chr, startBP, endBP } = locus
-                    this.locusExtentMap.set(assembly, { chr, startBP, endBP })
+                    locusExtentMap.set(assembly, { chr, startBP, endBP })
                 }
 
-                if (!this.renderLibrary.has(assembly)) {
+                if (!renderLibrary.has(assembly)) {
 
                     const {geneFeatureSource, geneRenderer} = await genomeLibrary.getGenomePayload(assembly)
                     const container = document.querySelector('#pgb-gene-render-container')
                     const annotationRenderService = new AnnotationRenderService(container, geneFeatureSource, geneRenderer, this, raycastService)
-                    this.renderLibrary.set(assembly, annotationRenderService)
+                    renderLibrary.set(assembly, annotationRenderService)
                 }
             } else {
                 console.log(`GenomicService: genome: ${assembly} no locus`);
             }
 
             this.metadata.set(nodeName, metadata);
-            this.assemblySet.add(assembly);
-            this.allNodeNames.add(nodeName);
+            assemblySet.add(assembly);
         }
 
-        const uniqueColors = getPerceptuallyDistinctColors(this.assemblySet.size)
+        const uniqueColors = getPerceptuallyDistinctColors(assemblySet.size)
 
         let i = 0;
-        for (const assembly of this.assemblySet) {
-            this.assemblyColors.set(assembly, uniqueColors[i]);
+        for (const assembly of assemblySet) {
+            assemblyColors.set(assembly, uniqueColors[i]);
             i++;
         }
 
-        console.log(`GenomicService: Created ${this.assemblyColors.size} assembly colors`);
+        console.log(`GenomicService: Created ${assemblyColors.size} assembly colors`);
 
+        // Combine all local instances into assemblyPayload
+        for (const assembly of assemblySet) {
+            const color = assemblyColors.get(assembly);
+            const annotationRenderService = renderLibrary.get(assembly);
+            const locus = locusExtentMap.get(assembly);
+            
+            this.assemblyPayload.set(assembly, { color, annotationRenderService, locus });
+        }
     }
 
     getAssemblyForNodeName(nodeName) {
@@ -88,7 +96,7 @@ class GenomicService {
             console.error(`GenomicService: Metadata not found for node: ${nodeName}`);
             return null;
         }
-        return this.assemblyColors.get(metadata.assembly);
+        return this.assemblyPayload.get(metadata.assembly).color;
     }
 
     getNodeNameSetWithAssembly(assembly) {
@@ -97,20 +105,18 @@ class GenomicService {
         return new Set(some.map(metadata => metadata.nodeName));
     }
 
+    getNodeNameSet() {
+        return new Set(this.metadata.keys());
+    }
+
     clear() {
-
         this.metadata.clear();
-        this.allNodeNames.clear();
-        this.assemblySet.clear();
-        this.assemblyColors.clear();
-        this.locusExtentMap.clear();
-
-        // Dispose of all AnnotationRenderService instances
-        for (const renderService of this.renderLibrary.values()) {
-            renderService.dispose();
+    
+        for (const {annotationRenderService} of this.assemblyPayload.values()) {
+            annotationRenderService.dispose();
         }
 
-        this.renderLibrary.clear();
+        this.assemblyPayload.clear();
     }
 }
 
