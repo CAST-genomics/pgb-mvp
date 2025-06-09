@@ -32,10 +32,8 @@ class RayCastService {
     }
 
     onClick(event) {
-        if (this.currentIntersection) {
-            for (const callback of this.clickCallbacks) {
-                callback(this.currentIntersection);
-            }
+        for (const callback of this.clickCallbacks) {
+            callback(this.currentIntersection);
         }
     }
 

@@ -39,8 +39,11 @@ class SequenceService {
 
         // Register Raycast click handler
         this.raycastService.registerClickHandler(intersection => {
-            const { nodeLine, nodeName } = intersection;
-            this.renderWithNode(nodeLine, nodeName)
+
+            if (intersection) {
+                const { nodeLine, nodeName } = intersection;
+                this.renderWithNode(nodeLine, nodeName)
+            }
         });
 
         this.unsubscribeEventBus = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this));
