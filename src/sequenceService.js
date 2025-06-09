@@ -38,13 +38,7 @@ class SequenceService {
         this.canvas.addEventListener('mouseleave', this.boundMouseLeaveHandler);
 
         // Register Raycast click handler
-        this.raycastService.registerClickHandler(intersection => {
-
-            if (intersection) {
-                const { nodeLine, nodeName } = intersection;
-                this.renderWithNode(nodeLine, nodeName)
-            }
-        });
+        this.raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
 
         this.unsubscribeEventBus = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this));
     }
@@ -160,6 +154,13 @@ class SequenceService {
         this.canvas.style.cursor = 'default';
         this.raycastService.enable();
         this.feedbackElement.style.display = 'none';
+    }
+
+    raycastClickHandler(intersection) {
+        if (intersection) {
+            const { nodeLine, nodeName } = intersection;
+            this.renderWithNode(nodeLine, nodeName);
+        }
     }
 
     dispose() {

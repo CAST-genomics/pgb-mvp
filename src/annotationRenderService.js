@@ -4,6 +4,8 @@ class AnnotationRenderService {
 
     constructor(container, featureSource, featureRenderer, genomicService, raycastService) {
 
+        this.container = container;
+        this.genomicService = genomicService;
         this.featureSource = featureSource;
         this.featureRenderer = featureRenderer;
 
@@ -14,26 +16,7 @@ class AnnotationRenderService {
         window.addEventListener('resize', this.boundResizeHandler);
 
         // Register Raycast click handler
-        raycastService.registerClickHandler(async intersection => {
-            const {nodeName} = intersection
-            const { locus, assembly } = genomicService.metadata.get(nodeName)
-
-            if (locus) {
-                const annotationRenderService = genomicService.renderLibrary.get(assembly)
-                if (annotationRenderService === this) { 
-                    const { chr, startBP, endBP } = locus
-                    const features = await this.getFeatures(chr, startBP, endBP)
-                    // if (features.length > 0) {
-                        console.log(`AnnotationRenderService: genome: ${assembly} locus: ${locusInput.prettyPrintLocus(locus)} features: ${features.length}`)    
-                        this.render({ container, bpStart: startBP, bpEnd: endBP, features })
-                    // }
-                }
-            } else {
-                // implement this
-                this.clearCanvas(container.querySelector('canvas'))
-            }
-
-        });
+        raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
 
     }
 
@@ -87,10 +70,10 @@ class AnnotationRenderService {
     clearCanvas(canvas) {
         const ctx = canvas.getContext('2d');
         const { width, height } = canvas.getBoundingClientRect();
-        
+
         // Clear the canvas
         ctx.clearRect(0, 0, width, height);
-        
+
         // Reset the draw configuration
         this.drawConfig = null;
     }
@@ -98,13 +81,35 @@ class AnnotationRenderService {
     dispose() {
         // Remove the bound resize event listener
         window.removeEventListener('resize', this.boundResizeHandler);
-        
+
         // Clear any stored configuration
         this.drawConfig = null;
-        
+
         // Clear references to services
         this.featureSource = null;
         this.featureRenderer = null;
+    }
+
+    async raycastClickHandler(intersection) {
+        if (intersection) {
+            const {nodeName} = intersection
+            const { locus, assembly } = this.genomicService.metadata.get(nodeName)
+
+            if (locus) {
+                const annotationRenderService = this.genomicService.renderLibrary.get(assembly)
+                if (annotationRenderService === this) {
+                    const { chr, startBP, endBP } = locus
+                    const features = await this.getFeatures(chr, startBP, endBP)
+                    // if (features.length > 0) {
+                    console.log(`AnnotationRenderService: genome: ${assembly} locus: ${locusInput.prettyPrintLocus(locus)} features: ${features.length}`)
+                    this.render({ container: this.container, bpStart: startBP, bpEnd: endBP, features })
+                    // }
+                }
+            } else {
+                // implement this
+                this.clearCanvas(this.container.querySelector('canvas'))
+            }
+        }
     }
 
 }

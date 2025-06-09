@@ -16,7 +16,7 @@
   top: 0;
   left: 0;
   height: 32px;
-  background-color: #CEFA6E;
+  background-color: white;
 }
 .pgb-sequence-container__canvas {
   cursor: pointer;
@@ -33,7 +33,8 @@
 
 #pgb-gene-render-container.pgb-sequence-container {
   top: 32px;
-  background-color: #008CFF;
+  height: 64px;
+  background-color: white;
 }
 
 .genome-widget__container {
