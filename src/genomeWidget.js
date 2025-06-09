@@ -21,15 +21,9 @@ class GenomeWidget {
 
   raycastClickHandler(intersection) {
 
-    const { nodeName } = intersection
-    const assembly = this.genomicService.getAssemblyForNodeName(nodeName);
-
-    if (this.selectedGenomes.has(assembly)) {
-
-      this.selectedGenomes.delete(assembly);
-      this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
-
-    } else {
+    if (intersection) {
+      const { nodeName } = intersection
+      const assembly = this.genomicService.getAssemblyForNodeName(nodeName);
 
       if (this.selectedGenomes.size > 0) {
         const previousAssembly = [...this.selectedGenomes][0];
@@ -42,7 +36,10 @@ class GenomeWidget {
       const deemphasizedNodeNames = this.genomicService.allNodeNames.difference(set);
       this.geometryManager.deemphasizeLinesViaNodeNameSet(deemphasizedNodeNames);
 
-     }
+    } else {
+      this.selectedGenomes.clear();
+      this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
+    }
   }
 
   createListItem(assembly, color) {

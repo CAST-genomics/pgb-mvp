@@ -33,18 +33,9 @@ class SceneManager {
         this.raycastService = raycastService
         this.raycastService.setupVisualFeedback(this.scene)
 
-        // raycastService.registerClickHandler(this.raycastClickHandler.bind(this));   
-
-
         // Setup resize handler
         window.addEventListener('resize', () => this.handleResize())
     }
-
-    // raycastClickHandler(intersection) {
-    //     const { nodeName } = intersection
-    //     const color = this.genomicService.getAssemblyColor(nodeName);
-    //     this.setBackgroundColor(getComplementaryThreeJSColor(color));
-    // }
 
     addToScene(object) {
         this.scene.add(object)
