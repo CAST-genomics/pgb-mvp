@@ -111,9 +111,12 @@ class GenomicService {
 
     clear() {
         this.metadata.clear();
-    
+
         for (const {annotationRenderService} of this.assemblyPayload.values()) {
-            annotationRenderService.dispose();
+
+            if (annotationRenderService) {
+                annotationRenderService.dispose();
+            }
         }
 
         this.assemblyPayload.clear();
