@@ -1,3 +1,5 @@
+@use 'appleCrayonColors' as *;
+
 .pgb-sequence-container {
     top: 0;
     left: 0;
@@ -16,4 +18,10 @@
         pointer-events: none;
         display: none;
     }
+}
+
+#pgb-gene-render-container.pgb-sequence-container {
+    top: 32px;
+    height: 64px;
+    background-color: white;
 }

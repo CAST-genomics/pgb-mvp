@@ -31,6 +31,12 @@
   display: none;
 }
 
+#pgb-gene-render-container.pgb-sequence-container {
+  top: 32px;
+  height: 64px;
+  background-color: white;
+}
+
 .genome-widget__container {
   z-index: 1000;
   position: absolute;

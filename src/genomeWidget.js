@@ -28,17 +28,17 @@ class GenomeWidget {
       if (this.selectedGenomes.size > 0) {
         const previousAssembly = [...this.selectedGenomes][0];
         this.selectedGenomes.delete(previousAssembly);
-        this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
+        this.geometryManager.restoreLinesViaZOffset(this.genomicService.getNodeNameSet());
       }
 
       this.selectedGenomes.add(assembly);
       const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
-      const deemphasizedNodeNames = this.genomicService.allNodeNames.difference(set);
+      const deemphasizedNodeNames = this.genomicService.getNodeNameSet().difference(set);
       this.geometryManager.deemphasizeLinesViaNodeNameSet(deemphasizedNodeNames);
 
     } else {
       this.selectedGenomes.clear();
-      this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
+      this.geometryManager.restoreLinesViaZOffset(this.genomicService.getNodeNameSet());
     }
   }
 
@@ -90,7 +90,7 @@ class GenomeWidget {
       // Deselect
       this.selectedGenomes.delete(assembly);
       event.target.style.border = '2px solid transparent';
-      this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
+      this.geometryManager.restoreLinesViaZOffset(this.genomicService.getNodeNameSet());
     } else {
       // Deselect any previously selected genome
       if (this.selectedGenomes.size > 0) {
@@ -101,14 +101,14 @@ class GenomeWidget {
         if (previousSelector) {
           previousSelector.style.border = '2px solid transparent';
         }
-        this.geometryManager.restoreLinesViaZOffset(this.genomicService.allNodeNames);
+        this.geometryManager.restoreLinesViaZOffset(this.genomicService.getNodeNameSet());
       }
 
       // Select new genome
       this.selectedGenomes.add(assembly);
       event.target.style.border = '2px solid #000';
       const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
-      const deemphasizedNodeNames = this.genomicService.allNodeNames.difference(set);
+      const deemphasizedNodeNames = this.genomicService.getNodeNameSet().difference(set);
       this.geometryManager.deemphasizeLinesViaNodeNameSet(deemphasizedNodeNames);
     }
   }
@@ -143,7 +143,7 @@ class GenomeWidget {
 
     this.listGroup.innerHTML = '';
 
-    for (const [assembly, color] of this.genomicService.assemblyColors.entries()) {
+    for (const [assembly, {color}] of this.genomicService.assemblyPayload.entries()) {
       const item = this.createListItem(assembly, color);
       this.listGroup.appendChild(item);
     }

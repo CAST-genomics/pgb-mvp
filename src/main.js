@@ -7,12 +7,12 @@ import SequenceService from './sequenceService.js'
 import GeometryManager from './geometryManager.js'
 import textureService from './utils/textureService.js'
 import GenomeWidget from './genomeWidget.js'
-import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
+import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
 import './styles/app.scss'
 
 let sceneManager
 let locusInput
-
+let defaultGenome
 document.addEventListener("DOMContentLoaded", async (event) => {
 
     const textures = {
@@ -23,7 +23,9 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     await textureService.initialize({ textures })
 
-    const pallete = getPerceptuallyDistinctColors(16)
+    const genomeLibrary = new GenomeLibrary()
+    const { genome } = await genomeLibrary.getGenomePayload('hg38')
+    defaultGenome = genome
 
     const container = document.getElementById('pgb-three-container')
 
@@ -43,13 +45,29 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
 
-    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget)
+    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary)
 
     sceneManager.startAnimation()
 
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
 
+    const urlParameter = locusInput.getUrlParameter('locus');
+    let locus = null;
+    if (urlParameter) {
+        locusInput.inputElement.value = urlParameter
+        locus = locusInput.processLocusInput(locusInput.inputElement.value);
+    } else {
+        locusInput.inputElement.value = 'chr1:25240000-25460000';
+        locus = locusInput.processLocusInput(locusInput.inputElement.value);
+    }
+
+    if (locus) {
+        await locusInput.ingestLocus(locus.chr, locus.startBP, locus.endBP);
+    } else {
+        locusInput.showError(`Invalid locus url parameter: ${urlParameter}`);
+    }
+
 })
 
-export { locusInput }
+export { locusInput, defaultGenome }
 

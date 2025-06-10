@@ -38,13 +38,7 @@ class SequenceService {
         this.canvas.addEventListener('mouseleave', this.boundMouseLeaveHandler);
 
         // Register Raycast click handler
-        this.raycastService.registerClickHandler(intersection => {
-
-            if (intersection) {
-                const { nodeLine, nodeName } = intersection;
-                this.renderWithNode(nodeLine, nodeName)
-            }
-        });
+        this.raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
 
         this.unsubscribeEventBus = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this));
     }
@@ -52,6 +46,7 @@ class SequenceService {
     resizeCanvas() {
         const dpr = window.devicePixelRatio || 1;
         const { width, height } = this.container.getBoundingClientRect();
+        // console.log(`sequenceService resizeCanvas ${width}`);
 
         // Set the canvas size in pixels
         this.canvas.width = width * dpr;
@@ -85,7 +80,8 @@ class SequenceService {
     repaint() {
         if (!this.currentNodeName) return;
 
-        const sequence = this.genomicService.metadata.get(this.currentNodeName).sequence;
+        const payload = this.genomicService.metadata.get(this.currentNodeName);
+        const { sequence } = payload
 
         if (!sequence) {
             console.error(`No sequence found for ${this.currentNodeName}`);
@@ -93,7 +89,9 @@ class SequenceService {
         }
 
         const { width, height } = this.container.getBoundingClientRect();
+        const bpp = sequence.length / width;
         const sectionWidth = width / sequence.length;
+        console.log(`SequenceService - repaint bpp(${bpp}) feature width(${sectionWidth})`);
 
         // Clear the canvas with transparency
         this.ctx.clearRect(0, 0, width, height);
@@ -156,6 +154,13 @@ class SequenceService {
         this.canvas.style.cursor = 'default';
         this.raycastService.enable();
         this.feedbackElement.style.display = 'none';
+    }
+
+    raycastClickHandler(intersection) {
+        if (intersection) {
+            const { nodeLine, nodeName } = intersection;
+            this.renderWithNode(nodeLine, nodeName);
+        }
     }
 
     dispose() {
