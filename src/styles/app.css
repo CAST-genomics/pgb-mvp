@@ -13,11 +13,10 @@
 }
 
 .pgb-sequence-container {
-  position: absolute;
   top: 0;
   left: 0;
   height: 32px;
-  background-color: transparent;
+  background-color: white;
 }
 .pgb-sequence-container__canvas {
   cursor: pointer;
