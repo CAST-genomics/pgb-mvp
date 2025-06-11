@@ -1,26 +1,13 @@
 import * as THREE from 'three'
 import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import textureService from './utils/textureService.js';
-import { getColorRampArrowMaterial } from './materialLibrary.js';
-import { getAppleCrayonColorByName } from './utils/color.js';
+import materialService from './utils/materialService.js';
+import { getColorRampArrowMaterial } from './utils/materialService.js';
 
 class GeometryManager {
 
-    #EDGE_LINE_DEEMPHASIS_MATERIAL;
-
     #EDGE_LINE_Z_OFFSET = -4
-
     #NODE_LINE_DEEMPHASIS_Z_OFFSET = -8
-
-    #NODE_LINE_DEEMPHASIS_MATERIAL = new LineMaterial({
-        color: getAppleCrayonColorByName('mercury'),
-        linewidth: 16,
-        worldUnits: true,
-        opacity: 1,
-        transparent: true,
-        // depthWrite: false
-    });
 
     constructor(genomicService) {
         this.genomicService = genomicService
@@ -31,9 +18,6 @@ class GeometryManager {
         this.originalZOffsets = new Map(); // Store original z-offsets
         this.deemphasizedNodes = new Set(); // Track which nodes are currently deemphasized
 
-        // Initialize edge deemphasis material. Must be initialized after textureService is ready
-        this.#EDGE_LINE_DEEMPHASIS_MATERIAL =
-        getColorRampArrowMaterial(getAppleCrayonColorByName('mercury'), getAppleCrayonColorByName('mercury'), textureService.getTexture('arrow-white'), 1);
     }
 
     createGeometry(json) {
@@ -65,7 +49,7 @@ class GeometryManager {
 
         // Update all edge materials
         this.edgesGroup.traverse((object) => {
-            if (object.material && object.material !== this.#EDGE_LINE_DEEMPHASIS_MATERIAL) {
+            if (object.material && object.material !== materialService.getEdgeLineDeemphasisMaterial()) {
                 if (object.material.uniforms) {
                     // Handle ShaderMaterial
                     object.material.uniforms.uvOffset.value.x = (object.material.uniforms.uvOffset.value.x - speed) % 1.0;
@@ -137,7 +121,7 @@ class GeometryManager {
                     }
 
                     // Apply deemphasis material
-                    object.material = this.#NODE_LINE_DEEMPHASIS_MATERIAL;
+                    object.material = materialService.getNodeLineDeemphasisMaterial();
                     // object.renderOrder = 1;
 
                     this.deemphasizedNodes.add(nodeName);
@@ -151,7 +135,7 @@ class GeometryManager {
                     if (!object.userData.originalMaterial) {
                         object.userData.originalMaterial = object.material;
                     }
-                    object.material = this.#EDGE_LINE_DEEMPHASIS_MATERIAL
+                    object.material = materialService.getEdgeLineDeemphasisMaterial();
                 }
             }
         });
@@ -289,7 +273,7 @@ class GeometryManager {
 
             const startColor = this.genomicService.getAssemblyColor(`${remainderStart}+`)
             const endColor = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
-            const heroTexture = textureService.getTexture('arrow-white')
+            const heroTexture = materialService.getTexture('arrow-white')
             const colorRampMaterial = getColorRampArrowMaterial(startColor, endColor, heroTexture, 1)
 
             const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, colorRampMaterial, `${remainderStart}+`, `${remainderEnd}+`)
