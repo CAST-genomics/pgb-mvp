@@ -1,10 +1,9 @@
 @use 'appleCrayonColors' as *;
 
 .pgb-sequence-container {
-    top: 0;
-    left: 0;
+    position: relative;
     height: 32px;
-    background-color: white;
+    background-color: transparent;
     &__canvas {
         cursor: pointer;
     }
@@ -21,7 +20,6 @@
 }
 
 #pgb-gene-render-container.pgb-sequence-container {
-    top: 32px;
     height: 64px;
-    background-color: white;
+    background-color: transparent;
 }
