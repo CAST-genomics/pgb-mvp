@@ -20,24 +20,32 @@ class SequenceService {
         this.currentNodeName = null;
         this.lastMousePosition = { x: 0, t: 0 };
         this.needsUpdate = false;
+        
+        this.setupEventListeners();
 
-        // Initialize the canvas size
         this.resizeCanvas();
 
-        // Bind the handlers to this instance
-        this.boundResizeHandler = this.resizeCanvas.bind(this);
-        this.boundMouseMoveHandler = this.handleMouseMove.bind(this);
-        this.boundMouseEnterHandler = this.handleMouseEnter.bind(this);
-        this.boundMouseLeaveHandler = this.handleMouseLeave.bind(this);
-        this.boundUpdateHandler = this.update.bind(this);
+    }
 
-        // Add event listeners
+    setupEventListeners() {
+        this.boundResizeHandler = this.resizeCanvas.bind(this);
         window.addEventListener('resize', this.boundResizeHandler);
+
+        this.boundMouseMoveHandler = this.handleMouseMove.bind(this);
         this.canvas.addEventListener('mousemove', this.boundMouseMoveHandler);
+
+        this.boundMouseEnterHandler = this.handleMouseEnter.bind(this);
         this.canvas.addEventListener('mouseenter', this.boundMouseEnterHandler);
+
+        this.boundMouseLeaveHandler = this.handleMouseLeave.bind(this);
         this.canvas.addEventListener('mouseleave', this.boundMouseLeaveHandler);
 
-        // Register Raycast click handler
+        this.boundContextMenuHandler = this.handleContextMenu.bind(this);
+        this.canvas.addEventListener('contextmenu', this.boundContextMenuHandler);
+
+        this.boundUpdateHandler = this.update.bind(this);
+        this.canvas.addEventListener('mousemove', this.boundUpdateHandler);
+
         this.raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
 
         this.unsubscribeEventBus = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this));
@@ -154,6 +162,16 @@ class SequenceService {
         this.canvas.style.cursor = 'default';
         this.raycastService.enable();
         this.feedbackElement.style.display = 'none';
+    }
+
+    handleContextMenu(event) {
+
+        event.preventDefault();
+
+        // Show your custom menu instead
+        console.log('Context menu triggered:', event);
+        
+        return false;
     }
 
     raycastClickHandler(intersection) {
