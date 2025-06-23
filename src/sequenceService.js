@@ -114,6 +114,18 @@ class SequenceService {
         }
     }
 
+    clear() {
+        const { width, height } = this.container.getBoundingClientRect();
+        this.ctx.clearRect(0, 0, width, height);
+        
+        // Reset current node state
+        this.currentNodeLine = null;
+        this.currentNodeName = null;
+        
+        // Hide feedback element
+        this.feedbackElement.style.display = 'none';
+    }
+
     handleLineIntersection({ t, nodeName, nodeLine }) {
         if (!this.currentNodeName) return;
 
@@ -256,6 +268,8 @@ class SequenceService {
         if (intersection) {
             const { nodeLine, nodeName } = intersection;
             this.renderWithNode(nodeLine, nodeName);
+        } else {
+            this.clear();
         }
     }
 

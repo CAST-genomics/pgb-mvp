@@ -6,12 +6,13 @@ import {defaultGenome} from "./main.js"
 // Regular expressions for parsing genomic loci
 const LOCUS_PATTERN = { REGION: /^(chr\d+):([0-9,]+)-([0-9,]+)$/i };
 
-const pangenomeURLTemplate = 'https://3.145.184.140:8443/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
+const pangenomeURLTemplate = 'https://3.145.184.140:8443/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&version=_VERSION_&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
 
 class LocusInput {
     constructor(container, sceneManager) {
         this.container = container;
         this.sceneManager = sceneManager;
+        this.version = 'v2';
         this.render();
         this.setupEventListeners();
     }
@@ -26,6 +27,7 @@ class LocusInput {
         this.inputElement = this.container.querySelector(`#${ELEMENT_IDS.INPUT}`);
         this.goButton = this.container.querySelector(`#${ELEMENT_IDS.GO_BUTTON}`);
         this.errorDiv = this.container.querySelector(`#${ELEMENT_IDS.ERROR}`);
+        this.versionDropdown = this.container.querySelector(`#${ELEMENT_IDS.VERSION_DROPDOWN}`);
     }
 
     setupEventListeners() {
@@ -52,6 +54,12 @@ class LocusInput {
         });
 
         this.goButton.addEventListener('click', handleLocusUpdate);
+
+        // Add event listener for version dropdown
+        this.versionDropdown.addEventListener('change', (e) => {
+            this.version = e.target.value;
+            console.log('Version changed to:', this.version);
+        });
     }
 
     processLocusInput(value) {
@@ -122,7 +130,11 @@ class LocusInput {
     }
 
     async ingestLocus(chr, startBP, endBP) {
-        const path = pangenomeURLTemplate.replace('_CHR_', chr).replace('_START_', startBP).replace('_END_', endBP);
+        const path = pangenomeURLTemplate
+        .replace('_CHR_', chr)
+        .replace('_START_', startBP)
+        .replace('_END_', endBP)
+        .replace('_VERSION_', this.version);
         await this.sceneManager.handleSearch(path);
     }
 }

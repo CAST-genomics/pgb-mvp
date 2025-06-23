@@ -46,6 +46,11 @@ class AnnotationRenderService {
 
     }
 
+    clear() {
+        const { width, height } = this.container.getBoundingClientRect();
+        this.ctx.clearRect(0, 0, width, height);
+    }
+
     async getFeatures(chr, start, end) {
         return await this.featureSource.getFeatures({chr, start, end})
     }
@@ -68,13 +73,12 @@ class AnnotationRenderService {
     }
 
     clearCanvas(canvas) {
-        const ctx = canvas.getContext('2d');
+        
         const { width, height } = canvas.getBoundingClientRect();
 
-        // Clear the canvas
+        const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, width, height);
 
-        // Reset the draw configuration
         this.drawConfig = null;
     }
 
@@ -109,7 +113,9 @@ class AnnotationRenderService {
                 // implement this
                 this.clearCanvas(this.container.querySelector('canvas'))
             }
-        }
+        } else {
+            this.clearCanvas(this.container.querySelector('canvas'))
+        }   
     }
 
 }
