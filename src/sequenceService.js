@@ -16,28 +16,38 @@ class SequenceService {
         this.feedbackElement.classList.add('pgb-sequence-container__feedback');
         this.container.appendChild(this.feedbackElement);
 
+        this.createContextMenu();
+
         this.currentNodeLine = null;
         this.currentNodeName = null;
         this.lastMousePosition = { x: 0, t: 0 };
         this.needsUpdate = false;
+        
+        this.setupEventListeners();
 
-        // Initialize the canvas size
         this.resizeCanvas();
 
-        // Bind the handlers to this instance
-        this.boundResizeHandler = this.resizeCanvas.bind(this);
-        this.boundMouseMoveHandler = this.handleMouseMove.bind(this);
-        this.boundMouseEnterHandler = this.handleMouseEnter.bind(this);
-        this.boundMouseLeaveHandler = this.handleMouseLeave.bind(this);
-        this.boundUpdateHandler = this.update.bind(this);
+    }
 
-        // Add event listeners
+    setupEventListeners() {
+        this.boundResizeHandler = this.resizeCanvas.bind(this);
         window.addEventListener('resize', this.boundResizeHandler);
+
+        this.boundMouseMoveHandler = this.handleMouseMove.bind(this);
         this.canvas.addEventListener('mousemove', this.boundMouseMoveHandler);
+
+        this.boundMouseEnterHandler = this.handleMouseEnter.bind(this);
         this.canvas.addEventListener('mouseenter', this.boundMouseEnterHandler);
+
+        this.boundMouseLeaveHandler = this.handleMouseLeave.bind(this);
         this.canvas.addEventListener('mouseleave', this.boundMouseLeaveHandler);
 
-        // Register Raycast click handler
+        this.boundContextMenuHandler = this.handleContextMenu.bind(this);
+        this.canvas.addEventListener('contextmenu', this.boundContextMenuHandler);
+
+        this.boundUpdateHandler = this.update.bind(this);
+        this.canvas.addEventListener('mousemove', this.boundUpdateHandler);
+
         this.raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
 
         this.unsubscribeEventBus = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this));
@@ -81,7 +91,7 @@ class SequenceService {
         if (!this.currentNodeName) return;
 
         const payload = this.genomicService.metadata.get(this.currentNodeName);
-        const { sequence } = payload
+        const { assembly, sequence } = payload
 
         if (!sequence) {
             console.error(`No sequence found for ${this.currentNodeName}`);
@@ -156,6 +166,92 @@ class SequenceService {
         this.feedbackElement.style.display = 'none';
     }
 
+    createContextMenu() {
+        this.contextMenu = document.createElement('div');
+        this.contextMenu.id = 'pgb-context-menu';
+        this.contextMenu.style.display = 'none';
+        this.contextMenu.style.position = 'absolute';
+        this.contextMenu.style.zIndex = '1000';
+        this.contextMenu.style.backgroundColor = 'white';
+        this.contextMenu.style.border = '1px solid #ccc';
+        this.contextMenu.style.borderRadius = '4px';
+        this.contextMenu.style.padding = '4px 0';
+        this.contextMenu.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+        this.contextMenu.innerHTML = `
+            <ul style="list-style: none; padding: 0; margin: 0;">
+                <li data-action="copy-info" style="padding: 8px 16px; cursor: pointer;">Copy Assembly & Sequence</li>
+            </ul>
+        `;
+        this.container.appendChild(this.contextMenu);
+
+        this.contextMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const action = e.target.getAttribute('data-action');
+            if (action) {
+                this.handleContextMenuAction(action);
+            }
+        });
+
+        const listItems = this.contextMenu.querySelectorAll('li');
+        listItems.forEach(item => {
+            item.addEventListener('mouseover', () => item.style.backgroundColor = '#f0f0f0');
+            item.addEventListener('mouseout', () => item.style.backgroundColor = 'white');
+        });
+
+        this.boundHideContextMenu = () => this.hideContextMenu();
+        window.addEventListener('click', this.boundHideContextMenu);
+    }
+
+    hideContextMenu() {
+        if (this.contextMenu) {
+            this.contextMenu.style.display = 'none';
+        }
+    }
+
+    handleContextMenuAction(action) {
+        if (!this.currentNodeName) return;
+
+        const payload = this.genomicService.metadata.get(this.currentNodeName);
+        if (!payload) {
+            console.error(`No metadata found for ${this.currentNodeName}`);
+            return;
+        }
+
+        const { assembly, sequence } = payload
+        let textToCopy;
+
+        if (action === 'copy-info') {
+            textToCopy = `Assembly: ${assembly}\nSequence: ${sequence}`;
+        }
+
+        if (textToCopy) {
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                console.log(`'${action}' copied to clipboard`);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        }
+        this.hideContextMenu();
+    }
+
+    handleContextMenu(event) {
+
+        event.preventDefault();
+
+        if (!this.currentNodeName) {
+            return;
+        }
+
+        const { clientX, clientY } = event;
+        const { top, left } = this.container.getBoundingClientRect();
+
+        this.contextMenu.style.top = `${clientY - top}px`;
+        this.contextMenu.style.left = `${clientX - left}px`;
+        this.contextMenu.style.display = 'block';
+
+        return false;
+    }
+
     raycastClickHandler(intersection) {
         if (intersection) {
             const { nodeLine, nodeName } = intersection;
@@ -169,9 +265,16 @@ class SequenceService {
         this.canvas.removeEventListener('mousemove', this.boundMouseMoveHandler);
         this.canvas.removeEventListener('mouseenter', this.boundMouseEnterHandler);
         this.canvas.removeEventListener('mouseleave', this.boundMouseLeaveHandler);
+        this.canvas.removeEventListener('contextmenu', this.boundContextMenuHandler);
+        window.removeEventListener('click', this.boundHideContextMenu);
 
         // Remove feedback element
         this.feedbackElement.remove();
+
+        // Remove context menu
+        if (this.contextMenu) {
+            this.contextMenu.remove();
+        }
 
         // Unsubscribe from the event bus
         this.unsubscribeEventBus();
