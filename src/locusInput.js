@@ -6,7 +6,7 @@ import {defaultGenome} from "./main.js"
 // Regular expressions for parsing genomic loci
 const LOCUS_PATTERN = { REGION: /^(chr\d+):([0-9,]+)-([0-9,]+)$/i };
 
-const pangenomeURLTemplate = 'https://3.145.184.140:8443/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
+const pangenomeURLTemplate = 'https://3.145.184.140:8443/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&version=_VERSION_&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
 
 class LocusInput {
     constructor(container, sceneManager) {
@@ -122,7 +122,11 @@ class LocusInput {
     }
 
     async ingestLocus(chr, startBP, endBP) {
-        const path = pangenomeURLTemplate.replace('_CHR_', chr).replace('_START_', startBP).replace('_END_', endBP);
+        const path = pangenomeURLTemplate
+        .replace('_CHR_', chr)
+        .replace('_START_', startBP)
+        .replace('_END_', endBP)
+        .replace('_VERSION_', 'v2');
         await this.sceneManager.handleSearch(path);
     }
 }
