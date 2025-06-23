@@ -12,6 +12,7 @@ class LocusInput {
     constructor(container, sceneManager) {
         this.container = container;
         this.sceneManager = sceneManager;
+        this.version = 'v2';
         this.render();
         this.setupEventListeners();
     }
@@ -26,6 +27,7 @@ class LocusInput {
         this.inputElement = this.container.querySelector(`#${ELEMENT_IDS.INPUT}`);
         this.goButton = this.container.querySelector(`#${ELEMENT_IDS.GO_BUTTON}`);
         this.errorDiv = this.container.querySelector(`#${ELEMENT_IDS.ERROR}`);
+        this.versionDropdown = this.container.querySelector(`#${ELEMENT_IDS.VERSION_DROPDOWN}`);
     }
 
     setupEventListeners() {
@@ -52,6 +54,12 @@ class LocusInput {
         });
 
         this.goButton.addEventListener('click', handleLocusUpdate);
+
+        // Add event listener for version dropdown
+        this.versionDropdown.addEventListener('change', (e) => {
+            this.version = e.target.value;
+            console.log('Version changed to:', this.version);
+        });
     }
 
     processLocusInput(value) {
@@ -126,7 +134,7 @@ class LocusInput {
         .replace('_CHR_', chr)
         .replace('_START_', startBP)
         .replace('_END_', endBP)
-        .replace('_VERSION_', 'v2');
+        .replace('_VERSION_', this.version);
         await this.sceneManager.handleSearch(path);
     }
 }
