@@ -16,13 +16,13 @@ class SequenceService {
         this.feedbackElement.classList.add('pgb-sequence-container__feedback');
         this.container.appendChild(this.feedbackElement);
 
-        this.createContextMenu();
+        this.createContextMenu(container);
 
         this.currentNodeLine = null;
         this.currentNodeName = null;
         this.lastMousePosition = { x: 0, t: 0 };
         this.needsUpdate = false;
-        
+
         this.setupEventListeners();
 
         this.resizeCanvas();
@@ -42,7 +42,7 @@ class SequenceService {
         this.boundMouseLeaveHandler = this.handleMouseLeave.bind(this);
         this.canvas.addEventListener('mouseleave', this.boundMouseLeaveHandler);
 
-        this.boundContextMenuHandler = this.handleContextMenu.bind(this);
+        this.boundContextMenuHandler = this.presentContextMenu.bind(this);
         this.canvas.addEventListener('contextmenu', this.boundContextMenuHandler);
 
         this.boundUpdateHandler = this.update.bind(this);
@@ -81,6 +81,17 @@ class SequenceService {
         }
     }
 
+    update() {
+        if (!this.needsUpdate || !this.currentNodeName) return;
+
+        const spline = this.geometryManager.getSpline(this.currentNodeName)
+        if (spline) {
+            const pointOnLine = spline.getPoint(this.lastMouseMovePayload.t);
+            this.raycastService.showVisualFeedback(pointOnLine, this.currentNodeLine.material.color);
+        }
+        this.needsUpdate = false;
+    }
+
     renderWithNode(nodeLine, nodeName) {
         this.currentNodeLine = nodeLine;
         this.currentNodeName = nodeName;
@@ -117,11 +128,11 @@ class SequenceService {
     clear() {
         const { width, height } = this.container.getBoundingClientRect();
         this.ctx.clearRect(0, 0, width, height);
-        
+
         // Reset current node state
         this.currentNodeLine = null;
         this.currentNodeName = null;
-        
+
         // Hide feedback element
         this.feedbackElement.style.display = 'none';
     }
@@ -147,17 +158,6 @@ class SequenceService {
         this.needsUpdate = true;
     }
 
-    update() {
-        if (!this.needsUpdate || !this.currentNodeName) return;
-
-        const spline = this.geometryManager.getSpline(this.currentNodeName)
-        if (spline) {
-            const pointOnLine = spline.getPoint(this.lastMouseMovePayload.t);
-            this.raycastService.showVisualFeedback(pointOnLine, this.currentNodeLine.material.color);
-        }
-        this.needsUpdate = false;
-    }
-
     handleMouseEnter(event) {
         if (!this.currentNodeName) {
             return;
@@ -178,7 +178,7 @@ class SequenceService {
         this.feedbackElement.style.display = 'none';
     }
 
-    createContextMenu() {
+    createContextMenu(container) {
         this.contextMenu = document.createElement('div');
         this.contextMenu.id = 'pgb-context-menu';
         this.contextMenu.style.display = 'none';
@@ -194,7 +194,7 @@ class SequenceService {
                 <li data-action="copy-info" style="padding: 8px 16px; cursor: pointer;">Copy Assembly & Sequence</li>
             </ul>
         `;
-        this.container.appendChild(this.contextMenu);
+        container.appendChild(this.contextMenu);
 
         this.contextMenu.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -205,16 +205,34 @@ class SequenceService {
         });
 
         const listItems = this.contextMenu.querySelectorAll('li');
-        listItems.forEach(item => {
+        for (const item of listItems) {
             item.addEventListener('mouseover', () => item.style.backgroundColor = '#f0f0f0');
             item.addEventListener('mouseout', () => item.style.backgroundColor = 'white');
-        });
+        }
 
-        this.boundHideContextMenu = () => this.hideContextMenu();
+        this.boundHideContextMenu = () => this.dismissContextMenu();
         window.addEventListener('click', this.boundHideContextMenu);
     }
 
-    hideContextMenu() {
+    presentContextMenu(event) {
+
+        event.preventDefault();
+
+        if (!this.currentNodeName) {
+            return;
+        }
+
+        const { clientX, clientY } = event;
+        const { top, left } = this.container.getBoundingClientRect();
+
+        this.contextMenu.style.top = `${clientY - top}px`;
+        this.contextMenu.style.left = `${clientX - left}px`;
+        this.contextMenu.style.display = 'block';
+
+        return false;
+    }
+
+    dismissContextMenu() {
         if (this.contextMenu) {
             this.contextMenu.style.display = 'none';
         }
@@ -243,25 +261,7 @@ class SequenceService {
                 console.error('Failed to copy text: ', err);
             });
         }
-        this.hideContextMenu();
-    }
-
-    handleContextMenu(event) {
-
-        event.preventDefault();
-
-        if (!this.currentNodeName) {
-            return;
-        }
-
-        const { clientX, clientY } = event;
-        const { top, left } = this.container.getBoundingClientRect();
-
-        this.contextMenu.style.top = `${clientY - top}px`;
-        this.contextMenu.style.left = `${clientX - left}px`;
-        this.contextMenu.style.display = 'block';
-
-        return false;
+        this.dismissContextMenu();
     }
 
     raycastClickHandler(intersection) {
