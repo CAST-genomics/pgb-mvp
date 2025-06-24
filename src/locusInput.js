@@ -4,7 +4,7 @@ import {searchFeatures} from "./igvCore/search.js"
 import {defaultGenome} from "./main.js"
 
 // Regular expressions for parsing genomic loci
-const LOCUS_PATTERN = { REGION: /^(chr\d+):([0-9,]+)-([0-9,]+)$/i };
+const LOCUS_PATTERN = { REGION: /^(chr[0-9XY]+):([0-9,]+)-([0-9,]+)$/i };
 
 const pangenomeURLTemplate = 'https://3.145.184.140:8443/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&version=_VERSION_&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
 
