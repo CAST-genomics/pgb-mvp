@@ -10,6 +10,12 @@ class RayCastService {
         this.setupEventListeners(container);
         this.clickCallbacks = new Set();
         this.currentIntersection = undefined;
+        
+        // Mouse movement tracking for detecting pan/zoom
+        this.mouseDownPosition = { x: 0, y: 0 };
+        this.mouseMovementThreshold = 5; // pixels
+        this.hasMouseMoved = false;
+        this.isMouseDown = false;
     }
 
     setup(threshold) {
@@ -21,19 +27,42 @@ class RayCastService {
         this.container = container;
         container.addEventListener('pointermove', this.onPointerMove.bind(this));
         container.addEventListener('click', this.onClick.bind(this));
+        container.addEventListener('mousedown', this.onMouseDown.bind(this));
+        container.addEventListener('mousemove', this.onMouseMove.bind(this));
+        container.addEventListener('mouseup', this.onMouseUp.bind(this));
     }
 
     cleanup() {
         if (this.container) {
             this.container.removeEventListener('pointermove', this.onPointerMove.bind(this));
             this.container.removeEventListener('click', this.onClick.bind(this));
+            this.container.removeEventListener('mousedown', this.onMouseDown.bind(this));
+            this.container.removeEventListener('mousemove', this.onMouseMove.bind(this));
+            this.container.removeEventListener('mouseup', this.onMouseUp.bind(this));
         }
         this.clickCallbacks.clear();
     }
 
-    onClick(event) {
-        for (const callback of this.clickCallbacks) {
-            callback(this.currentIntersection);
+    onMouseDown(event) {
+        this.mouseDownPosition = { x: event.clientX, y: event.clientY };
+        this.hasMouseMoved = false;
+        this.isMouseDown = true;
+    }
+
+    onMouseUp(event) {
+        this.isMouseDown = false;
+    }
+
+    onMouseMove(event) {
+        // Only track movement when mouse button is down
+        if (!this.isMouseDown) return;
+        
+        const deltaX = Math.abs(event.clientX - this.mouseDownPosition.x);
+        const deltaY = Math.abs(event.clientY - this.mouseDownPosition.y);
+        
+        if (deltaX > this.mouseMovementThreshold || deltaY > this.mouseMovementThreshold) {
+            this.hasMouseMoved = true;
+            console.log('RayCastService: Mouse movement detected during mouse-down (panning)');
         }
     }
 
@@ -41,6 +70,23 @@ class RayCastService {
         const { left, top, width, height } = this.container.getBoundingClientRect();
         this.pointer.x = ((clientX - left) / width) * 2 - 1;
         this.pointer.y = -((clientY - top) / height) * 2 + 1;
+    }
+
+    onClick(event) {
+        // Check if mouse moved during mouse-down (indicating pan/zoom)
+        if (this.hasMouseMoved) {
+            console.log('RayCastService: Click ignored due to mouse movement (pan/zoom detected)');
+            return; // Skip processing click if mouse moved
+        }
+
+        console.log('RayCastService: Processing click event');
+        for (const callback of this.clickCallbacks) {
+            callback(this.currentIntersection);
+        }
+        
+        // Reset state
+        this.isMouseDown = false;
+        this.hasMouseMoved = false;
     }
 
     updateRaycaster(camera) {

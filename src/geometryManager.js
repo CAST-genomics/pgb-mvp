@@ -6,8 +6,9 @@ import { getColorRampArrowMaterial } from './utils/materialService.js';
 
 class GeometryManager {
 
-    #EDGE_LINE_Z_OFFSET = -4
-    #NODE_LINE_DEEMPHASIS_Z_OFFSET = -8
+    #EDGE_LINE_Z_OFFSET = -12
+    #NODE_LINE_Z_OFFSET = -8
+    #NODE_LINE_DEEMPHASIS_Z_OFFSET = -16
 
     constructor(genomicService) {
         this.genomicService = genomicService
@@ -120,9 +121,7 @@ class GeometryManager {
                         object.userData.originalMaterial = object.material;
                     }
 
-                    // Apply deemphasis material
                     object.material = materialService.getNodeLineDeemphasisMaterial();
-                    // object.renderOrder = 1;
 
                     this.deemphasizedNodes.add(nodeName);
                 }
@@ -162,7 +161,7 @@ class GeometryManager {
                     const originalZOffset = this.originalZOffsets.get(nodeName);
                     const positions = object.geometry.attributes.position.array;
                     for (let i = 0; i < positions.length; i += 3) {
-                        positions[i + 2] = originalZOffset;
+                        positions[i + 2] = this.#NODE_LINE_Z_OFFSET;
                     }
                     object.geometry.attributes.position.needsUpdate = true;
 
@@ -220,7 +219,7 @@ class GeometryManager {
                 opacity: 1,
                 transparent: true
             }
-            const originalZOffset = 1 + i;
+            const originalZOffset = this.#NODE_LINE_Z_OFFSET;
             this.originalZOffsets.set(nodeName, originalZOffset);
 
             const assembly = this.genomicService.metadata.get(nodeName).assembly;
