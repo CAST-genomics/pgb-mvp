@@ -5,9 +5,9 @@ import LocusInput from './locusInput.js'
 import GenomicService from './genomicService.js'
 import SequenceService from './sequenceService.js'
 import GeometryManager from './geometryManager.js'
-import textureService from './utils/textureService.js'
 import GenomeWidget from './genomeWidget.js'
 import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
+import materialService from './utils/materialService.js'
 import './styles/app.scss'
 
 let sceneManager
@@ -15,13 +15,7 @@ let locusInput
 let defaultGenome
 document.addEventListener("DOMContentLoaded", async (event) => {
 
-    const textures = {
-        'arrow-white': new URL('./assets/textures/arrow-margin-white.png', import.meta.url).href,
-        'uv': new URL('./assets/textures/uv128x128.png', import.meta.url).href,
-        'u': new URL('./assets/textures/u128x128.png', import.meta.url).href
-    }
-
-    await textureService.initialize({ textures })
+    await materialService.initialize()
 
     const genomeLibrary = new GenomeLibrary()
     const { genome } = await genomeLibrary.getGenomePayload('hg38')
