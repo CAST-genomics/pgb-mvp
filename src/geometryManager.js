@@ -7,6 +7,7 @@ import { getColorRampArrowMaterial } from './utils/materialService.js';
 class GeometryManager {
 
     #EDGE_LINE_Z_OFFSET = -12
+
     #NODE_LINE_Z_OFFSET = -8
     #NODE_LINE_DEEMPHASIS_Z_OFFSET = -16
 
@@ -16,7 +17,6 @@ class GeometryManager {
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
         this.isEdgeAnimationEnabled = true;
-        this.originalZOffsets = new Map(); // Store original z-offsets
         this.deemphasizedNodes = new Set(); // Track which nodes are currently deemphasized
 
     }
@@ -108,13 +108,42 @@ class GeometryManager {
 
         this.linesGroup.traverse((object) => {
             if (object.userData && nodeNameSet.has(object.userData.nodeName)) {
-                const nodeName = object.userData.nodeName;
-                if (!this.deemphasizedNodes.has(nodeName)) {
-                    const positions = object.geometry.attributes.position.array;
-                    for (let i = 0; i < positions.length; i += 3) {
-                        positions[i + 2] += this.#NODE_LINE_DEEMPHASIS_Z_OFFSET;
+                if (!this.deemphasizedNodes.has(object.userData.nodeName)) {
+                    // console.log('Deemphasizing object:', object.userData.nodeName);
+                    // console.log('Object type:', object.constructor.name);
+                    // console.log('Geometry attributes:', Object.keys(object.geometry.attributes));
+                    
+                    // LineGeometry uses instanceStart and instanceEnd attributes
+                    if (object.geometry.attributes.instanceStart) {
+                        const instanceStart = object.geometry.attributes.instanceStart.array;
+                        const instanceEnd = object.geometry.attributes.instanceEnd.array;
+                        
+                        // console.log('InstanceStart array length:', instanceStart.length);
+                        // console.log('InstanceEnd array length:', instanceEnd.length);
+                        // console.log('Original Z values (start):', Array.from(instanceStart).filter((_, i) => i % 3 === 2));
+                        // console.log('Original Z values (end):', Array.from(instanceEnd).filter((_, i) => i % 3 === 2));
+                        
+                        // Update Z coordinates in both instanceStart and instanceEnd
+                        for (let i = 0; i < instanceStart.length; i += 3) {
+                            instanceStart[i + 2] = this.#NODE_LINE_DEEMPHASIS_Z_OFFSET;
+                        }
+                        for (let i = 0; i < instanceEnd.length; i += 3) {
+                            instanceEnd[i + 2] = this.#NODE_LINE_DEEMPHASIS_Z_OFFSET;
+                        }
+                        
+                        // console.log('New Z values (start):', Array.from(instanceStart).filter((_, i) => i % 3 === 2));
+                        // console.log('New Z values (end):', Array.from(instanceEnd).filter((_, i) => i % 3 === 2));
+                        
+                        // Update line distances for Line2 objects
+                        if (object.computeLineDistances) {
+                            object.computeLineDistances();
+                        }
+                        
+                        object.geometry.attributes.instanceStart.needsUpdate = true;
+                        object.geometry.attributes.instanceEnd.needsUpdate = true;
+                    } else {
+                        console.error('No instanceStart attribute found on object:', object);
                     }
-                    object.geometry.attributes.position.needsUpdate = true;
 
                     // Store original material if not already stored
                     if (!object.userData.originalMaterial) {
@@ -123,7 +152,7 @@ class GeometryManager {
 
                     object.material = materialService.getNodeLineDeemphasisMaterial();
 
-                    this.deemphasizedNodes.add(nodeName);
+                    this.deemphasizedNodes.add(object.userData.nodeName);
                 }
             }
         });
@@ -156,21 +185,36 @@ class GeometryManager {
         this.linesGroup.traverse((object) => {
 
             if (object.userData && nodeNameSet.has(object.userData.nodeName)) {
-                const nodeName = object.userData.nodeName;
-                if (this.deemphasizedNodes.has(nodeName)) {
-                    const originalZOffset = this.originalZOffsets.get(nodeName);
-                    const positions = object.geometry.attributes.position.array;
-                    for (let i = 0; i < positions.length; i += 3) {
-                        positions[i + 2] = this.#NODE_LINE_Z_OFFSET;
+                if (this.deemphasizedNodes.has(object.userData.nodeName)) {
+
+                    // LineGeometry uses instanceStart and instanceEnd attributes
+                    if (object.geometry.attributes.instanceStart) {
+                        const instanceStart = object.geometry.attributes.instanceStart.array;
+                        const instanceEnd = object.geometry.attributes.instanceEnd.array;
+                        
+                        // Update Z coordinates in both instanceStart and instanceEnd
+                        for (let i = 0; i < instanceStart.length; i += 3) {
+                            instanceStart[i + 2] = this.#NODE_LINE_Z_OFFSET;
+                        }
+                        for (let i = 0; i < instanceEnd.length; i += 3) {
+                            instanceEnd[i + 2] = this.#NODE_LINE_Z_OFFSET;
+                        }
+                        
+                        // Update line distances for Line2 objects
+                        if (object.computeLineDistances) {
+                            object.computeLineDistances();
+                        }
+                        
+                        object.geometry.attributes.instanceStart.needsUpdate = true;
+                        object.geometry.attributes.instanceEnd.needsUpdate = true;
                     }
-                    object.geometry.attributes.position.needsUpdate = true;
 
                     // Restore original material
                     if (object.userData.originalMaterial) {
                         object.material = object.userData.originalMaterial;
                     }
 
-                    this.deemphasizedNodes.delete(nodeName);
+                    this.deemphasizedNodes.delete(object.userData.nodeName);
                 }
             }
         });
@@ -219,11 +263,9 @@ class GeometryManager {
                 opacity: 1,
                 transparent: true
             }
-            const originalZOffset = this.#NODE_LINE_Z_OFFSET;
-            this.originalZOffsets.set(nodeName, originalZOffset);
 
             const assembly = this.genomicService.metadata.get(nodeName).assembly;
-            const line = LineFactory.createNodeLine(nodeName, assembly, spline, 4, originalZOffset, new LineMaterial(materialConfig))
+            const line = LineFactory.createNodeLine(nodeName, assembly, spline, 4, this.#NODE_LINE_Z_OFFSET, new LineMaterial(materialConfig))
             this.linesGroup.add(line)
 
             i++
