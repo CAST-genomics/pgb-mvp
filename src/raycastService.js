@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import eventBus from './utils/eventBus.js';
 
 class RayCastService {
+    
+    static MOUSE_MOVEMENT_THRESHOLD = 5;
+
     constructor(container, threshold) {
         this.pointer = new THREE.Vector2();
         this.raycaster = new THREE.Raycaster();
@@ -10,6 +13,10 @@ class RayCastService {
         this.setupEventListeners(container);
         this.clickCallbacks = new Set();
         this.currentIntersection = undefined;
+        
+        this.mouseDownPosition = { x: 0, y: 0 };
+        this.hasMouseMoved = false;
+        this.isMouseDown = false;
     }
 
     setup(threshold) {
@@ -21,20 +28,61 @@ class RayCastService {
         this.container = container;
         container.addEventListener('pointermove', this.onPointerMove.bind(this));
         container.addEventListener('click', this.onClick.bind(this));
+        container.addEventListener('mousedown', this.onMouseDown.bind(this));
+        container.addEventListener('mousemove', this.onMouseMove.bind(this));
+        container.addEventListener('mouseup', this.onMouseUp.bind(this));
     }
 
     cleanup() {
         if (this.container) {
             this.container.removeEventListener('pointermove', this.onPointerMove.bind(this));
             this.container.removeEventListener('click', this.onClick.bind(this));
+            this.container.removeEventListener('mousedown', this.onMouseDown.bind(this));
+            this.container.removeEventListener('mousemove', this.onMouseMove.bind(this));
+            this.container.removeEventListener('mouseup', this.onMouseUp.bind(this));
         }
         this.clickCallbacks.clear();
     }
 
+    onMouseDown(event) {
+        this.mouseDownPosition = { x: event.clientX, y: event.clientY };
+        this.hasMouseMoved = false;
+        this.isMouseDown = true;
+    }
+
+    onMouseUp(event) {
+        this.isMouseDown = false;
+    }
+
+    onMouseMove(event) {
+
+        if (!this.isMouseDown) return;
+        
+        const deltaX = Math.abs(event.clientX - this.mouseDownPosition.x);
+        const deltaY = Math.abs(event.clientY - this.mouseDownPosition.y);
+        
+        if (deltaX > RayCastService.MOUSE_MOVEMENT_THRESHOLD || deltaY > RayCastService.MOUSE_MOVEMENT_THRESHOLD) {
+            this.hasMouseMoved = true;
+        }
+    }
+
     onClick(event) {
+
+        if (this.hasMouseMoved) {
+            return
+        }
+
         for (const callback of this.clickCallbacks) {
             callback(this.currentIntersection);
         }
+        
+        this.isMouseDown = false;
+        this.hasMouseMoved = false;
+    }
+
+    registerClickHandler(callback) {
+        this.clickCallbacks.add(callback);
+        return () => this.clickCallbacks.delete(callback);
     }
 
     onPointerMove({ clientX, clientY }) {
@@ -141,11 +189,6 @@ class RayCastService {
 
     enable() {
         this.isEnabled = true;
-    }
-
-    registerClickHandler(callback) {
-        this.clickCallbacks.add(callback);
-        return () => this.clickCallbacks.delete(callback); // Return cleanup function
     }
 }
 

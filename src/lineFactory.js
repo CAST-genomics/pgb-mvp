@@ -86,7 +86,7 @@ class LineFactory {
 
         // Set z for each point to 2 * zOffset
         for (const point of points) {
-            point.z = 2 * zOffset
+            point.z = zOffset
         }
 
         // Flatten the points into an array of xyz
