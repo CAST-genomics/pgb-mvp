@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import eventBus from './utils/eventBus.js';
 
 class RayCastService {
-    
+
     static MOUSE_MOVEMENT_THRESHOLD = 5;
 
     constructor(container, threshold) {
@@ -13,7 +13,7 @@ class RayCastService {
         this.setupEventListeners(container);
         this.clickCallbacks = new Set();
         this.currentIntersection = undefined;
-        
+
         this.mouseDownPosition = { x: 0, y: 0 };
         this.hasMouseMoved = false;
         this.isMouseDown = false;
@@ -57,10 +57,10 @@ class RayCastService {
     onMouseMove(event) {
 
         if (!this.isMouseDown) return;
-        
+
         const deltaX = Math.abs(event.clientX - this.mouseDownPosition.x);
         const deltaY = Math.abs(event.clientY - this.mouseDownPosition.y);
-        
+
         if (deltaX > RayCastService.MOUSE_MOVEMENT_THRESHOLD || deltaY > RayCastService.MOUSE_MOVEMENT_THRESHOLD) {
             this.hasMouseMoved = true;
         }
@@ -75,7 +75,7 @@ class RayCastService {
         for (const callback of this.clickCallbacks) {
             callback(this.currentIntersection);
         }
-        
+
         this.isMouseDown = false;
         this.hasMouseMoved = false;
     }
@@ -107,7 +107,6 @@ class RayCastService {
 
     setupVisualFeedback(scene) {
         this.raycastVisualFeedback = this.createVisualFeeback(0x00ff00);
-        scene.add(this.raycastVisualFeedback);
     }
 
     createVisualFeeback(color) {

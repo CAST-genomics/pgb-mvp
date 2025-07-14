@@ -28,17 +28,13 @@ class SceneManager {
         const cameraManager = new CameraManager(frustumSize, container.clientWidth/container.clientHeight)
         const mapControl = MapControlsFactory.create(cameraManager.camera, container)
         this.cameraRig = new CameraRig(cameraManager, mapControl)
-        this.scene.add(this.cameraRig.camera)
 
         this.raycastService = raycastService
         this.raycastService.setupVisualFeedback(this.scene)
+        this.scene.add(this.raycastService.raycastVisualFeedback);
 
         // Setup resize handler
         window.addEventListener('resize', () => this.handleResize())
-    }
-
-    addToScene(object) {
-        this.scene.add(object)
     }
 
     handleResize() {
@@ -92,10 +88,10 @@ class SceneManager {
         this.renderer.setAnimationLoop(null)
     }
 
-    updateViewToFitScene() {
+    updateViewToFitScene(scene, cameraRig) {
         // Create a bounding box that encompasses all objects in the scene
         const bbox = new THREE.Box3()
-        this.scene.traverse((object) => {
+        scene.traverse((object) => {
             if (object.isLine2 && object.name !== 'boundingSphereHelper') {
                 object.geometry.computeBoundingBox()
                 const objectBox = object.geometry.boundingBox.clone()
@@ -113,9 +109,9 @@ class SceneManager {
         const boundingSphere = new THREE.Sphere()
         bbox.getBoundingSphere(boundingSphere)
 
-        const found = this.scene.getObjectByName('boundingSphereHelper')
+        const found = scene.getObjectByName('boundingSphereHelper')
         if (found) {
-            this.scene.remove(found)
+            scene.remove(found)
         }
 
         // const boundingSphereHelper = this.#createBoundingSphereHelper(boundingSphere)
@@ -125,14 +121,14 @@ class SceneManager {
         const SCENE_VIEW_PADDING = 1.5
 
         // Calculate required frustum size based on the bounding sphere (with padding)
-        this.cameraRig.controls.reset()
+        cameraRig.controls.reset()
         const { clientWidth, clientHeight } = this.container
-        this.cameraRig.cameraManager.frustumHalfSize = boundingSphere.radius * SCENE_VIEW_PADDING
-        this.cameraRig.cameraManager.windowResizeHelper(clientWidth/clientHeight)
+        cameraRig.cameraManager.frustumHalfSize = boundingSphere.radius * SCENE_VIEW_PADDING
+        cameraRig.cameraManager.windowResizeHelper(clientWidth/clientHeight)
 
         // Position camera to frame the scene
-        this.cameraRig.camera.position.set(0, 0, 2 * boundingSphere.radius) // Position camera at 2x the radius
-        this.cameraRig.camera.lookAt(boundingSphere.center)
+        cameraRig.camera.position.set(0, 0, 2 * boundingSphere.radius) // Position camera at 2x the radius
+        cameraRig.camera.lookAt(boundingSphere.center)
     }
 
     #createBoundingSphereHelper(boundingSphere) {
@@ -150,20 +146,6 @@ class SceneManager {
         boundingSphereHelper.position.copy(boundingSphere.center)
         boundingSphereHelper.name = 'boundingSphereHelper'
         return boundingSphereHelper
-    }
-
-    /**
-     * Sets the background color of the scene
-     * @param {THREE.Color|string|number} color - The color to set as background. Can be a THREE.Color object, hex string, or hex number
-     */
-    setBackgroundColor(color) {
-        if (typeof color === 'string' || typeof color === 'number') {
-            this.scene.background = new THREE.Color(color);
-        } else if (color instanceof THREE.Color) {
-            this.scene.background = color;
-        } else {
-            console.error('Invalid color format. Please provide a THREE.Color object, hex string, or hex number.');
-        }
     }
 
     async handleSearch(url) {
@@ -185,7 +167,7 @@ class SceneManager {
 
         this.genomeWidget.populateList()
 
-        this.updateViewToFitScene()
+        this.updateViewToFitScene(this.scene, this.cameraRig)
 
         this.startAnimation()
     }
