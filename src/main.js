@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import SceneManager from './sceneManager.js'
+import App from './app.js'
 import RayCastService from './raycastService.js'
 import LocusInput from './locusInput.js'
 import GenomicService from './genomicService.js'
@@ -7,10 +7,10 @@ import SequenceService from './sequenceService.js'
 import GeometryManager from './geometryManager.js'
 import GenomeWidget from './genomeWidget.js'
 import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
-import materialService from './utils/materialService.js'
+import materialService from './materialService.js'
 import './styles/app.scss'
 
-let sceneManager
+let app
 let locusInput
 let defaultGenome
 document.addEventListener("DOMContentLoaded", async (event) => {
@@ -39,11 +39,11 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
 
-    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary)
+    app = new App(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary)
 
-    sceneManager.startAnimation()
+    app.startAnimation()
 
-    locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
+    locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), app)
 
     const urlParameter = locusInput.getUrlParameter('locus');
     let locus = null;

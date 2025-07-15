@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import vertexShader from '../../shaders/animated-arrow.vert.glsl';
-import fragmentShader from '../../shaders/animated-arrow.frag.glsl';
-import { createGradientTexture } from './textureService.js';
-import textureService from './textureService.js';
-import { textures } from './textureLibrary.js';
-import {getAppleCrayonColorByName} from "./color.js"
+import vertexShader from '../shaders/animated-arrow.vert.glsl';
+import fragmentShader from '../shaders/animated-arrow.frag.glsl';
+import { createGradientTexture } from './utils/textureService.js';
+import textureService from './utils/textureService.js';
+import { textures } from './utils/textureLibrary.js';
+import {getAppleCrayonColorByName} from "./utils/color.js"
 import {LineMaterial} from "three/addons/lines/LineMaterial.js"
 
 class MaterialService {
@@ -53,8 +53,8 @@ class MaterialService {
 
     getNodeLineDeemphasisMaterial() {
         return this.#NODE_LINE_DEEMPHASIS_MATERIAL;
-    }   
-    
+    }
+
     getTexture(name) {
         return textureService.getTexture(name);
     }

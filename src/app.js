@@ -6,7 +6,7 @@ import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
 import { loadPath } from './utils/utils.js'
 
-class SceneManager {
+class App {
 
     constructor(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary) {
         this.container = container
@@ -173,4 +173,4 @@ class SceneManager {
     }
 }
 
-export default SceneManager
+export default App

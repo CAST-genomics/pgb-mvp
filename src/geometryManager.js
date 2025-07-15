@@ -1,8 +1,8 @@
 import * as THREE from 'three'
 import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import materialService from './utils/materialService.js';
-import { getColorRampArrowMaterial } from './utils/materialService.js';
+import materialService from './materialService.js';
+import { getColorRampArrowMaterial } from './materialService.js';
 
 class GeometryManager {
 
@@ -112,17 +112,17 @@ class GeometryManager {
                     // console.log('Deemphasizing object:', object.userData.nodeName);
                     // console.log('Object type:', object.constructor.name);
                     // console.log('Geometry attributes:', Object.keys(object.geometry.attributes));
-                    
+
                     // LineGeometry uses instanceStart and instanceEnd attributes
                     if (object.geometry.attributes.instanceStart) {
                         const instanceStart = object.geometry.attributes.instanceStart.array;
                         const instanceEnd = object.geometry.attributes.instanceEnd.array;
-                        
+
                         // console.log('InstanceStart array length:', instanceStart.length);
                         // console.log('InstanceEnd array length:', instanceEnd.length);
                         // console.log('Original Z values (start):', Array.from(instanceStart).filter((_, i) => i % 3 === 2));
                         // console.log('Original Z values (end):', Array.from(instanceEnd).filter((_, i) => i % 3 === 2));
-                        
+
                         // Update Z coordinates in both instanceStart and instanceEnd
                         for (let i = 0; i < instanceStart.length; i += 3) {
                             instanceStart[i + 2] = this.#NODE_LINE_DEEMPHASIS_Z_OFFSET;
@@ -130,15 +130,15 @@ class GeometryManager {
                         for (let i = 0; i < instanceEnd.length; i += 3) {
                             instanceEnd[i + 2] = this.#NODE_LINE_DEEMPHASIS_Z_OFFSET;
                         }
-                        
+
                         // console.log('New Z values (start):', Array.from(instanceStart).filter((_, i) => i % 3 === 2));
                         // console.log('New Z values (end):', Array.from(instanceEnd).filter((_, i) => i % 3 === 2));
-                        
+
                         // Update line distances for Line2 objects
                         if (object.computeLineDistances) {
                             object.computeLineDistances();
                         }
-                        
+
                         object.geometry.attributes.instanceStart.needsUpdate = true;
                         object.geometry.attributes.instanceEnd.needsUpdate = true;
                     } else {
@@ -191,7 +191,7 @@ class GeometryManager {
                     if (object.geometry.attributes.instanceStart) {
                         const instanceStart = object.geometry.attributes.instanceStart.array;
                         const instanceEnd = object.geometry.attributes.instanceEnd.array;
-                        
+
                         // Update Z coordinates in both instanceStart and instanceEnd
                         for (let i = 0; i < instanceStart.length; i += 3) {
                             instanceStart[i + 2] = this.#NODE_LINE_Z_OFFSET;
@@ -199,12 +199,12 @@ class GeometryManager {
                         for (let i = 0; i < instanceEnd.length; i += 3) {
                             instanceEnd[i + 2] = this.#NODE_LINE_Z_OFFSET;
                         }
-                        
+
                         // Update line distances for Line2 objects
                         if (object.computeLineDistances) {
                             object.computeLineDistances();
                         }
-                        
+
                         object.geometry.attributes.instanceStart.needsUpdate = true;
                         object.geometry.attributes.instanceEnd.needsUpdate = true;
                     }
