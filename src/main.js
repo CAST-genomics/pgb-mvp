@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const gear = document.getElementById('pgb-gear-btn-container')
     const genomeWidgetContainer = document.getElementById('pgb-gear-card')
-    const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, geometryManager, raycastService);
+    const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, raycastService);
 
     const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5

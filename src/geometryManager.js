@@ -3,6 +3,7 @@ import LineFactory from './lineFactory.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import materialService from './materialService.js';
 import { getColorRampArrowMaterial } from './materialService.js';
+import eventBus from './utils/eventBus.js';
 
 class GeometryManager {
 
@@ -19,6 +20,19 @@ class GeometryManager {
         this.isEdgeAnimationEnabled = true;
         this.deemphasizedNodes = new Set(); // Track which nodes are currently deemphasized
 
+        // Subscribe to genome interaction events
+        this.setupEventListeners();
+    }
+
+    setupEventListeners() {
+        // Subscribe to genome interaction events
+        this.deemphasizeUnsub = eventBus.subscribe('genome:deemphasizeNodes', (data) => {
+            this.deemphasizeLinesViaNodeNameSet(data.nodeNames);
+        });
+
+        this.restoreUnsub = eventBus.subscribe('genome:restoreEmphasis', (data) => {
+            this.restoreLinesViaZOffset(data.nodeNames);
+        });
     }
 
     createGeometry(json) {
@@ -73,6 +87,14 @@ class GeometryManager {
     }
 
     dispose() {
+        // Unsubscribe from events
+        if (this.deemphasizeUnsub) {
+            this.deemphasizeUnsub();
+        }
+        if (this.restoreUnsub) {
+            this.restoreUnsub();
+        }
+
         // Remove from scene
         this.linesGroup.parent?.remove(this.linesGroup);
         this.edgesGroup.parent?.remove(this.edgesGroup);
