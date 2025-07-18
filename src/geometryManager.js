@@ -1,24 +1,25 @@
 import * as THREE from 'three'
 import LineFactory from './lineFactory.js'
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import materialService from './materialService.js';
 import { getColorRampArrowMaterial } from './materialService.js';
 import eventBus from './utils/eventBus.js';
+import GeometryFactory from './geometryFactory.js';
 
 class GeometryManager {
-
-    #EDGE_LINE_Z_OFFSET = -12
 
     #NODE_LINE_Z_OFFSET = -8
     #NODE_LINE_DEEMPHASIS_Z_OFFSET = -16
 
     constructor(genomicService) {
         this.genomicService = genomicService
-        this.splines = new Map()
+        this.geometryFactory = new GeometryFactory(genomicService);
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
         this.isEdgeAnimationEnabled = true;
         this.deemphasizedNodes = new Set(); // Track which nodes are currently deemphasized
+        this.geometryData = null; // Store geometry data
 
         // Subscribe to genome interaction events
         this.setupEventListeners();
@@ -36,22 +37,112 @@ class GeometryManager {
     }
 
     createGeometry(json) {
-        this.splines.clear()
-        this.linesGroup.clear()
-        this.edgesGroup.clear()
+        console.log('GeometryManager: Starting geometry creation');
+        
+        // Use GeometryFactory to create geometry data
+        this.geometryData = this.geometryFactory.createGeometryData(json);
+        console.log('GeometryManager: Geometry data created:', this.geometryData);
+        
+        // Clear existing groups
+        this.linesGroup.clear();
+        this.edgesGroup.clear();
 
-        const bbox = this.#calculateBoundingBox(json);
-        this.#createSplinesAndNodeLines(bbox, json.node);
-        this.#createEdgeLines(json.edge);
+        // Create meshes with materials (temporary coupling)
+        this.#createNodeMeshes();
+        this.#createEdgeMeshes();
+        
+        console.log('GeometryManager: Geometry creation complete');
+        console.log('Lines group children:', this.linesGroup.children.length);
+        console.log('Edges group children:', this.edgesGroup.children.length);
+    }
+
+    #createNodeMeshes() {
+        const nodeGeometries = this.geometryData.nodeGeometries;
+        console.log('GeometryManager: Creating node meshes, count:', nodeGeometries.size);
+        
+        for (const [nodeName, data] of nodeGeometries) {
+            console.log('GeometryManager: Creating mesh for node:', nodeName);
+            
+            const materialConfig = {
+                color: this.genomicService.getAssemblyColor(nodeName),
+                linewidth: 16,
+                worldUnits: true,
+                opacity: 1,
+                transparent: true
+            };
+
+            const material = new LineMaterial(materialConfig);
+            const mesh = new Line2(data.geometry, material);
+            
+            console.log('GeometryManager: Created Line2 mesh for node:', nodeName);
+            console.log('GeometryManager: Mesh constructor:', mesh.constructor.name);
+            console.log('GeometryManager: Mesh isLine2 property:', mesh.isLine2);
+            console.log('GeometryManager: Mesh geometry:', mesh.geometry);
+            
+            // Store reference to original geometry data
+            mesh.userData = {
+                nodeName,
+                geometryKey: `node:${nodeName}`,
+                geometryData: data
+            };
+
+            this.linesGroup.add(mesh);
+            console.log('GeometryManager: Added node mesh to lines group');
+        }
+    }
+
+    #createEdgeMeshes() {
+        const edgeGeometries = this.geometryData.edgeGeometries;
+        console.log('GeometryManager: Creating edge meshes, count:', edgeGeometries.size);
+        
+        for (const [edgeKey, data] of edgeGeometries) {
+            console.log('GeometryManager: Creating mesh for edge:', edgeKey);
+            
+            const heroTexture = materialService.getTexture('arrow-white');
+            const material = getColorRampArrowMaterial(
+                data.startColor, 
+                data.endColor, 
+                heroTexture, 
+                1
+            );
+
+            // Create Mesh object for edges (they need to be meshes for texture mapping)
+            const mesh = new THREE.Mesh(data.geometry, material);
+            
+            console.log('GeometryManager: Created Mesh for edge:', edgeKey);
+            console.log('GeometryManager: Edge mesh constructor:', mesh.constructor.name);
+            
+            // Store reference to original geometry data
+            mesh.userData = {
+                nodeNameStart: data.startNode,
+                nodeNameEnd: data.endNode,
+                geometryKey: edgeKey,
+                geometryData: data
+            };
+
+            this.edgesGroup.add(mesh);
+            console.log('GeometryManager: Added edge mesh to edges group');
+        }
     }
 
     addToScene(scene) {
+        console.log('GeometryManager: Adding to scene');
+        console.log('GeometryManager: Lines group children:', this.linesGroup.children.length);
+        console.log('GeometryManager: Edges group children:', this.edgesGroup.children.length);
+        
         scene.add(this.linesGroup);
         scene.add(this.edgesGroup);
+        
+        console.log('GeometryManager: Added to scene');
+        console.log('GeometryManager: Scene children count:', scene.children.length);
     }
 
     getSpline(nodeName) {
-        return this.splines.get(nodeName)
+        return this.geometryFactory.getSpline(nodeName);
+    }
+
+    getGeometryData() {
+        return this.geometryData;
     }
 
     animateEdgeTextures(deltaTime) {
@@ -95,6 +186,9 @@ class GeometryManager {
             this.restoreUnsub();
         }
 
+        // Dispose of geometry factory
+        this.geometryFactory.dispose();
+
         // Remove from scene
         this.linesGroup.parent?.remove(this.linesGroup);
         this.edgesGroup.parent?.remove(this.edgesGroup);
@@ -121,7 +215,7 @@ class GeometryManager {
         }
 
         // Clear the maps
-        this.splines.clear();
+        this.geometryData = null;
     }
 
     deemphasizeLinesViaNodeNameSet(nodeNameSet) {
@@ -244,106 +338,7 @@ class GeometryManager {
         this.deemphasizedNodes.clear();
     }
 
-    #calculateBoundingBox(json) {
-        // Accumulate all coordinates
-        const acc = []
-        for (const { ogdf_coordinates } of Object.values(json.node)) {
-            const xyzList = ogdf_coordinates.map(({ x, y }) => { return [x, y] })
-            acc.push(...xyzList)
-        }
 
-        // Partition x and y coordinates into separate lists
-        const [xCoords, yCoords] = acc.reduce((result, [x, y]) => { result[0].push(x); result[1].push(y); return result; }, [[], []]);
-
-        // Calculate bbox
-        const minX = Math.min(...xCoords);
-        const maxX = Math.max(...xCoords);
-        const minY = Math.min(...yCoords);
-        const maxY = Math.max(...yCoords);
-        return {
-            x: { min: minX, max: maxX, centroid: (minX + maxX) / 2 },
-            y: { min: minY, max: maxY, centroid: (minY + maxY) / 2 }
-        };
-    }
-
-    #createSplinesAndNodeLines(bbox, nodes) {
-        let i = 0
-        for (const [nodeName, nodeData] of Object.entries(nodes)) {
-
-            const { ogdf_coordinates } = nodeData;
-
-            // Build spline from coordinates recentered around origin
-            const coordinates = ogdf_coordinates.map(({ x, y }) => new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0))
-            const spline = new THREE.CatmullRomCurve3(coordinates)
-
-            this.splines.set(nodeName, spline)
-
-            const materialConfig = {
-                color: this.genomicService.getAssemblyColor(nodeName),
-                linewidth: 16,
-                worldUnits: true,
-                opacity: 1,
-                transparent: true
-            }
-
-            const assembly = this.genomicService.metadata.get(nodeName).assembly;
-            const line = LineFactory.createNodeLine(nodeName, assembly, spline, 4, this.#NODE_LINE_Z_OFFSET, new LineMaterial(materialConfig))
-            this.linesGroup.add(line)
-
-            i++
-        }
-
-        console.log(`GeometryManager: Created ${this.splines.size} splines`);
-    }
-
-    #createEdgeLines(edges) {
-
-        const getEdgeNodeSign = node => {
-            const parts = node.split('')
-            const sign = parts.pop()
-            const remainder = parts.join('')
-            return { sign, remainder }
-        }
-
-        for (const { starting_node, ending_node } of Object.values(edges)) {
-
-            let spline
-
-            // Start node
-            const { sign: signStart, remainder: remainderStart } = getEdgeNodeSign(starting_node)
-            spline = this.splines.get(`${remainderStart}+`)
-            if (!spline) {
-                console.error(`Could not find start spline at node ${remainderStart}+`)
-                continue
-            }
-            const xyzStart = spline.getPoint(signStart === '+' ? 1 : 0)
-
-
-
-            // End node
-            const { sign: signEnd, remainder: remainderEnd } = getEdgeNodeSign(ending_node)
-            spline = this.splines.get(`${remainderEnd}+`)
-            if (!spline) {
-                console.error(`Could not find end spline at node ${remainderEnd}+`)
-                continue
-            }
-            const xyzEnd = spline.getPoint(signEnd === '+' ? 0 : 1)
-
-            // position edge lines behind nodes in z coordinate
-            xyzStart.z = this.#EDGE_LINE_Z_OFFSET
-            xyzEnd.z = this.#EDGE_LINE_Z_OFFSET
-
-
-            const startColor = this.genomicService.getAssemblyColor(`${remainderStart}+`)
-            const endColor = this.genomicService.getAssemblyColor(`${remainderEnd}+`)
-            const heroTexture = materialService.getTexture('arrow-white')
-            const colorRampMaterial = getColorRampArrowMaterial(startColor, endColor, heroTexture, 1)
-
-            const edgeLine = LineFactory.createEdgeRect(xyzStart, xyzEnd, colorRampMaterial, `${remainderStart}+`, `${remainderEnd}+`)
-
-            this.edgesGroup.add(edgeLine)
-        }
-    }
 
 }
 

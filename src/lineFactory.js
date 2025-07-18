@@ -4,30 +4,35 @@ import * as THREE from "three"
 
 class LineFactory {
 
-    static createEdgeLine(startXYZ, endXYZ, lineMaterial) {
-        // Create array of positions for the line geometry
-        const xyzList = [
-            startXYZ.x, startXYZ.y, startXYZ.z,
-            endXYZ.x, endXYZ.y, endXYZ.z
-        ];
+    /**
+     * Create node line geometry without material
+     */
+    static createNodeLineGeometry(spline, divisionsMultiplier, zOffset = 0) {
+        // Calculate number of divisions
+        const divisions = Math.round(divisionsMultiplier * spline.points.length);
 
-        // Create and configure the line geometry
+        // Sample the spline with getPoints (returns an array of Vector3)
+        const points = spline.getPoints(divisions);
+
+        // Set z for each point to zOffset (like the original createNodeLine method)
+        for (const point of points) {
+            point.z = zOffset;
+        }
+
+        // Flatten the points into an array of xyz for LineGeometry
+        const xyzList = points.flatMap(p => [p.x, p.y, p.z]);
+
+        // Create LineGeometry (not BufferGeometry) for Line2 compatibility
         const lineGeometry = new LineGeometry();
         lineGeometry.setPositions(xyzList);
 
-        // Create the line object
-        const line = new Line2(lineGeometry, lineMaterial);
-
-        // Set up the line properties
-        line.computeLineDistances();
-        line.scale.set(1, 1, 1);
-
-        line.renderOrder = 2
-
-        return line;
+        return lineGeometry;
     }
 
-    static createEdgeRect(startXYZ, endXYZ, material, nodeNameStart, nodeNameEnd) {
+    /**
+     * Create edge rectangle geometry without material (for texture mapping)
+     */
+    static createEdgeRectGeometry(startXYZ, endXYZ) {
         // Calculate direction vector and length
         const direction = new THREE.Vector3().subVectors(endXYZ, startXYZ);
         direction.normalize();
@@ -68,42 +73,7 @@ class LineFactory {
         // Two triangles to form the rectangle
         geometry.setIndex([0, 1, 2, 0, 2, 3]);
 
-        const mesh = new THREE.Mesh(geometry, material)
-
-        mesh.userData = { nodeNameStart, nodeNameEnd }
-
-        mesh.renderOrder = 2
-
-        return mesh;
-    }
-
-    static createNodeLine(nodeName, assembly, spline, divisionsMultiplier, zOffset, lineMaterial) {
-        // Calculate number of divisions
-        const divisions = Math.round(divisionsMultiplier * spline.points.length);
-
-        // Sample the spline with getPoints (returns an array of Vector3)
-        const points = spline.getPoints(divisions);
-
-        // Set z for each point to 2 * zOffset
-        for (const point of points) {
-            point.z = zOffset
-        }
-
-        // Flatten the points into an array of xyz
-        const xyzList = points.flatMap(p => [p.x, p.y, p.z]);
-
-        const lineGeometry = new LineGeometry();
-        lineGeometry.setPositions(xyzList);
-
-        const line = new Line2(lineGeometry, lineMaterial);
-        line.userData = { nodeName, assembly }
-
-        line.renderOrder = 4
-
-        line.computeLineDistances();
-        line.scale.set(1, 1, 1);
-
-        return line;
+        return geometry;
     }
 }
 
