@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import materialService from './materialService.js';
-import { getColorRampArrowMaterial } from './materialService.js';
+import { colorRampArrowMaterialFactory } from './materialService.js';
 import eventBus from './utils/eventBus.js';
 import GeometryFactory from './geometryFactory.js';
 
@@ -22,11 +22,11 @@ class GeometryManager {
 
         // Subscribe to genome interaction events
         this.deemphasizeUnsub = eventBus.subscribe('genome:deemphasizeNodes', (data) => {
-            this.deemphasizeLinesViaNodeNameSet(data.nodeNames);
+            this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames);
         });
 
         this.restoreUnsub = eventBus.subscribe('genome:restoreEmphasis', (data) => {
-            this.restoreLinesViaZOffset(data.nodeNames);
+            this.restoreLinesandEdgesViaZOffset(data.nodeNames);
         });
 
     }
@@ -68,12 +68,7 @@ class GeometryManager {
 
         for (const [edgeKey, data] of this.geometryData.edgeGeometries) {
 
-            const material = getColorRampArrowMaterial(
-                data.startColor,
-                data.endColor,
-                materialService.getTexture('arrow-white'),
-                1
-            );
+            const material = colorRampArrowMaterialFactory(data.startColor, data.endColor, materialService.getTexture('arrow-white'), 1);
 
             const mesh = new THREE.Mesh(data.geometry, material);
 
@@ -112,16 +107,14 @@ class GeometryManager {
 
         // Update all edge materials
         this.edgesGroup.traverse((object) => {
-            if (object.material && object.material !== materialService.getEdgeLineDeemphasisMaterial()) {
-                if (object.material.uniforms) {
-                    // Handle ShaderMaterial
+            if (object.material && object.material.uniforms) {
+                // Handle ShaderMaterial - animate all materials except deemphasis ones
+                if (!materialService.isDeemphasisMaterial(object.material)) {
                     object.material.uniforms.uvOffset.value.x = (object.material.uniforms.uvOffset.value.x - speed) % 1.0;
-                } else {
-                    // Handle MeshBasicMaterial
-                    if (object.material.map) {
-                        object.material.map.offset.x = (object.material.map.offset.x - speed) % 1;
-                    }
                 }
+            } else if (object.material && object.material.map) {
+                // Handle MeshBasicMaterial
+                object.material.map.offset.x = (object.material.map.offset.x - speed) % 1;
             }
         });
     }
@@ -175,7 +168,7 @@ class GeometryManager {
         this.geometryData = null;
     }
 
-    deemphasizeLinesViaNodeNameSet(nodeNameSet) {
+    deemphasizeLinesAndEdgesViaNodeNameSet(nodeNameSet) {
 
         this.deemphasizedNodes.clear();
 
@@ -223,7 +216,7 @@ class GeometryManager {
                         object.userData.originalMaterial = object.material;
                     }
 
-                    object.material = materialService.getNodeLineDeemphasisMaterial();
+                    object.material = materialService.createNodeLineDeemphasisMaterial();
 
                     this.deemphasizedNodes.add(object.userData.nodeName);
                 }
@@ -236,13 +229,13 @@ class GeometryManager {
                     if (!object.userData.originalMaterial) {
                         object.userData.originalMaterial = object.material;
                     }
-                    object.material = materialService.getEdgeLineDeemphasisMaterial();
+                    object.material = materialService.createEdgeLineDeemphasisMaterial();
                 }
             }
         });
     }
 
-    restoreLinesViaZOffset(nodeNameSet) {
+    restoreLinesandEdgesViaZOffset(nodeNameSet) {
 
         this.edgesGroup.traverse((object) => {
             if (object.userData) {

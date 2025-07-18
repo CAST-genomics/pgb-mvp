@@ -274,7 +274,7 @@ class GeometryManager {
     createGeometry(json) {
         // Use GeometryFactory to create geometry data
         this.geometryData = this.geometryFactory.createGeometryData(json);
-        
+
         // Clear existing groups
         this.linesGroup.clear();
         this.edgesGroup.clear();
@@ -286,7 +286,7 @@ class GeometryManager {
 
     #createNodeMeshes() {
         const nodeGeometries = this.geometryData.nodeGeometries;
-        
+
         for (const [nodeName, data] of nodeGeometries) {
             const materialConfig = {
                 color: this.genomicService.getAssemblyColor(nodeName),
@@ -298,7 +298,7 @@ class GeometryManager {
 
             const material = new LineMaterial(materialConfig);
             const mesh = new THREE.Line(data.geometry, material);
-            
+
             // Store reference to original geometry data
             mesh.userData = {
                 nodeName: nodeName,
@@ -312,18 +312,13 @@ class GeometryManager {
 
     #createEdgeMeshes() {
         const edgeGeometries = this.geometryData.edgeGeometries;
-        
+
         for (const [edgeKey, data] of edgeGeometries) {
             const heroTexture = materialService.getTexture('arrow-white');
-            const material = getColorRampArrowMaterial(
-                data.startColor, 
-                data.endColor, 
-                heroTexture, 
-                1
-            );
+            const material = colorRampArrowMaterialFactory(data.startColor, data.endColor, heroTexture, 1);
 
             const mesh = new THREE.Mesh(data.geometry, material);
-            
+
             // Store reference to original geometry data
             mesh.userData = {
                 nodeNameStart: data.startNode,
