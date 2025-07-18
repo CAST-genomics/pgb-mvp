@@ -16,32 +16,23 @@ class GeometryFactory {
      * Create all geometry data from JSON without assigning materials
      */
     createGeometryData(json) {
-        console.log('GeometryFactory: Starting geometry data creation');
-        console.log('GeometryFactory: JSON data:', json);
-        
         this.splines.clear();
         this.geometryCache.clear();
 
         const bbox = this.#calculateBoundingBox(json);
-        console.log('GeometryFactory: Bounding box calculated:', bbox);
-        
+
         this.#createSplines(bbox, json.node);
-        console.log('GeometryFactory: Splines created, count:', this.splines.size);
-        
         this.#createNodeGeometries(json.node);
-        console.log('GeometryFactory: Node geometries created');
-        
+
         this.#createEdgeGeometries(json.edge);
-        console.log('GeometryFactory: Edge geometries created');
 
         const result = {
             splines: this.splines,
             nodeGeometries: this.getNodeGeometries(),
             edgeGeometries: this.getEdgeGeometries(),
-            bbox: bbox
+            bbox
         };
-        
-        console.log('GeometryFactory: Final result:', result);
+
         return result;
     }
 
@@ -51,13 +42,13 @@ class GeometryFactory {
     #createSplines(bbox, nodes) {
         for (const [nodeName, nodeData] of Object.entries(nodes)) {
             const { ogdf_coordinates } = nodeData;
-            
+
             // Build spline from coordinates recentered around origin
-            const coordinates = ogdf_coordinates.map(({ x, y }) => 
+            const coordinates = ogdf_coordinates.map(({ x, y }) =>
                 new THREE.Vector3(x - bbox.x.centroid, y - bbox.y.centroid, 0)
             );
             const spline = new THREE.CatmullRomCurve3(coordinates);
-            
+
             this.splines.set(nodeName, spline);
         }
     }
@@ -70,14 +61,11 @@ class GeometryFactory {
             const spline = this.splines.get(nodeName);
             if (!spline) continue;
 
-            // Create LineGeometry without material, but with proper Z-offset
-            const lineGeometry = LineFactory.createNodeLineGeometry(spline, 4, this.#NODE_LINE_Z_OFFSET);
-            
             this.geometryCache.set(`node:${nodeName}`, {
                 type: 'node',
-                geometry: lineGeometry,
-                spline: spline,
-                nodeName: nodeName,
+                geometry: LineFactory.createNodeLineGeometry(spline, 4, this.#NODE_LINE_Z_OFFSET),
+                spline,
+                nodeName,
                 assembly: this.genomicService.metadata.get(nodeName)?.assembly
             });
         }
@@ -119,7 +107,7 @@ class GeometryFactory {
 
             // Create edge geometry without material - this creates a rectangular BufferGeometry with UVs for texture mapping
             const edgeGeometry = LineFactory.createEdgeRectGeometry(xyzStart, xyzEnd);
-            
+
             const edgeKey = `edge:${remainderStart}+:${remainderEnd}+`;
             this.geometryCache.set(edgeKey, {
                 type: 'edge',
@@ -194,7 +182,7 @@ class GeometryFactory {
         const maxX = Math.max(...xCoords);
         const minY = Math.min(...yCoords);
         const maxY = Math.max(...yCoords);
-        
+
         return {
             x: { min: minX, max: maxX, centroid: (minX + maxX) / 2 },
             y: { min: minY, max: maxY, centroid: (minY + maxY) / 2 }
@@ -215,4 +203,4 @@ class GeometryFactory {
     }
 }
 
-export default GeometryFactory; 
+export default GeometryFactory;

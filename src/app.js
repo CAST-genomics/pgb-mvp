@@ -89,29 +89,23 @@ class App {
     }
 
     updateViewToFitScene(scene, cameraRig) {
-        // Create a bounding box that encompasses all objects in the scene
+
         const bbox = new THREE.Box3()
-        
-        console.log('updateViewToFitScene: Starting scene traversal');
-        console.log('updateViewToFitScene: Scene children count:', scene.children.length);
-        
+
         let foundObjects = 0;
         scene.traverse((object) => {
-            console.log('updateViewToFitScene: Traversing object:', object.constructor.name, 'name:', object.name);
-            console.log('updateViewToFitScene: Object properties - isLine2:', object.isLine2, 'isMesh:', object.isMesh, 'isGroup:', object.isGroup);
-            
+
             // Handle Line2 objects (both node lines and edge lines) - check constructor name since isLine2 might not be set
             if ((object.isLine2 || object.constructor.name === 'Line2') && object.name !== 'boundingSphereHelper') {
-                console.log('updateViewToFitScene: Found Line2 object:', object.name);
                 object.geometry.computeBoundingBox()
                 const objectBox = object.geometry.boundingBox.clone()
                 objectBox.applyMatrix4(object.matrixWorld)
                 bbox.union(objectBox)
                 foundObjects++;
-            } 
+            }
+
             // Handle Mesh objects (if any remain)
             else if (object.isMesh && object.name !== 'boundingSphereHelper') {
-                console.log('updateViewToFitScene: Found Mesh object:', object.name);
                 object.geometry.computeBoundingBox()
                 const objectBox = object.geometry.boundingBox.clone()
                 objectBox.applyMatrix4(object.matrixWorld)
@@ -119,9 +113,6 @@ class App {
                 foundObjects++;
             }
         })
-        
-        console.log('updateViewToFitScene: Found objects:', foundObjects);
-        console.log('updateViewToFitScene: Bounding box:', bbox);
 
         // Calculate the bounding sphere from the bounding box
         const boundingSphere = new THREE.Sphere()
