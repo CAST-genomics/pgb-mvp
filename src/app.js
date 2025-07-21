@@ -76,7 +76,10 @@ class App {
 
         this.sequenceService.update();
         this.cameraRig.update()
-        this.geometryManager.animateEdgeTextures(deltaTime)
+        // Animation is now handled by LookManager
+        this.geometryManager.lookManager.updateAnimation(deltaTime)
+        // Update edge animation (UV offset)
+        this.geometryManager.updateEdgeAnimation()
         this.renderer.render(this.scene, this.cameraRig.camera)
     }
 

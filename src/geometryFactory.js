@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import LineFactory from './lineFactory.js';
 
 class GeometryFactory {
-    // Z-offset constants (matching GeometryManager)
-    #EDGE_LINE_Z_OFFSET = -12;
-    #NODE_LINE_Z_OFFSET = -8;
+
+    static EDGE_LINE_Z_OFFSET = -12;
+    static NODE_LINE_Z_OFFSET = -8;
+    static NODE_LINE_DEEMPHASIS_Z_OFFSET = -16;
 
     constructor(genomicService) {
         this.genomicService = genomicService;
@@ -12,9 +13,6 @@ class GeometryFactory {
         this.geometryCache = new Map(); // Cache geometries by node name
     }
 
-    /**
-     * Create all geometry data from JSON without assigning materials
-     */
     createGeometryData(json) {
         this.splines.clear();
         this.geometryCache.clear();
@@ -63,7 +61,7 @@ class GeometryFactory {
 
             this.geometryCache.set(`node:${nodeName}`, {
                 type: 'node',
-                geometry: LineFactory.createNodeLineGeometry(spline, 4, this.#NODE_LINE_Z_OFFSET),
+                geometry: LineFactory.createNodeLineGeometry(spline, 4, GeometryFactory.NODE_LINE_Z_OFFSET),
                 spline,
                 nodeName,
                 assembly: this.genomicService.metadata.get(nodeName)?.assembly
@@ -102,8 +100,8 @@ class GeometryFactory {
             const xyzEnd = endSpline.getPoint(signEnd === '+' ? 0 : 1);
 
             // Position edge lines behind nodes in z coordinate (like original code)
-            xyzStart.z = this.#EDGE_LINE_Z_OFFSET;
-            xyzEnd.z = this.#EDGE_LINE_Z_OFFSET;
+            xyzStart.z = GeometryFactory.EDGE_LINE_Z_OFFSET;
+            xyzEnd.z = GeometryFactory.EDGE_LINE_Z_OFFSET;
 
             // Create edge geometry without material - this creates a rectangular BufferGeometry with UVs for texture mapping
             const edgeGeometry = LineFactory.createEdgeRectGeometry(xyzStart, xyzEnd);

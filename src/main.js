@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import App from './app.js'
 import RayCastService from './raycastService.js'
 import LocusInput from './locusInput.js'
@@ -8,6 +9,10 @@ import GeometryManager from './geometryManager.js'
 import GenomeWidget from './genomeWidget.js'
 import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
 import materialService from './materialService.js'
+import LookManager from './lookManager.js'
+import GenomeVisualizationLook from './genomeVisualizationLook.js'
+import { colorRampArrowMaterialFactory } from './materialService.js'
+import { getAppleCrayonColorByName } from './utils/color.js'
 import './styles/app.scss'
 
 let app
@@ -28,7 +33,15 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const genomicService = new GenomicService()
 
-    const geometryManager = new GeometryManager(genomicService)
+    // Create LookManager and default look
+    const lookManager = new LookManager('main-scene');
+
+    // Create complete genome visualization look (handles both nodes and edges)
+    const defaultLook = GenomeVisualizationLook.createGenomeVisualizationLook('default-genome-look', { genomicService });
+
+    lookManager.setLook(defaultLook);
+
+    const geometryManager = new GeometryManager(genomicService, lookManager)
 
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), raycastService, genomicService, geometryManager)
 

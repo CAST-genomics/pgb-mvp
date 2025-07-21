@@ -1,25 +1,25 @@
 import * as THREE from 'three'
-import { Line2 } from 'three/examples/jsm/lines/Line2.js';
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import materialService from './materialService.js';
-import { colorRampArrowMaterialFactory } from './materialService.js';
 import eventBus from './utils/eventBus.js';
 import GeometryFactory from './geometryFactory.js';
 
 class GeometryManager {
 
-    #NODE_LINE_Z_OFFSET = -8
-    #NODE_LINE_DEEMPHASIS_Z_OFFSET = -16
-
-    constructor(genomicService) {
-        this.genomicService = genomicService
+    constructor(genomicService, lookManager) {
+        this.genomicService = genomicService;
+        this.lookManager = lookManager;
         this.geometryFactory = new GeometryFactory(genomicService);
+        this.setupEventListeners();
+
+        // Initialize groups
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
-        this.isEdgeAnimationEnabled = true;
-        this.deemphasizedNodes = new Set(); // Track which nodes are currently deemphasized
-        this.geometryData = null; // Store geometry data
 
+        // Initialize data structures
+        this.geometryData = null;
+        this.deemphasizedNodes = new Set();
+    }
+
+    setupEventListeners() {
         // Subscribe to genome interaction events
         this.deemphasizeUnsub = eventBus.subscribe('genome:deemphasizeNodes', (data) => {
             this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames);
@@ -28,11 +28,9 @@ class GeometryManager {
         this.restoreUnsub = eventBus.subscribe('genome:restoreEmphasis', (data) => {
             this.restoreLinesandEdgesViaZOffset(data.nodeNames);
         });
-
     }
 
     createGeometry(json) {
-
         this.geometryData = this.geometryFactory.createGeometryData(json);
 
         this.linesGroup.clear();
@@ -43,43 +41,28 @@ class GeometryManager {
     }
 
     #createNodeMeshes() {
-
         for (const [nodeName, data] of this.geometryData.nodeGeometries) {
-
-            const materialConfig = {
-                color: this.genomicService.getAssemblyColor(nodeName),
-                linewidth: 16,
-                worldUnits: true,
-                opacity: 1,
-                transparent: true
-            };
-
-            const material = new LineMaterial(materialConfig);
-            const mesh = new Line2(data.geometry, material);
-
-            // Store reference to original geometry data
-            mesh.userData = { nodeName, geometryKey: `node:${nodeName}`, geometryData: data };
-
+            const context = { type: 'node', nodeName };
+            const mesh = this.lookManager.createMesh(data.geometry, context);
             this.linesGroup.add(mesh);
         }
     }
 
     #createEdgeMeshes() {
-
         for (const [edgeKey, data] of this.geometryData.edgeGeometries) {
 
-            const material = colorRampArrowMaterialFactory(data.startColor, data.endColor, materialService.getTexture('arrow-white'), 1);
-
-            const mesh = new THREE.Mesh(data.geometry, material);
-
-            // Store reference to original geometry data
-            mesh.userData = {
-                nodeNameStart: data.startNode,
-                nodeNameEnd: data.endNode,
-                geometryKey: edgeKey,
-                geometryData: data
+            const { startColor, endColor, startNode, endNode } = data;
+            const context =
+             {
+                type: 'edge',
+                startColor,
+                endColor,
+                startNode,
+                endNode,
+                edgeKey
             };
 
+            const mesh = this.lookManager.createMesh(data.geometry, context);
             this.edgesGroup.add(mesh);
         }
     }
@@ -93,38 +76,48 @@ class GeometryManager {
         return this.geometryFactory.getSpline(nodeName);
     }
 
-    getGeometryData() {
-        return this.geometryData;
-    }
+    deemphasizeLinesAndEdgesViaNodeNameSet(nodeNameSet) {
+        const look = this.lookManager.getLook();
+        if (!look || !look.applyEmphasisState) return;
 
-    animateEdgeTextures(deltaTime) {
-        if (false === this.isEdgeAnimationEnabled) {
-            return;
+        // Deemphasize nodes
+        for (const nodeName of nodeNameSet) {
+            this.lookManager.setEmphasisState(nodeName, 'deemphasized');
+            
+            // Apply material switching to nodes
+            this.linesGroup.traverse((object) => {
+                if (object.userData?.nodeName === nodeName) {
+                    look.applyEmphasisState(object, 'deemphasized');
+                }
+            });
         }
 
-        const baseSpeed = 0.5; // Base speed in units per second
-        const speed = baseSpeed * deltaTime;
+        // Deemphasize edges connected to these nodes
+        this.#updateEdgeEmphasis(nodeNameSet, 'deemphasized');
 
-        // Update all edge materials
-        this.edgesGroup.traverse((object) => {
-            if (object.material && object.material.uniforms) {
-                // Handle ShaderMaterial - animate all materials except deemphasis ones
-                if (!materialService.isDeemphasisMaterial(object.material)) {
-                    object.material.uniforms.uvOffset.value.x = (object.material.uniforms.uvOffset.value.x - speed) % 1.0;
+        this.#updateGeometryPositions();
+    }
+
+    restoreLinesandEdgesViaZOffset(nodeNameSet) {
+        const look = this.lookManager.getLook();
+        if (!look || !look.applyEmphasisState) return;
+
+        // Restore nodes
+        for (const nodeName of nodeNameSet) {
+            this.lookManager.setEmphasisState(nodeName, 'normal');
+            
+            // Apply material switching to nodes
+            this.linesGroup.traverse((object) => {
+                if (object.userData?.nodeName === nodeName) {
+                    look.applyEmphasisState(object, 'normal');
                 }
-            } else if (object.material && object.material.map) {
-                // Handle MeshBasicMaterial
-                object.material.map.offset.x = (object.material.map.offset.x - speed) % 1;
-            }
-        });
-    }
+            });
+        }
 
-    enableEdgeAnimation() {
-        this.isEdgeAnimationEnabled = true;
-    }
+        // Restore edges connected to these nodes
+        this.#updateEdgeEmphasis(nodeNameSet, 'normal');
 
-    disableEdgeAnimation() {
-        this.isEdgeAnimationEnabled = false;
+        this.#updateGeometryPositions();
     }
 
     dispose() {
@@ -168,127 +161,82 @@ class GeometryManager {
         this.geometryData = null;
     }
 
-    deemphasizeLinesAndEdgesViaNodeNameSet(nodeNameSet) {
+    #updateEdgeEmphasis(nodeNameSet, emphasisState) {
+        const look = this.lookManager.getLook();
+        if (!look || !look.applyEmphasisState) return;
 
-        this.deemphasizedNodes.clear();
-
-        this.linesGroup.traverse((object) => {
-            if (object.userData && nodeNameSet.has(object.userData.nodeName)) {
-                if (!this.deemphasizedNodes.has(object.userData.nodeName)) {
-                    // console.log('Deemphasizing object:', object.userData.nodeName);
-                    // console.log('Object type:', object.constructor.name);
-                    // console.log('Geometry attributes:', Object.keys(object.geometry.attributes));
-
-                    // LineGeometry uses instanceStart and instanceEnd attributes
-                    if (object.geometry.attributes.instanceStart) {
-                        const instanceStart = object.geometry.attributes.instanceStart.array;
-                        const instanceEnd = object.geometry.attributes.instanceEnd.array;
-
-                        // console.log('InstanceStart array length:', instanceStart.length);
-                        // console.log('InstanceEnd array length:', instanceEnd.length);
-                        // console.log('Original Z values (start):', Array.from(instanceStart).filter((_, i) => i % 3 === 2));
-                        // console.log('Original Z values (end):', Array.from(instanceEnd).filter((_, i) => i % 3 === 2));
-
-                        // Update Z coordinates in both instanceStart and instanceEnd
-                        for (let i = 0; i < instanceStart.length; i += 3) {
-                            instanceStart[i + 2] = this.#NODE_LINE_DEEMPHASIS_Z_OFFSET;
-                        }
-                        for (let i = 0; i < instanceEnd.length; i += 3) {
-                            instanceEnd[i + 2] = this.#NODE_LINE_DEEMPHASIS_Z_OFFSET;
-                        }
-
-                        // console.log('New Z values (start):', Array.from(instanceStart).filter((_, i) => i % 3 === 2));
-                        // console.log('New Z values (end):', Array.from(instanceEnd).filter((_, i) => i % 3 === 2));
-
-                        // Update line distances for Line2 objects
-                        if (object.computeLineDistances) {
-                            object.computeLineDistances();
-                        }
-
-                        object.geometry.attributes.instanceStart.needsUpdate = true;
-                        object.geometry.attributes.instanceEnd.needsUpdate = true;
-                    } else {
-                        console.error('No instanceStart attribute found on object:', object);
-                    }
-
-                    // Store original material if not already stored
-                    if (!object.userData.originalMaterial) {
-                        object.userData.originalMaterial = object.material;
-                    }
-
-                    object.material = materialService.createNodeLineDeemphasisMaterial();
-
-                    this.deemphasizedNodes.add(object.userData.nodeName);
-                }
-            }
-        });
-
+        // Find edges connected to the specified nodes and update their emphasis state
         this.edgesGroup.traverse((object) => {
-            if (object.userData) {
-                if (this.deemphasizedNodes.has(object.userData.nodeNameStart) && this.deemphasizedNodes.has(object.userData.nodeNameEnd)) {
-                    if (!object.userData.originalMaterial) {
-                        object.userData.originalMaterial = object.material;
-                    }
-                    object.material = materialService.createEdgeLineDeemphasisMaterial();
+            if (object.userData?.type === 'edge') {
+                const { nodeNameStart, nodeNameEnd } = object.userData;
+                
+                // Check if this edge connects to any of the nodes being updated
+                if (nodeNameSet.has(nodeNameStart) || nodeNameSet.has(nodeNameEnd)) {
+                    // Use the edge key as the identifier for emphasis state
+                    const edgeKey = object.userData.geometryKey;
+                    this.lookManager.setEmphasisState(edgeKey, emphasisState);
+                    
+                    // Apply material switching
+                    look.applyEmphasisState(object, emphasisState);
                 }
             }
         });
     }
 
-    restoreLinesandEdgesViaZOffset(nodeNameSet) {
+    #updateGeometryPositions() {
+        const look = this.lookManager.getLook();
+        if (!look) return;
 
-        this.edgesGroup.traverse((object) => {
-            if (object.userData) {
-                if (this.deemphasizedNodes.has(object.userData.nodeNameStart) && this.deemphasizedNodes.has(object.userData.nodeNameEnd)) {
-                    // Restore original material
-                    if (object.userData.originalMaterial) {
-                        object.material = object.userData.originalMaterial;
-                    }
-                }
-            }
-        });
-
+        // Update node positions
         this.linesGroup.traverse((object) => {
+            if (object.userData?.nodeName) {
+                const nodeName = object.userData.nodeName;
+                const zOffset = look.getZOffset(`node:${nodeName}`);
 
-            if (object.userData && nodeNameSet.has(object.userData.nodeName)) {
-                if (this.deemphasizedNodes.has(object.userData.nodeName)) {
+                // Update geometry Z coordinates
+                if (object.geometry.attributes.instanceStart) {
+                    const instanceStart = object.geometry.attributes.instanceStart.array;
+                    const instanceEnd = object.geometry.attributes.instanceEnd.array;
 
-                    // LineGeometry uses instanceStart and instanceEnd attributes
-                    if (object.geometry.attributes.instanceStart) {
-                        const instanceStart = object.geometry.attributes.instanceStart.array;
-                        const instanceEnd = object.geometry.attributes.instanceEnd.array;
-
-                        // Update Z coordinates in both instanceStart and instanceEnd
-                        for (let i = 0; i < instanceStart.length; i += 3) {
-                            instanceStart[i + 2] = this.#NODE_LINE_Z_OFFSET;
-                        }
-                        for (let i = 0; i < instanceEnd.length; i += 3) {
-                            instanceEnd[i + 2] = this.#NODE_LINE_Z_OFFSET;
-                        }
-
-                        // Update line distances for Line2 objects
-                        if (object.computeLineDistances) {
-                            object.computeLineDistances();
-                        }
-
-                        object.geometry.attributes.instanceStart.needsUpdate = true;
-                        object.geometry.attributes.instanceEnd.needsUpdate = true;
+                    for (let i = 0; i < instanceStart.length; i += 3) {
+                        instanceStart[i + 2] = zOffset;
+                        instanceEnd[i + 2] = zOffset;
                     }
 
-                    // Restore original material
-                    if (object.userData.originalMaterial) {
-                        object.material = object.userData.originalMaterial;
+                    // Update line distances for Line2 objects
+                    if (object.computeLineDistances) {
+                        object.computeLineDistances();
                     }
 
-                    this.deemphasizedNodes.delete(object.userData.nodeName);
+                    object.geometry.attributes.instanceStart.needsUpdate = true;
+                    object.geometry.attributes.instanceEnd.needsUpdate = true;
                 }
             }
         });
 
-        this.deemphasizedNodes.clear();
+        // Update edge positions
+        this.edgesGroup.traverse((object) => {
+            if (object.userData?.type === 'edge') {
+                const edgeKey = object.userData.geometryKey;
+                const zOffset = look.getZOffset(edgeKey);
+
+                // Update mesh position for edges (they are THREE.Mesh objects)
+                object.position.z = zOffset;
+            }
+        });
     }
 
+    /**
+     * Update UV offset animation for edge materials
+     * This should be called every frame during animation
+     */
+    updateEdgeAnimation() {
+        const look = this.lookManager.getLook();
+        if (!look || !look.applyUVOffsetToEdgeMaterials) return;
 
+        // Apply UV offset animation to edge materials
+        look.applyUVOffsetToEdgeMaterials(this.edgesGroup);
+    }
 
 }
 
