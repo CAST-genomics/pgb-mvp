@@ -21,6 +21,12 @@ class GenomeVisualizationLook extends Look {
         // Genome-specific configuration
         this.assemblyColors = config.assemblyColors || new Map();
         this.genomicService = config.genomicService;
+
+        // Animation state specific to genome visualization (arrow texture animation)
+        this.animationState = {
+            uvOffset: 0,
+            enabled: config.behaviors?.animation?.enabled ?? false
+        };
     }
 
     /**
@@ -57,14 +63,8 @@ class GenomeVisualizationLook extends Look {
         if (context.type === 'node') {
             return this.createNodeMesh(geometry, context.nodeName);
         } else if (context.type === 'edge') {
-            return this.createEdgeMesh(
-                geometry,
-                context.startColor,
-                context.endColor,
-                context.startNode,
-                context.endNode,
-                context.edgeKey
-            );
+            const { startColor, endColor, startNode, endNode, edgeKey } = context;
+            return this.createEdgeMesh(geometry, startColor, endColor, startNode, endNode, edgeKey);
         }
 
         throw new Error(`Unknown context type: ${context.type}`);
@@ -94,9 +94,9 @@ class GenomeVisualizationLook extends Look {
      * Create an edge mesh from geometry
      */
     createEdgeMesh(geometry, startColor, endColor, startNode, endNode, edgeKey) {
+
         const material = this.getEdgeMaterial(startColor, endColor);
 
-        // Create Mesh object with geometry + material
         const mesh = new THREE.Mesh(geometry, material);
 
         // Set up user data
@@ -116,7 +116,7 @@ class GenomeVisualizationLook extends Look {
      * Get node material based on assembly
      */
     getNodeMaterial(nodeName) {
-        // Create a LineMaterial with assembly-specific color
+
         return new LineMaterial({
             color: this.genomicService.getAssemblyColor(nodeName),
             linewidth: GenomeVisualizationLook.NODE_LINE_WIDTH,
@@ -130,13 +130,7 @@ class GenomeVisualizationLook extends Look {
      * Get edge material based on colors
      */
     getEdgeMaterial(startColor, endColor) {
-        // Create material with specific colors
-        return colorRampArrowMaterialFactory(
-            startColor,
-            endColor,
-            materialService.getTexture('arrow-white'),
-            1
-        );
+        return colorRampArrowMaterialFactory(startColor, endColor, materialService.getTexture('arrow-white'), 1);
     }
 
     /**
@@ -157,7 +151,7 @@ class GenomeVisualizationLook extends Look {
      * Override getZOffset to handle both nodes and edges with different Z-offsets
      */
     getZOffset(objectId) {
-        // Check if this is a node or edge based on the objectId format
+
         if (objectId.startsWith('node:')) {
             // Node emphasis behavior
             const nodeName = objectId.replace('node:', '');
@@ -170,7 +164,7 @@ class GenomeVisualizationLook extends Look {
                     return GeometryFactory.NODE_LINE_Z_OFFSET;
             }
         } else if (objectId.startsWith('edge:')) {
-            // Edge emphasis behavior - edges get deemphasized when connected nodes are deemphasized
+
             const state = this.emphasisStates.get(objectId) || 'normal';
             switch (state) {
                 case 'deemphasized':
@@ -185,23 +179,18 @@ class GenomeVisualizationLook extends Look {
         return super.getZOffset(objectId);
     }
 
-    /**
-     * Apply emphasis state to a mesh (material switching + Z-offset)
-     */
     applyEmphasisState(mesh, emphasisState) {
         if (!mesh.userData) return;
 
         const { type, originalMaterial } = mesh.userData;
 
         if (emphasisState === 'deemphasized') {
-            // Switch to deemphasis material
             if (type === 'node') {
                 mesh.material = materialService.createNodeLineDeemphasisMaterial();
             } else if (type === 'edge') {
                 mesh.material = materialService.createEdgeLineDeemphasisMaterial();
             }
         } else {
-            // Restore original material
             if (originalMaterial) {
                 mesh.material = originalMaterial;
             }
@@ -209,11 +198,16 @@ class GenomeVisualizationLook extends Look {
     }
 
     /**
-     * Override updateAnimation to update internal animation state
+     * Override updateAnimation to update arrow texture animation
      */
     updateAnimation(deltaTime) {
-        // Call parent to update internal animation state
-        super.updateAnimation(deltaTime);
+        if (!this.animationState.enabled) return;
+
+        const behavior = this.behaviors.animation;
+        if (behavior?.type === 'uvOffset') {
+            const speed = behavior.speed * deltaTime;
+            this.animationState.uvOffset = (this.animationState.uvOffset - speed) % 1.0;
+        }
     }
 
     /**
@@ -224,7 +218,7 @@ class GenomeVisualizationLook extends Look {
         if (!this.animationState.enabled) return;
 
         const uvOffset = new THREE.Vector2(this.animationState.uvOffset, 0);
-        
+
         let edgeCount = 0;
         edgesGroup.traverse((object) => {
             if (object.userData?.type === 'edge' && object.material && object.material.uniforms) {
@@ -234,20 +228,27 @@ class GenomeVisualizationLook extends Look {
                 }
             }
         });
-        
-        // Debug: Log animation state every 60 frames (once per second at 60fps)
-        if (Math.floor(this.animationState.uvOffset * 1000) % 60 === 0) {
-            console.log(`Edge animation: uvOffset=${this.animationState.uvOffset.toFixed(3)}, edges updated=${edgeCount}`);
-        }
+
     }
 
     /**
-     * Get Z-offset for a node (override to use nodeName as objectId)
+     * Override setAnimationEnabled for genome-specific animation
      */
-    getNodeZOffset(nodeName) {
-        return this.getZOffset(`node:${nodeName}`);
+    setAnimationEnabled(enabled) {
+        this.animationState.enabled = enabled;
     }
 
+    /**
+     * Override isAnimationEnabled for genome-specific animation
+     */
+    isAnimationEnabled() {
+        return this.animationState.enabled;
+    }
+
+    updateEdgeAnimation(edgesGroup) {
+        if (!this.animationState.enabled) return;
+        this.applyUVOffsetToEdgeMaterials(edgesGroup);
+    }
 }
 
 export default GenomeVisualizationLook;

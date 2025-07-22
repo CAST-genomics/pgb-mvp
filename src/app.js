@@ -75,11 +75,17 @@ class App {
         }
 
         this.sequenceService.update();
+
         this.cameraRig.update()
-        // Animation is now handled by LookManager
+
         this.geometryManager.lookManager.updateAnimation(deltaTime)
-        // Update edge animation (UV offset)
-        this.geometryManager.updateEdgeAnimation()
+
+        // Update edge animation through the Look (genome-specific animation)
+        const look = this.geometryManager.lookManager.getLook();
+        if (look && look.updateEdgeAnimation) {
+            look.updateEdgeAnimation(this.geometryManager.getEdgesGroup());
+        }
+
         this.renderer.render(this.scene, this.cameraRig.camera)
     }
 

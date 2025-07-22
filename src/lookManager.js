@@ -8,7 +8,6 @@ class LookManager {
     constructor(sceneName) {
         this.sceneName = sceneName;
         this.currentLook = null;
-        this.materialCache = new Map();
     }
 
     /**
@@ -23,7 +22,6 @@ class LookManager {
             this.currentLook.dispose();
         }
         this.currentLook = look;
-        this.materialCache.clear();
     }
 
     /**
@@ -50,7 +48,6 @@ class LookManager {
     updateAnimation(deltaTime) {
         if (this.currentLook) {
             this.currentLook.updateAnimation(deltaTime);
-            this.materialCache.clear(); // Clear cache since animation state changed
         }
     }
 
@@ -93,7 +90,6 @@ class LookManager {
         if (this.currentLook) {
             this.currentLook.dispose();
         }
-        this.materialCache.clear();
     }
 }
 

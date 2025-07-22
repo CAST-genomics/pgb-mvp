@@ -9,27 +9,17 @@ class Look {
         this.behaviors = config.behaviors || {};
         this.zOffset = config.zOffset || 0;
 
-        // Animation state - independent per Look instance
-        this.animationState = {
-            uvOffset: 0,
-            enabled: config.behaviors?.animation?.enabled ?? false
-        };
-
         // Emphasis state - tracks which objects are emphasized/deemphasized
         this.emphasisStates = new Map();
     }
 
     /**
      * Update animation state (called each frame)
+     * Base implementation does nothing - subclasses override for specific animation
      */
     updateAnimation(deltaTime) {
-        if (!this.animationState.enabled) return;
-
-        const behavior = this.behaviors.animation;
-        if (behavior?.type === 'uvOffset') {
-            const speed = behavior.speed * deltaTime;
-            this.animationState.uvOffset = (this.animationState.uvOffset - speed) % 1.0;
-        }
+        // Base class has no animation by default
+        // Subclasses override this method for specific animation behaviors
     }
 
     /**
@@ -69,16 +59,19 @@ class Look {
 
     /**
      * Enable/disable animation
+     * Base implementation does nothing - subclasses override for specific animation
      */
     setAnimationEnabled(enabled) {
-        this.animationState.enabled = enabled;
+        // Base class has no animation by default
+        // Subclasses override this method for specific animation behaviors
     }
 
     /**
      * Check if animation is enabled
+     * Base implementation returns false - subclasses override for specific animation
      */
     isAnimationEnabled() {
-        return this.animationState.enabled;
+        return false; // Base class has no animation by default
     }
 
     /**

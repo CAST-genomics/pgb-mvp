@@ -33,12 +33,9 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const genomicService = new GenomicService()
 
-    // Create LookManager and default look
-    const lookManager = new LookManager('main-scene');
-
-    // Create complete genome visualization look (handles both nodes and edges)
     const defaultLook = GenomeVisualizationLook.createGenomeVisualizationLook('default-genome-look', { genomicService });
 
+    const lookManager = new LookManager('main-scene');
     lookManager.setLook(defaultLook);
 
     const geometryManager = new GeometryManager(genomicService, lookManager)
