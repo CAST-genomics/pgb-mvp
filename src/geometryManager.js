@@ -6,9 +6,8 @@ class GeometryManager {
 
     constructor(genomicService, lookManager) {
         this.genomicService = genomicService;
-        this.lookManager = lookManager;
         this.geometryFactory = new GeometryFactory(genomicService);
-        this.setupEventListeners();
+        this.setupEventListeners(lookManager);
 
         // Initialize groups
         this.linesGroup = new THREE.Group();
@@ -19,36 +18,36 @@ class GeometryManager {
         this.deemphasizedNodes = new Set();
     }
 
-    setupEventListeners() {
+    setupEventListeners(lookManager) {
         // Subscribe to genome interaction events
         this.deemphasizeUnsub = eventBus.subscribe('genome:deemphasizeNodes', (data) => {
-            this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames);
+            this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames, lookManager);
         });
 
         this.restoreUnsub = eventBus.subscribe('genome:restoreEmphasis', (data) => {
-            this.restoreLinesandEdgesViaZOffset(data.nodeNames);
+            this.restoreLinesandEdgesViaZOffset(data.nodeNames, lookManager);
         });
     }
 
-    createGeometry(json) {
+    createGeometry(json, lookManager) {
         this.geometryData = this.geometryFactory.createGeometryData(json);
 
         this.linesGroup.clear();
         this.edgesGroup.clear();
 
-        this.#createNodeMeshes();
-        this.#createEdgeMeshes();
+        this.#createNodeMeshes(lookManager);
+        this.#createEdgeMeshes(lookManager);
     }
 
-    #createNodeMeshes() {
+    #createNodeMeshes(lookManager) {
         for (const [nodeName, data] of this.geometryData.nodeGeometries) {
             const context = { type: 'node', nodeName };
-            const mesh = this.lookManager.createMesh(data.geometry, context);
+            const mesh = lookManager.createMesh(data.geometry, context);
             this.linesGroup.add(mesh);
         }
     }
 
-    #createEdgeMeshes() {
+    #createEdgeMeshes(lookManager) {
         for (const [edgeKey, data] of this.geometryData.edgeGeometries) {
 
             const { startColor, endColor, startNode, endNode } = data;
@@ -62,7 +61,7 @@ class GeometryManager {
                 edgeKey
             };
 
-            const mesh = this.lookManager.createMesh(data.geometry, context);
+            const mesh = lookManager.createMesh(data.geometry, context);
             this.edgesGroup.add(mesh);
         }
     }
@@ -80,44 +79,44 @@ class GeometryManager {
         return this.edgesGroup;
     }
 
-    deemphasizeLinesAndEdgesViaNodeNameSet(nodeNameSet) {
-        const look = this.lookManager.getLook();
+    deemphasizeLinesAndEdgesViaNodeNameSet(nodeNameSet, lookManager) {
+        const look = lookManager.getLook();
         if (!look || !look.applyEmphasisState) return;
 
         // Set emphasis state for all nodes in the set
         for (const nodeName of nodeNameSet) {
-            this.lookManager.setEmphasisState(nodeName, 'deemphasized');
+            lookManager.setEmphasisState(nodeName, 'deemphasized');
         }
 
         // Apply material changes to nodes
-        this.#updateNodeEmphasis(nodeNameSet, 'deemphasized');
+        this.#updateNodeEmphasis(nodeNameSet, 'deemphasized', lookManager);
 
         // Deemphasize edges connected to these nodes
-        this.#updateEdgeEmphasis(nodeNameSet, 'deemphasized');
+        this.#updateEdgeEmphasis(nodeNameSet, 'deemphasized', lookManager);
 
-        this.#updateGeometryPositions();
+        this.#updateGeometryPositions(lookManager);
     }
 
-    restoreLinesandEdgesViaZOffset(nodeNameSet) {
-        const look = this.lookManager.getLook();
+    restoreLinesandEdgesViaZOffset(nodeNameSet, lookManager) {
+        const look = lookManager.getLook();
         if (!look || !look.applyEmphasisState) return;
 
         // Set emphasis state for all nodes in the set
         for (const nodeName of nodeNameSet) {
-            this.lookManager.setEmphasisState(nodeName, 'normal');
+            lookManager.setEmphasisState(nodeName, 'normal');
         }
 
         // Apply material changes to nodes
-        this.#updateNodeEmphasis(nodeNameSet, 'normal');
+        this.#updateNodeEmphasis(nodeNameSet, 'normal', lookManager);
 
         // Restore edges connected to these nodes
-        this.#updateEdgeEmphasis(nodeNameSet, 'normal');
+        this.#updateEdgeEmphasis(nodeNameSet, 'normal', lookManager);
 
-        this.#updateGeometryPositions();
+        this.#updateGeometryPositions(lookManager);
     }
 
-    #updateEdgeEmphasis(nodeNameSet, emphasisState) {
-        const look = this.lookManager.getLook();
+    #updateEdgeEmphasis(nodeNameSet, emphasisState, lookManager) {
+        const look = lookManager.getLook();
         if (!look || !look.applyEmphasisState) return;
 
         // Find edges connected to the specified nodes and update their emphasis state
@@ -129,7 +128,7 @@ class GeometryManager {
                 if (nodeNameSet.has(nodeNameStart) || nodeNameSet.has(nodeNameEnd)) {
                     // Use the edge key as the identifier for emphasis state
                     const edgeKey = object.userData.geometryKey;
-                    this.lookManager.setEmphasisState(edgeKey, emphasisState);
+                    lookManager.setEmphasisState(edgeKey, emphasisState);
 
                     // Apply material switching
                     look.applyEmphasisState(object, emphasisState);
@@ -138,8 +137,8 @@ class GeometryManager {
         });
     }
 
-    #updateNodeEmphasis(nodeNameSet, emphasisState) {
-        const look = this.lookManager.getLook();
+    #updateNodeEmphasis(nodeNameSet, emphasisState, lookManager) {
+        const look = lookManager.getLook();
         if (!look || !look.applyEmphasisState) return;
 
         // Apply material changes in a single traversal
@@ -150,8 +149,8 @@ class GeometryManager {
         });
     }
 
-    #updateGeometryPositions() {
-        const look = this.lookManager.getLook();
+    #updateGeometryPositions(lookManager) {
+        const look = lookManager.getLook();
         if (!look) return;
 
         // Update node positions

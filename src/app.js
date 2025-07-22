@@ -8,7 +8,7 @@ import { loadPath } from './utils/utils.js'
 
 class App {
 
-    constructor(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary) {
+    constructor(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, lookManager) {
         this.container = container
 
         this.scene = new THREE.Scene()
@@ -20,6 +20,7 @@ class App {
         this.geometryManager = geometryManager
         this.genomeWidget = genomeWidget
         this.genomeLibrary = genomeLibrary
+        this.lookManager = lookManager
 
         // Initialize time tracking
         this.clock = new THREE.Clock()
@@ -78,10 +79,10 @@ class App {
 
         this.cameraRig.update()
 
-        this.geometryManager.lookManager.updateAnimation(deltaTime)
+        this.lookManager.updateAnimation(deltaTime)
 
         // Update edge animation through the Look (genome-specific animation)
-        const look = this.geometryManager.lookManager.getLook();
+        const look = this.lookManager.getLook();
         if (look && look.updateEdgeAnimation) {
             look.updateEdgeAnimation(this.geometryManager.getEdgesGroup());
         }
@@ -180,7 +181,7 @@ class App {
         this.genomicService.clear()
         await this.genomicService.createMetadata(json.node, json.sequence, this.genomeLibrary, this.raycastService)
 
-        this.geometryManager.createGeometry(json)
+        this.geometryManager.createGeometry(json, this.lookManager)
         this.geometryManager.addToScene(this.scene)
 
         this.genomeWidget.populateList()
