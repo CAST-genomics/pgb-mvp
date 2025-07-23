@@ -5,17 +5,16 @@ import GeometryFactory from './geometryFactory.js';
 class GeometryManager {
 
     constructor(genomicService, lookManager) {
+
         this.genomicService = genomicService;
         this.geometryFactory = new GeometryFactory(genomicService);
+
         this.setupEventListeners(lookManager);
 
-        // Initialize groups
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
 
-        // Initialize data structures
         this.geometryData = null;
-        this.deemphasizedNodes = new Set();
     }
 
     setupEventListeners(lookManager) {
@@ -66,17 +65,8 @@ class GeometryManager {
         }
     }
 
-    addToScene(scene) {
-        scene.add(this.linesGroup);
-        scene.add(this.edgesGroup);
-    }
-
     getSpline(nodeName) {
         return this.geometryFactory.getSpline(nodeName);
-    }
-
-    getEdgesGroup() {
-        return this.edgesGroup;
     }
 
     deemphasizeLinesAndEdgesViaNodeNameSet(nodeNameSet, lookManager) {
@@ -187,6 +177,11 @@ class GeometryManager {
                 object.position.z = look.getZOffset(edgeKey);
             }
         });
+    }
+
+    addToScene(scene) {
+        scene.add(this.linesGroup);
+        scene.add(this.edgesGroup);
     }
 
     dispose() {

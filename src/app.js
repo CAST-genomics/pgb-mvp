@@ -84,7 +84,7 @@ class App {
         // Update edge animation through the Look (genome-specific animation)
         const look = this.lookManager.getLook();
         if (look && look.updateEdgeAnimation) {
-            look.updateEdgeAnimation(this.geometryManager.getEdgesGroup());
+            look.updateEdgeAnimation(this.geometryManager.edgesGroup)
         }
 
         this.renderer.render(this.scene, this.cameraRig.camera)

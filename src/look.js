@@ -55,8 +55,6 @@ class Look {
         return this.emphasisStates.get(objectId) || 'normal';
     }
 
-
-
     /**
      * Enable/disable animation
      * Base implementation does nothing - subclasses override for specific animation
