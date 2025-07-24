@@ -10,7 +10,7 @@ class App {
     constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneMap, lookManager) {
         this.container = container
 
-        this.renderer = RendererFactory.create(container)
+        this.renderer = RendererFactory.createRenderer(container)
 
         this.sequenceService = sequenceService
         this.genomicService = genomicService
@@ -65,7 +65,6 @@ class App {
     }
 
     animate() {
-        const deltaTime = this.clock.getDelta()
 
         if (true === this.raycastService.isEnabled) {
             const intersections = this.raycastService.intersectObjects(this.cameraManager.camera, this.geometryManager.linesGroup.children)
@@ -76,9 +75,13 @@ class App {
 
         this.mapControl.update()
 
-        this.lookManager.getLook(this.currentSceneName).updateAnimation(deltaTime, this.geometryManager)
+        const deltaTime = this.clock.getDelta()
 
-        this.renderer.render(this.sceneMap.get(this.currentSceneName), this.cameraManager.camera)
+        const look = this.lookManager.getLook(this.currentSceneName)
+        look.updateAnimation(deltaTime, this.geometryManager)
+
+        const scene = this.sceneMap.get(this.currentSceneName)
+        this.renderer.render(scene, this.cameraManager.camera)
     }
 
     startAnimation() {
@@ -172,12 +175,15 @@ class App {
         this.genomicService.clear()
         await this.genomicService.createMetadata(json.node, json.sequence, this.genomeLibrary, this.raycastService)
 
-        this.geometryManager.createGeometry(json, this.lookManager.getLook(this.currentSceneName))
-        this.geometryManager.addToScene(this.sceneMap.get(this.currentSceneName))
+        const look = this.lookManager.getLook(this.currentSceneName)
+        const scene = this.sceneMap.get(this.currentSceneName)
+
+        this.geometryManager.createGeometry(json, look)
+        this.geometryManager.addToScene(scene)
 
         this.genomeWidget.populateList()
 
-        this.updateViewToFitScene(this.sceneMap.get(this.currentSceneName), this.cameraManager, this.mapControl)
+        this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)
 
         this.startAnimation()
     }

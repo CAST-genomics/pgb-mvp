@@ -67,6 +67,17 @@ class LookManager {
     }
 
     /**
+     * Update animation state for all scenes
+     * @param {number} deltaTime - Time delta for animation
+     */
+    updateAllAnimations(deltaTime, geometryManager) {
+
+        for (const look of this.looks.values()) {
+            look.updateAnimation(deltaTime, geometryManager);
+        }
+    }
+
+    /**
      * Dispose of all Looks and clear the registry
      */
     dispose() {
