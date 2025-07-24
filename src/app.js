@@ -1,6 +1,5 @@
 import * as THREE from 'three'
 import CameraManager from './cameraManager.js'
-import CameraRig from "./cameraRig.js"
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
@@ -26,22 +25,19 @@ class App {
         this.clock = new THREE.Clock()
         this.lastTime = 0
 
-        const cameraManager = new CameraManager(frustumSize, container.clientWidth/container.clientHeight)
-        const mapControl = MapControlsFactory.create(cameraManager.camera, container)
-        this.cameraRig = new CameraRig(cameraManager, mapControl)
+        this.cameraManager = new CameraManager(frustumSize, container.clientWidth/container.clientHeight)
+        this.mapControl = MapControlsFactory.create(this.cameraManager.camera, container)
 
         this.raycastService = raycastService
         this.raycastService.setupVisualFeedback(this.scene)
         this.scene.add(this.raycastService.raycastVisualFeedback);
 
         // Setup resize handler
-        window.addEventListener('resize', () => this.handleResize())
-    }
-
-    handleResize() {
-        const { clientWidth, clientHeight } = this.container
-        this.cameraRig.cameraManager.windowResizeHelper(clientWidth/clientHeight)
-        this.renderer.setSize(clientWidth, clientHeight)
+        window.addEventListener('resize', () => {
+            const { clientWidth, clientHeight } = this.container
+            this.cameraManager.windowResizeHelper(clientWidth/clientHeight)
+            this.renderer.setSize(clientWidth, clientHeight)
+        })
     }
 
     handleIntersection(intersections) {
@@ -71,13 +67,13 @@ class App {
         const deltaTime = this.clock.getDelta()
 
         if (true === this.raycastService.isEnabled) {
-            const intersections = this.raycastService.intersectObjects(this.cameraRig.camera, this.geometryManager.linesGroup.children)
+            const intersections = this.raycastService.intersectObjects(this.cameraManager.camera, this.geometryManager.linesGroup.children)
             this.handleIntersection(intersections)
         }
 
         this.sequenceService.update();
 
-        this.cameraRig.update()
+        this.mapControl.update()
 
         this.lookManager.updateAnimation(deltaTime)
 
@@ -87,7 +83,7 @@ class App {
             look.updateEdgeAnimation(this.geometryManager.edgesGroup)
         }
 
-        this.renderer.render(this.scene, this.cameraRig.camera)
+        this.renderer.render(this.scene, this.cameraManager.camera)
     }
 
     startAnimation() {
@@ -98,7 +94,7 @@ class App {
         this.renderer.setAnimationLoop(null)
     }
 
-    updateViewToFitScene(scene, cameraRig) {
+    updateViewToFitScene(scene, cameraManager, mapControl) {
 
         const bbox = new THREE.Box3()
 
@@ -140,14 +136,14 @@ class App {
         const SCENE_VIEW_PADDING = 1.5
 
         // Calculate required frustum size based on the bounding sphere (with padding)
-        cameraRig.controls.reset()
+        mapControl.reset()
         const { clientWidth, clientHeight } = this.container
-        cameraRig.cameraManager.frustumHalfSize = boundingSphere.radius * SCENE_VIEW_PADDING
-        cameraRig.cameraManager.windowResizeHelper(clientWidth/clientHeight)
+        cameraManager.frustumHalfSize = boundingSphere.radius * SCENE_VIEW_PADDING
+        cameraManager.windowResizeHelper(clientWidth/clientHeight)
 
         // Position camera to frame the scene
-        cameraRig.camera.position.set(0, 0, 2 * boundingSphere.radius) // Position camera at 2x the radius
-        cameraRig.camera.lookAt(boundingSphere.center)
+        cameraManager.camera.position.set(0, 0, 2 * boundingSphere.radius) // Position camera at 2x the radius
+        cameraManager.camera.lookAt(boundingSphere.center)
     }
 
     #createBoundingSphereHelper(boundingSphere) {
@@ -186,7 +182,7 @@ class App {
 
         this.genomeWidget.populateList()
 
-        this.updateViewToFitScene(this.scene, this.cameraRig)
+        this.updateViewToFitScene(this.scene, this.cameraManager, this.mapControl)
 
         this.startAnimation()
     }
