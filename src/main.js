@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import App from './app.js'
 import RayCastService from './raycastService.js'
 import LocusInput from './locusInput.js'
@@ -11,8 +10,6 @@ import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
 import materialService from './materialService.js'
 import LookManager from './lookManager.js'
 import GenomeVisualizationLook from './genomeVisualizationLook.js'
-import { colorRampArrowMaterialFactory } from './materialService.js'
-import { getAppleCrayonColorByName } from './utils/color.js'
 import './styles/app.scss'
 
 let app
@@ -33,12 +30,22 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const genomicService = new GenomicService()
 
-    const defaultLook = GenomeVisualizationLook.createGenomeVisualizationLook('default-genome-look', { genomicService });
+    // Look
+    const genomeVisualizationLook = GenomeVisualizationLook.createGenomeVisualizationLook('default-genome-look', { genomicService })
 
-    const lookManager = new LookManager('main-scene');
-    lookManager.setLook(defaultLook);
+    // Scene collection
+    const sceneMap = new Map()
+    const scene = new THREE.Scene()
+    scene.name = 'genomeVisualizationScene'
+    const backgroundColor = new THREE.Color(0xffffff)
+    scene.background = backgroundColor
+    sceneMap.set('genomeVisualizationScene', scene)
 
-    const geometryManager = new GeometryManager(genomicService, lookManager)
+    // Look manager
+    const lookManager = new LookManager()
+    lookManager.setLook('genomeVisualizationScene', genomeVisualizationLook);
+
+    const geometryManager = new GeometryManager(genomicService, lookManager.getLook('genomeVisualizationScene'))
 
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), raycastService, genomicService, geometryManager)
 
@@ -46,10 +53,9 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const genomeWidgetContainer = document.getElementById('pgb-gear-card')
     const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, raycastService);
 
-    const backgroundColor = new THREE.Color(0xffffff)
     const frustumSize = 5
 
-    app = new App(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, lookManager)
+    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneMap, lookManager)
 
     app.startAnimation()
 

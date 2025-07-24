@@ -200,14 +200,19 @@ class GenomeVisualizationLook extends Look {
     /**
      * Override updateAnimation to update arrow texture animation
      */
-    updateAnimation(deltaTime) {
+    updateAnimation(deltaTime, geometryManager) {
+
         if (!this.animationState.enabled) return;
 
         const behavior = this.behaviors.animation;
+
         if (behavior?.type === 'uvOffset') {
             const speed = behavior.speed * deltaTime;
             this.animationState.uvOffset = (this.animationState.uvOffset - speed) % 1.0;
         }
+
+        this.#updateEdgeAnimation(geometryManager.edgesGroup)
+
     }
 
     /**
@@ -245,7 +250,7 @@ class GenomeVisualizationLook extends Look {
         return this.animationState.enabled;
     }
 
-    updateEdgeAnimation(edgesGroup) {
+    #updateEdgeAnimation(edgesGroup) {
         if (!this.animationState.enabled) return;
         this.applyUVOffsetToEdgeMaterials(edgesGroup);
     }

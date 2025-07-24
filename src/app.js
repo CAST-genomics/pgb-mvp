@@ -7,11 +7,9 @@ import { loadPath } from './utils/utils.js'
 
 class App {
 
-    constructor(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, lookManager) {
+    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneMap, lookManager) {
         this.container = container
 
-        this.scene = new THREE.Scene()
-        this.scene.background = backgroundColor
         this.renderer = RendererFactory.create(container)
 
         this.sequenceService = sequenceService
@@ -29,8 +27,11 @@ class App {
         this.mapControl = MapControlsFactory.create(this.cameraManager.camera, container)
 
         this.raycastService = raycastService
-        this.raycastService.setupVisualFeedback(this.scene)
-        this.scene.add(this.raycastService.raycastVisualFeedback);
+
+        this.currentSceneName = 'genomeVisualizationScene'
+        this.sceneMap = sceneMap
+
+        sceneMap.get(this.currentSceneName).add(this.raycastService.setupVisualFeedback());
 
         // Setup resize handler
         window.addEventListener('resize', () => {
@@ -75,15 +76,9 @@ class App {
 
         this.mapControl.update()
 
-        this.lookManager.updateAnimation(deltaTime)
+        this.lookManager.getLook(this.currentSceneName).updateAnimation(deltaTime, this.geometryManager)
 
-        // Update edge animation through the Look (genome-specific animation)
-        const look = this.lookManager.getLook();
-        if (look && look.updateEdgeAnimation) {
-            look.updateEdgeAnimation(this.geometryManager.edgesGroup)
-        }
-
-        this.renderer.render(this.scene, this.cameraManager.camera)
+        this.renderer.render(this.sceneMap.get(this.currentSceneName), this.cameraManager.camera)
     }
 
     startAnimation() {
@@ -177,12 +172,12 @@ class App {
         this.genomicService.clear()
         await this.genomicService.createMetadata(json.node, json.sequence, this.genomeLibrary, this.raycastService)
 
-        this.geometryManager.createGeometry(json, this.lookManager)
-        this.geometryManager.addToScene(this.scene)
+        this.geometryManager.createGeometry(json, this.lookManager.getLook(this.currentSceneName))
+        this.geometryManager.addToScene(this.sceneMap.get(this.currentSceneName))
 
         this.genomeWidget.populateList()
 
-        this.updateViewToFitScene(this.scene, this.cameraManager, this.mapControl)
+        this.updateViewToFitScene(this.sceneMap.get(this.currentSceneName), this.cameraManager, this.mapControl)
 
         this.startAnimation()
     }

@@ -17,7 +17,7 @@ class Look {
      * Update animation state (called each frame)
      * Base implementation does nothing - subclasses override for specific animation
      */
-    updateAnimation(deltaTime) {
+    updateAnimation(deltaTime, geometryManager) {
         // Base class has no animation by default
         // Subclasses override this method for specific animation behaviors
     }

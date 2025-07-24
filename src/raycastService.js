@@ -105,8 +105,9 @@ class RayCastService {
         return this.raycaster.intersectObjects(objects)
     }
 
-    setupVisualFeedback(scene) {
-        this.raycastVisualFeedback = this.createVisualFeeback(0x00ff00);
+    setupVisualFeedback() {
+        this.raycastVisualFeedback = this.createVisualFeeback(0x00ff00)
+        return this.raycastVisualFeedback
     }
 
     createVisualFeeback(color) {

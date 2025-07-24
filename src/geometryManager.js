@@ -4,12 +4,12 @@ import GeometryFactory from './geometryFactory.js';
 
 class GeometryManager {
 
-    constructor(genomicService, lookManager) {
+    constructor(genomicService, look) {
 
         this.genomicService = genomicService;
         this.geometryFactory = new GeometryFactory(genomicService);
 
-        this.setupEventListeners(lookManager);
+        this.setupEventListeners(look);
 
         this.linesGroup = new THREE.Group();
         this.edgesGroup = new THREE.Group();
@@ -17,36 +17,36 @@ class GeometryManager {
         this.geometryData = null;
     }
 
-    setupEventListeners(lookManager) {
+    setupEventListeners(look) {
         // Subscribe to genome interaction events
         this.deemphasizeUnsub = eventBus.subscribe('genome:deemphasizeNodes', (data) => {
-            this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames, lookManager);
+            this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames, look);
         });
 
         this.restoreUnsub = eventBus.subscribe('genome:restoreEmphasis', (data) => {
-            this.restoreLinesandEdgesViaZOffset(data.nodeNames, lookManager);
+            this.restoreLinesandEdgesViaZOffset(data.nodeNames, look);
         });
     }
 
-    createGeometry(json, lookManager) {
+    createGeometry(json, look) {
         this.geometryData = this.geometryFactory.createGeometryData(json);
 
         this.linesGroup.clear();
         this.edgesGroup.clear();
 
-        this.#createNodeMeshes(lookManager);
-        this.#createEdgeMeshes(lookManager);
+        this.#createNodeMeshes(look);
+        this.#createEdgeMeshes(look);
     }
 
-    #createNodeMeshes(lookManager) {
+    #createNodeMeshes(look) {
         for (const [nodeName, data] of this.geometryData.nodeGeometries) {
             const context = { type: 'node', nodeName };
-            const mesh = lookManager.createMesh(data.geometry, context);
+            const mesh = look.createMesh(data.geometry, context);
             this.linesGroup.add(mesh);
         }
     }
 
-    #createEdgeMeshes(lookManager) {
+    #createEdgeMeshes(look) {
         for (const [edgeKey, data] of this.geometryData.edgeGeometries) {
 
             const { startColor, endColor, startNode, endNode } = data;
@@ -60,7 +60,7 @@ class GeometryManager {
                 edgeKey
             };
 
-            const mesh = lookManager.createMesh(data.geometry, context);
+            const mesh = look.createMesh(data.geometry, context);
             this.edgesGroup.add(mesh);
         }
     }
@@ -69,45 +69,38 @@ class GeometryManager {
         return this.geometryFactory.getSpline(nodeName);
     }
 
-    deemphasizeLinesAndEdgesViaNodeNameSet(nodeNameSet, lookManager) {
-        const look = lookManager.getLook();
-        if (!look || !look.applyEmphasisState) return;
+    deemphasizeLinesAndEdgesViaNodeNameSet(nodeNameSet, look) {
 
-        // Set emphasis state for all nodes in the set
         for (const nodeName of nodeNameSet) {
-            lookManager.setEmphasisState(nodeName, 'deemphasized');
+            look.setEmphasisState(nodeName, 'deemphasized');
         }
 
         // Apply material changes to nodes
-        this.#updateNodeEmphasis(nodeNameSet, 'deemphasized', lookManager);
+        this.#updateNodeEmphasis(nodeNameSet, 'deemphasized', look);
 
         // Deemphasize edges connected to these nodes
-        this.#updateEdgeEmphasis(nodeNameSet, 'deemphasized', lookManager);
+        this.#updateEdgeEmphasis(nodeNameSet, 'deemphasized', look);
 
-        this.#updateGeometryPositions(lookManager);
+        this.#updateGeometryPositions(look);
     }
 
-    restoreLinesandEdgesViaZOffset(nodeNameSet, lookManager) {
-        const look = lookManager.getLook();
-        if (!look || !look.applyEmphasisState) return;
+    restoreLinesandEdgesViaZOffset(nodeNameSet, look) {
 
         // Set emphasis state for all nodes in the set
         for (const nodeName of nodeNameSet) {
-            lookManager.setEmphasisState(nodeName, 'normal');
+            look.setEmphasisState(nodeName, 'normal');
         }
 
         // Apply material changes to nodes
-        this.#updateNodeEmphasis(nodeNameSet, 'normal', lookManager);
+        this.#updateNodeEmphasis(nodeNameSet, 'normal', look);
 
         // Restore edges connected to these nodes
-        this.#updateEdgeEmphasis(nodeNameSet, 'normal', lookManager);
+        this.#updateEdgeEmphasis(nodeNameSet, 'normal', look);
 
-        this.#updateGeometryPositions(lookManager);
+        this.#updateGeometryPositions(look);
     }
 
-    #updateEdgeEmphasis(nodeNameSet, emphasisState, lookManager) {
-        const look = lookManager.getLook();
-        if (!look || !look.applyEmphasisState) return;
+    #updateEdgeEmphasis(nodeNameSet, emphasisState, look) {
 
         // Find edges connected to the specified nodes and update their emphasis state
         this.edgesGroup.traverse((object) => {
@@ -118,7 +111,7 @@ class GeometryManager {
                 if (nodeNameSet.has(nodeNameStart) || nodeNameSet.has(nodeNameEnd)) {
                     // Use the edge key as the identifier for emphasis state
                     const edgeKey = object.userData.geometryKey;
-                    lookManager.setEmphasisState(edgeKey, emphasisState);
+                    look.setEmphasisState(edgeKey, emphasisState);
 
                     // Apply material switching
                     look.applyEmphasisState(object, emphasisState);
@@ -127,9 +120,7 @@ class GeometryManager {
         });
     }
 
-    #updateNodeEmphasis(nodeNameSet, emphasisState, lookManager) {
-        const look = lookManager.getLook();
-        if (!look || !look.applyEmphasisState) return;
+    #updateNodeEmphasis(nodeNameSet, emphasisState, look) {
 
         // Apply material changes in a single traversal
         this.linesGroup.traverse((object) => {
@@ -139,9 +130,7 @@ class GeometryManager {
         });
     }
 
-    #updateGeometryPositions(lookManager) {
-        const look = lookManager.getLook();
-        if (!look) return;
+    #updateGeometryPositions(look) {
 
         // Update node positions
         this.linesGroup.traverse((object) => {
