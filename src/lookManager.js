@@ -47,66 +47,6 @@ class LookManager {
     }
 
     /**
-     * Create a mesh using the Look for a specific scene
-     * @param {string} sceneName - The name of the scene
-     * @param {THREE.BufferGeometry} geometry - The geometry to create mesh from
-     * @param {Object} context - Context data for mesh creation
-     * @returns {THREE.Object3D} The created mesh
-     */
-    createMesh(sceneName, geometry, context) {
-        const look = this.getLook(sceneName);
-        if (!look) {
-            throw new Error(`No look registered for scene: ${sceneName}`);
-        }
-
-        return look.createMesh(geometry, context);
-    }
-
-    /**
-     * Update animation state for a specific scene
-     * @param {string} sceneName - The name of the scene
-     * @param {number} deltaTime - Time delta for animation
-     */
-    updateAnimation(sceneName, deltaTime) {
-        const look = this.getLook(sceneName);
-        if (look) {
-            look.updateAnimation(deltaTime);
-        }
-    }
-
-    /**
-     * Update animation state for all scenes
-     * @param {number} deltaTime - Time delta for animation
-     */
-    updateAllAnimations(deltaTime) {
-        this.looks.forEach(look => {
-            look.updateAnimation(deltaTime);
-        });
-    }
-
-    /**
-     * Enable/disable animation for a specific scene
-     * @param {string} sceneName - The name of the scene
-     * @param {boolean} enabled - Whether animation should be enabled
-     */
-    setAnimationEnabled(sceneName, enabled) {
-        const look = this.getLook(sceneName);
-        if (look) {
-            look.setAnimationEnabled(enabled);
-        }
-    }
-
-    /**
-     * Check if animation is enabled for a specific scene
-     * @param {string} sceneName - The name of the scene
-     * @returns {boolean} True if animation is enabled
-     */
-    isAnimationEnabled(sceneName) {
-        const look = this.getLook(sceneName);
-        return look ? look.isAnimationEnabled() : false;
-    }
-
-    /**
      * Get all registered scene names
      * @returns {string[]} Array of scene names
      */
