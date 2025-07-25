@@ -21,8 +21,6 @@ class GenomeVisualizationLook extends Look {
 
         this.emphasisStates = new Map();
 
-        // Genome-specific configuration
-        this.assemblyColors = config.assemblyColors || new Map();
         this.genomicService = config.genomicService;
         this.geometryManager = config.geometryManager;
 
