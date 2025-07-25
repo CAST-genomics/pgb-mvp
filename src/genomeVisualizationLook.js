@@ -19,6 +19,8 @@ class GenomeVisualizationLook extends Look {
     constructor(name, config) {
         super(name, config);
 
+        this.emphasisStates = new Map();
+
         // Genome-specific configuration
         this.assemblyColors = config.assemblyColors || new Map();
         this.genomicService = config.genomicService;
@@ -52,23 +54,13 @@ class GenomeVisualizationLook extends Look {
             {
                 behaviors:
                     {
-                        // Node emphasis behavior
-                        emphasis:
-                            {
-                                type: 'zDepth',
-                                normalZ: GeometryFactory.NODE_LINE_Z_OFFSET,
-                                deemphasizedZ: GeometryFactory.NODE_LINE_DEEMPHASIS_Z_OFFSET
-                            },
-                        // Edge animation behavior
                         edgeArrowAnimation:
                             {
                                 type: 'uvOffset',
                                 speed: GenomeVisualizationLook.ANIMATION_SPEED,
                                 enabled: true
                             }
-                    },
-                zOffset: GeometryFactory.NODE_LINE_Z_OFFSET,
-                nodeLineWidth: GenomeVisualizationLook.NODE_LINE_WIDTH,
+                    }
             };
 
         return new GenomeVisualizationLook(name, {...factoryConfig, ...config });
@@ -155,13 +147,6 @@ class GenomeVisualizationLook extends Look {
     }
 
     /**
-     * Override to use nodeName as objectId for emphasis tracking
-     */
-    setNodeEmphasisState(nodeName, state) {
-        this.setEmphasisState(nodeName, state);
-    }
-
-    /**
      * Override getZOffset to handle both nodes and edges with different Z-offsets
      */
     getZOffset(objectId) {
@@ -174,23 +159,31 @@ class GenomeVisualizationLook extends Look {
                 case 'deemphasized':
                     return GeometryFactory.NODE_LINE_DEEMPHASIS_Z_OFFSET;
                 case 'normal':
-                default:
                     return GeometryFactory.NODE_LINE_Z_OFFSET;
+                default:
+                    console.error(`getZOffset: object ${ objectId } has invalid emphasis state`);
+                    return GeometryFactory.EDGE_LINE_Z_OFFSET;
             }
         } else if (objectId.startsWith('edge:')) {
 
             const state = this.emphasisStates.get(objectId) || 'normal';
             switch (state) {
                 case 'deemphasized':
-                    return GeometryFactory.EDGE_LINE_Z_OFFSET - 4; // Move edges further back when deemphasized
+                    return GeometryFactory.EDGE_LINE_Z_OFFSET - 4;
                 case 'normal':
+                    return GeometryFactory.EDGE_LINE_Z_OFFSET;
                 default:
+                    console.error(`getZOffset: object ${ objectId } has invalid emphasis state`);
                     return GeometryFactory.EDGE_LINE_Z_OFFSET;
             }
         }
 
         // Fallback to parent implementation
         return super.getZOffset(objectId);
+    }
+
+    setEmphasisState(nodeName, state) {
+        this.emphasisStates.set(nodeName, state);
     }
 
     applyEmphasisState(mesh, emphasisState) {
@@ -354,6 +347,10 @@ class GenomeVisualizationLook extends Look {
         });
     }
 
+    dispose() {
+        super.dispose();
+        this.emphasisStates.clear();
+    }
 }
 
 export default GenomeVisualizationLook;

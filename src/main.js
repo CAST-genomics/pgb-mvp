@@ -38,8 +38,6 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const genomeWidgetContainer = document.getElementById('pgb-gear-card')
     const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, raycastService);
 
-    const frustumSize = 5
-
     const genomeVisualizationLook = GenomeVisualizationLook.createGenomeVisualizationLook('default-genome-look', { genomicService, geometryManager })
 
     // Scene collection
@@ -53,6 +51,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const lookManager = new LookManager()
     lookManager.setLook('genomeVisualizationScene', genomeVisualizationLook);
 
+    const frustumSize = 5
     app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneMap, lookManager)
 
     app.startAnimation()
