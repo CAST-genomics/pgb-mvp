@@ -30,7 +30,7 @@ Update animation and state for specific scenes:
 
 ```javascript
 // Update animation for specific scene
-lookManager.updateAnimation('blue-scene');
+lookManager.updateBehavior('blue-scene');
 
 // Enable/disable animation for specific scene
 lookManager.setAnimationEnabled('blue-scene', true);
@@ -105,8 +105,8 @@ const redMesh = lookManager.createMesh('red-scene', geometry, context);
 
 ```javascript
 // Update animation for individual scenes
-lookManager.updateAnimation('blue-scene');
-lookManager.updateAnimation('red-scene');
+lookManager.updateBehavior('blue-scene');
+lookManager.updateBehavior('red-scene');
 
 // Or update all scenes at once
 lookManager.updateAllAnimations(deltaTime);

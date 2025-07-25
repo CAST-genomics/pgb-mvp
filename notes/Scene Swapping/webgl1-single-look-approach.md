@@ -64,14 +64,14 @@ class App {
 class App {
     animate() {
         // ... existing animation code ...
-        
+
         // Get current scene with current Look
         const currentScene = this.scenes.get(this.currentLookName);
         const currentLook = this.lookManager.getLook(this.currentLookName);
-        
+
         // Update animations for current Look only
-        currentLook.updateAnimation(deltaTime, this.geometryManager);
-        
+        currentLook.updateBehavior(deltaTime, this.geometryManager);
+
         // Render single scene (WebGL1 compatible)
         this.renderer.render(currentScene, this.cameraManager.camera);
     }
@@ -192,11 +192,12 @@ app.currentLookName = 'blue-look';
 const blueScene = app.sceneManager.switchToScene('blue-look');
 
 // 3. Render loop uses blue scene
-app.animate() {
+app.animate()
+{
     const currentScene = app.scenes.get(app.currentLookName);
     const currentLook = app.lookManager.getLook(app.currentLookName);
-    
-    currentLook.updateAnimation(deltaTime, app.geometryManager);
+
+    currentLook.updateBehavior(deltaTime, app.geometryManager);
     app.renderer.render(currentScene, app.cameraManager.camera);
 }
 

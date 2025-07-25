@@ -78,7 +78,7 @@ class App {
         const deltaTime = this.clock.getDelta()
 
         const look = this.lookManager.getLook(this.currentSceneName)
-        look.updateAnimation(deltaTime, this.geometryManager)
+        look.updateBehavior(deltaTime, this.geometryManager)
 
         const scene = this.sceneMap.get(this.currentSceneName)
         this.renderer.render(scene, this.cameraManager.camera)

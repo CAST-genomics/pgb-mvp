@@ -215,7 +215,7 @@ class MaterialStateManager {
         // Apply current emphasis state to the look's material
         const emphasisState = this.getNodeEmphasisState(nodeName);
         const zOffset = look.getZOffset(emphasisState);
-        
+
         // Return a copy of the material with current state applied
         return this.#applyLookToMaterial(look, zOffset, emphasisState);
     }
@@ -223,12 +223,12 @@ class MaterialStateManager {
     #applyLookToMaterial(look, zOffset, emphasisState) {
         // Create a copy of the material to avoid modifying the original
         const material = look.material.clone();
-        
+
         // Apply Z-offset if the material supports it
         if (material.uniforms && material.uniforms.zOffset) {
             material.uniforms.zOffset.value = zOffset;
         }
-        
+
         // Apply animation state if the look has animation behavior
         if (look.behaviors.animation && material.uniforms) {
             const animationState = look.getAnimationState();
@@ -237,7 +237,7 @@ class MaterialStateManager {
                 material.uniforms[uniformName].value.x = animationState.offset;
             }
         }
-        
+
         return material;
     }
 
@@ -245,14 +245,14 @@ class MaterialStateManager {
     updateAnimation(deltaTime) {
         // Update all registered looks that have animation behavior
         this.#looks.forEach(look => {
-            look.updateAnimation(deltaTime);
+            look.updateBehavior(deltaTime);
         });
     }
 
     // Default look registration
     #registerDefaultLooks() {
         // Register default looks for different scene types
-        this.registerLook(Look.createAnimatedLook('edge-animated', 
+        this.registerLook(Look.createAnimatedLook('edge-animated',
             this.materialService.getEdgeMaterial(), {
                 speed: 0.5,
                 zOffset: -12
@@ -323,7 +323,7 @@ class SceneRenderManager {
 
         const material = this.materialManager.getMaterialForNode(nodeName, sceneData.look);
         const mesh = new THREE.Mesh(geometry, material);
-        
+
         sceneData.objects.set(nodeName, mesh);
         sceneData.scene.add(mesh);
     }
@@ -334,8 +334,8 @@ class SceneRenderManager {
 
         // Update the scene's look animation
         if (sceneData.look && sceneData.look.behaviors.animation) {
-            sceneData.look.updateAnimation(deltaTime);
-            
+            sceneData.look.updateBehavior(deltaTime);
+
             // Apply updated animation state to all materials in this scene
             sceneData.objects.forEach((mesh, nodeName) => {
                 if (mesh.material && mesh.material.uniforms) {
@@ -356,7 +356,7 @@ class SceneRenderManager {
         nodeNameSet.forEach(nodeName => {
             // Update emphasis state in material manager
             this.materialManager.setNodeEmphasisState(nodeName, 'deemphasized');
-            
+
             // Update scene object with new material based on scene's look
             const mesh = sceneData.objects.get(nodeName);
             if (mesh) {
@@ -372,7 +372,7 @@ class SceneRenderManager {
         nodeNameSet.forEach(nodeName => {
             // Restore emphasis state in material manager
             this.materialManager.setNodeEmphasisState(nodeName, 'normal');
-            
+
             // Update scene object
             const mesh = sceneData.objects.get(nodeName);
             if (mesh) {

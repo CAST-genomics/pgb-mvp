@@ -5,6 +5,7 @@ import Look from './look.js';
 import { colorRampArrowMaterialFactory } from './materialService.js';
 import materialService from './materialService.js';
 import GeometryFactory from "./geometryFactory.js"
+import eventBus from "./utils/eventBus.js"
 
 /**
  * GenomeVisualizationLook - specific implementation for genome visualization
@@ -21,39 +22,56 @@ class GenomeVisualizationLook extends Look {
         // Genome-specific configuration
         this.assemblyColors = config.assemblyColors || new Map();
         this.genomicService = config.genomicService;
+        this.geometryManager = config.geometryManager;
 
         // Animation state specific to genome visualization (arrow texture animation)
-        this.animationState = {
-            uvOffset: 0,
-            enabled: config.behaviors?.animation?.enabled ?? false
-        };
+        this.edgeArrowAnimationState =
+            {
+                uvOffset: 0,
+                enabled: config.behaviors?.edgeArrowAnimation?.enabled ?? false
+            };
+
+        // Subscribe to genome interaction events
+        this.deemphasizeUnsub = eventBus.subscribe('genome:deemphasizeNodes', (data) => {
+            this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames);
+        });
+
+        this.restoreUnsub = eventBus.subscribe('genome:restoreEmphasis', (data) => {
+            this.restoreLinesandEdgesViaZOffset(data.nodeNames);
+        });
+
     }
 
     /**
      * Factory method for creating a complete genome visualization look
      * with animated edges and node emphasis/deemphasis
      */
-    static createGenomeVisualizationLook(name, config = {}) {
-        return new GenomeVisualizationLook(name, {
-            material: config.material,
-            behaviors: {
-                // Node emphasis behavior
-                emphasis: {
-                    type: 'zDepth',
-                    normalZ: GeometryFactory.NODE_LINE_Z_OFFSET,
-                    deemphasizedZ: GeometryFactory.NODE_LINE_DEEMPHASIS_Z_OFFSET
-                },
-                // Edge animation behavior
-                animation: {
-                    type: 'uvOffset',
-                    speed: GenomeVisualizationLook.ANIMATION_SPEED,
-                    enabled: true
-                }
-            },
-            zOffset: GeometryFactory.NODE_LINE_Z_OFFSET,
-            nodeLineWidth: GenomeVisualizationLook.NODE_LINE_WIDTH,
-            genomicService: config.genomicService
-        });
+    static createGenomeVisualizationLook(name, config) {
+
+        const factoryConfig =
+            {
+                behaviors:
+                    {
+                        // Node emphasis behavior
+                        emphasis:
+                            {
+                                type: 'zDepth',
+                                normalZ: GeometryFactory.NODE_LINE_Z_OFFSET,
+                                deemphasizedZ: GeometryFactory.NODE_LINE_DEEMPHASIS_Z_OFFSET
+                            },
+                        // Edge animation behavior
+                        edgeArrowAnimation:
+                            {
+                                type: 'uvOffset',
+                                speed: GenomeVisualizationLook.ANIMATION_SPEED,
+                                enabled: true
+                            }
+                    },
+                zOffset: GeometryFactory.NODE_LINE_Z_OFFSET,
+                nodeLineWidth: GenomeVisualizationLook.NODE_LINE_WIDTH,
+            };
+
+        return new GenomeVisualizationLook(name, {...factoryConfig, ...config });
     }
 
     /**
@@ -141,13 +159,6 @@ class GenomeVisualizationLook extends Look {
     }
 
     /**
-     * Override to use nodeName as objectId for emphasis tracking
-     */
-    getNodeEmphasisState(nodeName) {
-        return this.getEmphasisState(nodeName);
-    }
-
-    /**
      * Override getZOffset to handle both nodes and edges with different Z-offsets
      */
     getZOffset(objectId) {
@@ -200,15 +211,15 @@ class GenomeVisualizationLook extends Look {
     /**
      * Override updateAnimation to update arrow texture animation
      */
-    updateAnimation(deltaTime, geometryManager) {
+    updateBehavior(deltaTime, geometryManager) {
 
-        if (!this.animationState.enabled) return;
+        if (!this.edgeArrowAnimationState.enabled) return;
 
-        const behavior = this.behaviors.animation;
+        const behavior = this.behaviors.edgeArrowAnimation;
 
         if (behavior?.type === 'uvOffset') {
             const speed = behavior.speed * deltaTime;
-            this.animationState.uvOffset = (this.animationState.uvOffset - speed) % 1.0;
+            this.edgeArrowAnimationState.uvOffset = (this.edgeArrowAnimationState.uvOffset - speed) % 1.0;
         }
 
         this.#updateEdgeAnimation(geometryManager.edgesGroup)
@@ -216,13 +227,24 @@ class GenomeVisualizationLook extends Look {
     }
 
     /**
-     * Apply current UV offset to edge materials
-     * This method should be called from GeometryManager with access to scene objects
+     * Override setAnimationEnabled for genome-specific animation
      */
-    applyUVOffsetToEdgeMaterials(edgesGroup) {
-        if (!this.animationState.enabled) return;
+    setAnimationEnabled(enabled) {
+        this.edgeArrowAnimationState.enabled = enabled;
+    }
 
-        const uvOffset = new THREE.Vector2(this.animationState.uvOffset, 0);
+    /**
+     * Override isAnimationEnabled for genome-specific animation
+     */
+    isAnimationEnabled() {
+        return this.edgeArrowAnimationState.enabled;
+    }
+
+    #updateEdgeAnimation(edgesGroup) {
+
+        if (!this.edgeArrowAnimationState.enabled) return;
+
+        const uvOffset = new THREE.Vector2(this.edgeArrowAnimationState.uvOffset, 0);
 
         let edgeCount = 0;
         edgesGroup.traverse((object) => {
@@ -236,24 +258,99 @@ class GenomeVisualizationLook extends Look {
 
     }
 
-    /**
-     * Override setAnimationEnabled for genome-specific animation
-     */
-    setAnimationEnabled(enabled) {
-        this.animationState.enabled = enabled;
+    deemphasizeLinesAndEdgesViaNodeNameSet(nodeNameSet) {
+
+        for (const nodeName of nodeNameSet) {
+            this.setEmphasisState(nodeName, 'deemphasized');
+        }
+
+        this.#updateNodeEmphasis(nodeNameSet, 'deemphasized');
+
+        this.#updateEdgeEmphasis(nodeNameSet, 'deemphasized');
+
+        this.#updateGeometryPositions();
     }
 
-    /**
-     * Override isAnimationEnabled for genome-specific animation
-     */
-    isAnimationEnabled() {
-        return this.animationState.enabled;
+    restoreLinesandEdgesViaZOffset(nodeNameSet) {
+
+        for (const nodeName of nodeNameSet) {
+            this.setEmphasisState(nodeName, 'normal');
+        }
+
+        this.#updateNodeEmphasis(nodeNameSet, 'normal');
+
+        this.#updateEdgeEmphasis(nodeNameSet, 'normal');
+
+        this.#updateGeometryPositions();
     }
 
-    #updateEdgeAnimation(edgesGroup) {
-        if (!this.animationState.enabled) return;
-        this.applyUVOffsetToEdgeMaterials(edgesGroup);
+    #updateEdgeEmphasis(nodeNameSet, emphasisState) {
+
+        // Find edges connected to the specified nodes and update their emphasis state
+        this.geometryManager.edgesGroup.traverse((object) => {
+            if (object.userData?.type === 'edge') {
+                const { nodeNameStart, nodeNameEnd } = object.userData;
+
+                // Check if this edge connects to any of the nodes being updated
+                if (nodeNameSet.has(nodeNameStart) || nodeNameSet.has(nodeNameEnd)) {
+                    // Use the edge key as the identifier for emphasis state
+                    const edgeKey = object.userData.geometryKey;
+                    this.setEmphasisState(edgeKey, emphasisState);
+
+                    // Apply material switching
+                    this.applyEmphasisState(object, emphasisState);
+                }
+            }
+        });
     }
+
+    #updateNodeEmphasis(nodeNameSet, emphasisState) {
+
+        this.geometryManager.linesGroup.traverse((object) => {
+            if (object.userData?.nodeName && nodeNameSet.has(object.userData.nodeName)) {
+                this.applyEmphasisState(object, emphasisState);
+            }
+        });
+    }
+
+    #updateGeometryPositions() {
+
+        // Update node positions
+        this.geometryManager.linesGroup.traverse((object) => {
+            if (object.userData?.nodeName) {
+                const nodeName = object.userData.nodeName;
+                const zOffset = this.getZOffset(`node:${nodeName}`);
+
+                // Update geometry Z coordinates
+                if (object.geometry.attributes.instanceStart) {
+                    const instanceStart = object.geometry.attributes.instanceStart.array;
+                    const instanceEnd = object.geometry.attributes.instanceEnd.array;
+
+                    for (let i = 0; i < instanceStart.length; i += 3) {
+                        instanceStart[i + 2] = zOffset;
+                        instanceEnd[i + 2] = zOffset;
+                    }
+
+                    // Update line distances for Line2 objects
+                    if (object.computeLineDistances) {
+                        object.computeLineDistances();
+                    }
+
+                    object.geometry.attributes.instanceStart.needsUpdate = true;
+                    object.geometry.attributes.instanceEnd.needsUpdate = true;
+                }
+            }
+        });
+
+        // Update edge positions
+        this.geometryManager.edgesGroup.traverse((object) => {
+            if (object.userData?.type === 'edge') {
+                const edgeKey = object.userData.geometryKey;
+                object.position.z = this.getZOffset(edgeKey);
+            }
+        });
+    }
+
 }
 
 export default GenomeVisualizationLook;

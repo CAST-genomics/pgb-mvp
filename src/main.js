@@ -30,22 +30,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const genomicService = new GenomicService()
 
-    // Look
-    const genomeVisualizationLook = GenomeVisualizationLook.createGenomeVisualizationLook('default-genome-look', { genomicService })
-
-    // Scene collection
-    const sceneMap = new Map()
-    const scene = new THREE.Scene()
-    scene.name = 'genomeVisualizationScene'
-    const backgroundColor = new THREE.Color(0xffffff)
-    scene.background = backgroundColor
-    sceneMap.set('genomeVisualizationScene', scene)
-
-    // Look manager
-    const lookManager = new LookManager()
-    lookManager.setLook('genomeVisualizationScene', genomeVisualizationLook);
-
-    const geometryManager = new GeometryManager(genomicService, lookManager.getLook('genomeVisualizationScene'))
+    const geometryManager = new GeometryManager(genomicService)
 
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), raycastService, genomicService, geometryManager)
 
@@ -54,6 +39,19 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, raycastService);
 
     const frustumSize = 5
+
+    const genomeVisualizationLook = GenomeVisualizationLook.createGenomeVisualizationLook('default-genome-look', { genomicService, geometryManager })
+
+    // Scene collection
+    const sceneMap = new Map()
+    const scene = new THREE.Scene()
+    scene.name = 'genomeVisualizationScene'
+    scene.background = new THREE.Color(0xffffff)
+    sceneMap.set('genomeVisualizationScene', scene)
+
+    // Look manager
+    const lookManager = new LookManager()
+    lookManager.setLook('genomeVisualizationScene', genomeVisualizationLook);
 
     app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneMap, lookManager)
 
