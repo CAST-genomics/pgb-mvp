@@ -81,8 +81,9 @@ class GenomeVisualizationLook extends Look {
         if (context.type === 'node') {
             return this.createNodeMesh(geometry, context.nodeName);
         } else if (context.type === 'edge') {
-            const { startColor, endColor, startNode, endNode, edgeKey } = context;
-            return this.createEdgeMesh(geometry, startColor, endColor, startNode, endNode, edgeKey);
+            const { startNode, endNode, edgeKey } = context;
+
+            return this.createEdgeMesh(geometry, startNode, endNode, edgeKey);
         }
 
         throw new Error(`Unknown context type: ${context.type}`);
@@ -111,21 +112,23 @@ class GenomeVisualizationLook extends Look {
     /**
      * Create an edge mesh from geometry
      */
-    createEdgeMesh(geometry, startColor, endColor, startNode, endNode, edgeKey) {
+    createEdgeMesh(geometry, startNode, endNode, edgeKey) {
 
+        const startColor = this.genomicService.getAssemblyColor(`${startNode}`)
+        const endColor = this.genomicService.getAssemblyColor(`${endNode}`)
         const material = this.getEdgeMaterial(startColor, endColor);
 
         const mesh = new THREE.Mesh(geometry, material);
 
-        // Set up user data
-        mesh.userData = {
-            nodeNameStart: startNode,
-            nodeNameEnd: endNode,
-            geometryKey: edgeKey,
-            lookName: this.name,
-            type: 'edge',
-            originalMaterial: material // Store original material for emphasis/deemphasis
-        };
+        mesh.userData =
+            {
+                nodeNameStart: startNode,
+                nodeNameEnd: endNode,
+                geometryKey: edgeKey,
+                lookName: this.name,
+                type: 'edge',
+                originalMaterial: material // Store original material for emphasis/deemphasis
+            };
 
         return mesh;
     }

@@ -36,16 +36,8 @@ class GeometryManager {
     #createEdgeMeshes(look) {
         for (const [edgeKey, data] of this.geometryData.edgeGeometries) {
 
-            const { startColor, endColor, startNode, endNode } = data;
-            const context =
-             {
-                type: 'edge',
-                startColor,
-                endColor,
-                startNode,
-                endNode,
-                edgeKey
-            };
+            const { startNode, endNode } = data;
+            const context = { type: 'edge', startNode, endNode, edgeKey };
 
             const mesh = look.createMesh(data.geometry, context);
             this.edgesGroup.add(mesh);

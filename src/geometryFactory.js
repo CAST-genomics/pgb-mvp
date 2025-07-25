@@ -59,13 +59,16 @@ class GeometryFactory {
             const spline = this.splines.get(nodeName);
             if (!spline) continue;
 
-            this.geometryCache.set(`node:${nodeName}`, {
-                type: 'node',
-                geometry: LineFactory.createNodeLineGeometry(spline, 4, GeometryFactory.NODE_LINE_Z_OFFSET),
-                spline,
-                nodeName,
-                assembly: this.genomicService.metadata.get(nodeName)?.assembly
-            });
+            const payload =
+                {
+                    type: 'node',
+                    geometry: LineFactory.createNodeLineGeometry(spline, 4, GeometryFactory.NODE_LINE_Z_OFFSET),
+                    spline,
+                    nodeName,
+                    assembly: this.genomicService.metadata.get(nodeName)?.assembly
+                };
+
+            this.geometryCache.set(`node:${nodeName}`, payload);
         }
     }
 
@@ -73,12 +76,13 @@ class GeometryFactory {
      * Create edge line geometries without materials
      */
     #createEdgeGeometries(edges) {
+
         const getEdgeNodeSign = node => {
             const parts = node.split('');
             const sign = parts.pop();
             const remainder = parts.join('');
             return { sign, remainder };
-        };
+        }
 
         for (const { starting_node, ending_node } of Object.values(edges)) {
             // Start node
@@ -104,19 +108,23 @@ class GeometryFactory {
             xyzEnd.z = GeometryFactory.EDGE_LINE_Z_OFFSET;
 
             // Create edge geometry without material - this creates a rectangular BufferGeometry with UVs for texture mapping
-            const edgeGeometry = LineFactory.createEdgeRectGeometry(xyzStart, xyzEnd);
+            const geometry = LineFactory.createEdgeRectGeometry(xyzStart, xyzEnd);
 
             const edgeKey = `edge:${remainderStart}+:${remainderEnd}+`;
-            this.geometryCache.set(edgeKey, {
-                type: 'edge',
-                geometry: edgeGeometry,
-                startPoint: xyzStart,
-                endPoint: xyzEnd,
-                startNode: `${remainderStart}+`,
-                endNode: `${remainderEnd}+`,
-                startColor: this.genomicService.getAssemblyColor(`${remainderStart}+`),
-                endColor: this.genomicService.getAssemblyColor(`${remainderEnd}+`)
-            });
+
+            const startNode = `${remainderStart}+`
+            const endNode = `${remainderEnd}+`
+            const payload =
+                {
+                    type: 'edge',
+                    geometry,
+                    startPoint: xyzStart,
+                    endPoint: xyzEnd,
+                    startNode,
+                    endNode
+                };
+
+            this.geometryCache.set(edgeKey, payload);
         }
     }
 
@@ -145,14 +153,6 @@ class GeometryFactory {
         }
         return edgeGeometries;
     }
-
-    /**
-     * Get a specific geometry by key
-     */
-    getGeometry(key) {
-        return this.geometryCache.get(key);
-    }
-
     /**
      * Get spline by node name
      */

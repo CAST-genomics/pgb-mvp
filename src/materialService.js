@@ -8,7 +8,8 @@ import {getAppleCrayonColorByName} from "./utils/color.js"
 import {LineMaterial} from "three/addons/lines/LineMaterial.js"
 
 // Material type constants
-const MATERIAL_TYPES = {
+const MATERIAL_TYPES =
+    {
     DEEMPHASIS: 'deemphasisMaterial'
 };
 
@@ -47,6 +48,7 @@ class MaterialService {
      * @returns {THREE.LineMaterial} A new material instance
      */
     createNodeLineDeemphasisMaterial() {
+
         const material = new LineMaterial({
             color: getAppleCrayonColorByName('mercury'),
             linewidth: 16,
@@ -61,15 +63,6 @@ class MaterialService {
 
     getTexture(name) {
         return textureService.getTexture(name);
-    }
-
-    /**
-     * Checks if a material is a deemphasis material
-     * @param {THREE.Material} material - The material to check
-     * @returns {boolean} True if the material is a deemphasis material
-     */
-    isDeemphasisMaterial(material) {
-        return material && material.materialType === MATERIAL_TYPES.DEEMPHASIS;
     }
 }
 
