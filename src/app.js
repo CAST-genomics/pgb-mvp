@@ -21,7 +21,6 @@ class App {
 
         // Initialize time tracking
         this.clock = new THREE.Clock()
-        this.lastTime = 0
 
         this.cameraManager = new CameraManager(frustumSize, container.clientWidth/container.clientHeight)
         this.mapControl = MapControlsFactory.create(this.cameraManager.camera, container)
