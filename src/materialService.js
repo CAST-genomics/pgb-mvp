@@ -95,7 +95,7 @@ function colorRampArrowMaterialFactory(startColor, endColor, heroTexture, opacit
     }
 
     // Create the shader material
-    const material = new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader, transparent:true, side:THREE.DoubleSide, alphaTest:0.1, depthWrite:false });
+    const material = new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader, transparent:true, side:THREE.DoubleSide, alphaTest:0.1, depthWrite:true });
 
     // Set material type if provided
     if (materialType) {
@@ -121,7 +121,7 @@ function arrowMaterialFactory(heroTexture, color) {
         transparent: true,
         alphaTest: 0.1,
         opacity: 1,
-        depthWrite: false,
+        depthWrite: true,
     });
 
     // Enable texture wrapping

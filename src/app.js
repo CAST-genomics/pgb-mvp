@@ -30,6 +30,9 @@ class App {
 
         sceneManager.getActiveScene().add(this.raycastService.setupVisualFeedback());
 
+        // Initialize edge tooltip
+        this.edgeTooltip = this.createEdgeTooltip();
+
         // Setup resize handler
         window.addEventListener('resize', () => {
             const { clientWidth, clientHeight } = this.container
@@ -39,6 +42,7 @@ class App {
     }
 
     handleIntersection(intersections) {
+
         if (undefined === intersections || 0 === intersections.length) {
             this.clearIntersection()
             return
@@ -47,24 +51,92 @@ class App {
         // Sort by distance to get the closest intersection
         intersections.sort((a, b) => a.distance - b.distance);
 
-        const { faceIndex, pointOnLine, object } = intersections[0];
+        const { faceIndex, point, pointOnLine, object } = intersections[0];
 
         this.renderer.domElement.style.cursor = 'none';
 
-        const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.geometryManager, object, pointOnLine, faceIndex);
+        if (object.userData?.type === 'edge') {
+            this.handleEdgeIntersection(object, point);
+        } else if (object.userData?.type === 'node') {
+            const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.geometryManager, object, pointOnLine, faceIndex);
+            eventBus.publish('lineIntersection', { t, nodeName, nodeLine })
+        }
+    }
 
-        eventBus.publish('lineIntersection', { t, nodeName, nodeLine })
+    handleEdgeIntersection(edgeObject, point) {
+        // Show both visual feedback and tooltip
+        this.raycastService.showVisualFeedback(point, new THREE.Color(0x00ff00));
+        this.showEdgeTooltip(edgeObject, point);
+    }
+
+    createEdgeTooltip() {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'edge-tooltip';
+        tooltip.style.cssText = `
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+            white-space: nowrap;
+        `;
+
+        this.container.appendChild(tooltip);
+        return tooltip;
+    }
+
+    showEdgeTooltip(edgeObject, point) {
+        const { nodeNameStart, nodeNameEnd, geometryKey, frequencyCalculationNodeID } = edgeObject.userData;
+
+        // Convert 3D world coordinates to screen coordinates
+        const screenPoint = point.clone().project(this.cameraManager.camera);
+
+        // Convert to CSS coordinates
+        const rect = this.container.getBoundingClientRect();
+        const x = (screenPoint.x + 1) * rect.width / 2;
+        const y = (-screenPoint.y + 1) * rect.height / 2;
+
+        // Update tooltip content
+        this.edgeTooltip.innerHTML = `
+            <div><strong>Key:</strong> ${geometryKey}</div>
+            <div><strong>Start:</strong> ${nodeNameStart}</div>
+            <div><strong>End:</strong> ${nodeNameEnd}</div>
+            <div><strong>Freq. Calc. Node:</strong> ${frequencyCalculationNodeID}</div>`;
+
+        // Position tooltip
+        const deltaX = 24
+        const deltaY = 24
+        this.edgeTooltip.style.left = `${x + deltaX}px`;
+        this.edgeTooltip.style.top = `${y - deltaY}px`;
+        this.edgeTooltip.style.display = 'block';
+    }
+
+    hideEdgeTooltip() {
+        if (this.edgeTooltip) {
+            this.edgeTooltip.style.display = 'none';
+        }
     }
 
     clearIntersection() {
         this.raycastService.clearIntersection()
         this.renderer.domElement.style.cursor = '';
+        this.hideEdgeTooltip();
     }
 
     animate() {
 
         if (true === this.raycastService.isEnabled) {
-            const intersections = this.raycastService.intersectObjects(this.cameraManager.camera, this.geometryManager.linesGroup.children)
+            // Combine both node lines and edge meshes for raycasting
+            const allObjects = [
+                ...this.geometryManager.linesGroup.children,
+                ...this.geometryManager.edgesGroup.children
+            ];
+            const intersections = this.raycastService.intersectObjects(this.cameraManager.camera, allObjects)
             this.handleIntersection(intersections)
         }
 
@@ -186,6 +258,8 @@ class App {
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)
 
         this.startAnimation()
+
+        this.geometryManager.geometryFactory.logFrequencyCalculationNodeIDCounts()
     }
 
     /**

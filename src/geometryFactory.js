@@ -80,50 +80,66 @@ class GeometryFactory {
         const getEdgeNodeSign = node => {
             const parts = node.split('');
             const sign = parts.pop();
-            const remainder = parts.join('');
-            return { sign, remainder };
+            const nodeName = parts.join('');
+            return { sign, nodeName };
         }
 
         for (const { starting_node, ending_node } of Object.values(edges)) {
             // Start node
-            const { sign: signStart, remainder: remainderStart } = getEdgeNodeSign(starting_node);
-            const startSpline = this.splines.get(`${remainderStart}+`);
+            const { sign: signStart, nodeName: nodeNameStart } = getEdgeNodeSign(starting_node);
+
+            // NOTE: We currently assume node names with ALWAYS have a positive (+) sign
+            // TODO: In the future generalize this to handle either (-) or (+) signed node
+            const startSpline = this.splines.get(`${nodeNameStart}+`);
             if (!startSpline) {
-                console.error(`Could not find start spline at node ${remainderStart}+`);
+                console.error(`Could not find start spline at node ${nodeNameStart}+`);
                 continue;
             }
+
+            // This is a starting_node. If the sign is opposite to the node sign
+            // use node.start xyz. If the sign is the same, use node.end xyz
             const xyzStart = startSpline.getPoint(signStart === '+' ? 1 : 0);
+            xyzStart.z = GeometryFactory.EDGE_LINE_Z_OFFSET;
 
             // End node
-            const { sign: signEnd, remainder: remainderEnd } = getEdgeNodeSign(ending_node);
-            const endSpline = this.splines.get(`${remainderEnd}+`);
+            const { sign: signEnd, nodeName: nodeNameEnd } = getEdgeNodeSign(ending_node);
+
+            // NOTE: We currently assume node names with ALWAYS have a positive (+) sign
+            // TODO: In the future generalize this to handle either (-) or (+) signed node
+            const endSpline = this.splines.get(`${nodeNameEnd}+`);
             if (!endSpline) {
-                console.error(`Could not find end spline at node ${remainderEnd}+`);
+                console.error(`Could not find end spline at node ${nodeNameEnd}+`);
                 continue;
             }
-            const xyzEnd = endSpline.getPoint(signEnd === '+' ? 0 : 1);
 
-            // Position edge lines behind nodes in z coordinate (like original code)
-            xyzStart.z = GeometryFactory.EDGE_LINE_Z_OFFSET;
+            // This is an ending_node. If the sign is opposite to the node sign
+            // use node.end xyz. If the sign is the same, use node.start xyz
+            const xyzEnd = endSpline.getPoint(signEnd === '+' ? 0 : 1);
             xyzEnd.z = GeometryFactory.EDGE_LINE_Z_OFFSET;
 
-            // Create edge geometry without material - this creates a rectangular BufferGeometry with UVs for texture mapping
-            const geometry = LineFactory.createEdgeRectGeometry(xyzStart, xyzEnd);
 
-            const edgeKey = `edge:${remainderStart}+:${remainderEnd}+`;
-
-            const startNode = `${remainderStart}+`
-            const endNode = `${remainderEnd}+`
+            let frequencyCalculationNodeID
+            if ('+' === signEnd) {
+                frequencyCalculationNodeID = `${nodeNameStart}+`
+            } else if ('+' === signStart) {
+                frequencyCalculationNodeID = `${nodeNameEnd}+`
+            } else {
+                console.error(`edge with start sign ${ signStart} and end sign ${ signEnd } will NOT have a frequency calculation node id`)
+            }
+            const startNode = `${nodeNameStart}+`
+            const endNode = `${nodeNameEnd}+`
             const payload =
                 {
                     type: 'edge',
-                    geometry,
+                    geometry: LineFactory.createEdgeRectGeometry(xyzStart, xyzEnd),
+                    frequencyCalculationNodeID,
                     startPoint: xyzStart,
                     endPoint: xyzEnd,
                     startNode,
                     endNode
                 };
 
+            const edgeKey = `edge:${nodeNameStart}+:${nodeNameEnd}+`;
             this.geometryCache.set(edgeKey, payload);
         }
     }
@@ -198,6 +214,57 @@ class GeometryFactory {
         });
         this.geometryCache.clear();
         this.splines.clear();
+    }
+
+        /**
+     * Log the number of occurrences of each frequencyCalculationNodeID in the geometry cache
+     */
+    logFrequencyCalculationNodeIDCounts() {
+        const frequencyCounts = new Map();
+
+        // get list of all edge geometries with their keys
+        const edgeGeometriesMap = this.getEdgeGeometries()
+        for (const [edgeKey, {frequencyCalculationNodeID}] of edgeGeometriesMap) {
+            if (!frequencyCounts.has(frequencyCalculationNodeID)) {
+                frequencyCounts.set(frequencyCalculationNodeID, []);
+            }
+            frequencyCounts.get(frequencyCalculationNodeID).push(edgeKey);
+        }
+
+        console.log('Frequency Calculation Node ID Counts:');
+        for (const [nodeID, edgeKeys] of frequencyCounts.entries()) {
+            console.log(`${nodeID}: ${edgeKeys.length} occurrences - Edge Keys: ${edgeKeys.join(', ')}`);
+        }
+
+        return frequencyCounts;
+    }
+
+    /**
+     * Log the number of unique assemblies for each frequencyCalculationNodeID in the geometry cache
+     */
+    logFrequencyCalculationNodeIDAssemblyCounts(genomicService) {
+        const nodeIDAssemblyCounts = new Map();
+        
+        for (const [key, data] of this.geometryCache.entries()) {
+            if (data.type === 'edge' && data.frequencyCalculationNodeID) {
+                const nodeID = data.frequencyCalculationNodeID;
+                const assembly = genomicService.getAssemblyForNodeName(nodeID);
+                
+                if (assembly) {
+                    if (!nodeIDAssemblyCounts.has(nodeID)) {
+                        nodeIDAssemblyCounts.set(nodeID, new Set());
+                    }
+                    nodeIDAssemblyCounts.get(nodeID).add(assembly);
+                }
+            }
+        }
+        
+        console.log('Frequency Calculation Node ID Assembly Counts:');
+        for (const [nodeID, assemblySet] of nodeIDAssemblyCounts.entries()) {
+            console.log(`${nodeID}: ${assemblySet.size} unique assemblies (${Array.from(assemblySet).join(', ')})`);
+        }
+        
+        return nodeIDAssemblyCounts;
     }
 }
 

@@ -71,9 +71,9 @@ class GenomeVisualizationLook extends Look {
         if (context.type === 'node') {
             return this.createNodeMesh(geometry, context.nodeName);
         } else if (context.type === 'edge') {
-            const { startNode, endNode, edgeKey } = context;
+            const { startNode, endNode, edgeKey, frequencyCalculationNodeID } = context;
 
-            return this.createEdgeMesh(geometry, startNode, endNode, edgeKey);
+            return this.createEdgeMesh(geometry, startNode, endNode, edgeKey, frequencyCalculationNodeID);
         }
 
         throw new Error(`Unknown context type: ${context.type}`);
@@ -102,7 +102,7 @@ class GenomeVisualizationLook extends Look {
     /**
      * Create an edge mesh from geometry
      */
-    createEdgeMesh(geometry, startNode, endNode, edgeKey) {
+    createEdgeMesh(geometry, startNode, endNode, edgeKey, frequencyCalculationNodeID) {
 
         const startColor = this.genomicService.getAssemblyColor(`${startNode}`)
         const endColor = this.genomicService.getAssemblyColor(`${endNode}`)
@@ -115,6 +115,7 @@ class GenomeVisualizationLook extends Look {
                 nodeNameStart: startNode,
                 nodeNameEnd: endNode,
                 geometryKey: edgeKey,
+                frequencyCalculationNodeID,
                 lookName: this.name,
                 type: 'edge',
                 originalMaterial: material // Store original material for emphasis/deemphasis
