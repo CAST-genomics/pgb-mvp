@@ -28,7 +28,7 @@ class GenomicService {
                 // Internal to the app we use 0-indexed
                 locus.startBP -= 1
                 metadata.locus = locus
-                console.log(`GenomicService: genome: ${assembly} locus: ${locusInput.prettyPrintLocus(locus)}`)
+                // console.log(`GenomicService: genome: ${assembly} locus: ${locusInput.prettyPrintLocus(locus)}`)
 
                 // Update locusExtentMap with the full extent for this assembly
                 // const currentExtent = this.locusExtentMap.get(assembly) || { chr: locus.chr, startBP: locus.startBP, endBP: locus.endBP }
@@ -54,7 +54,7 @@ class GenomicService {
                     renderLibrary.set(assembly, annotationRenderService)
                 }
             } else {
-                console.log(`GenomicService: genome: ${assembly} no locus`);
+                // console.log(`GenomicService: genome: ${assembly} no locus`);
             }
 
             this.metadata.set(nodeName, metadata);

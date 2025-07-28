@@ -257,8 +257,6 @@ class App {
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)
 
         this.startAnimation()
-
-        // this.geometryManager.geometryFactory.logFrequencyCalculationNodeIDCounts()
     }
 
     /**

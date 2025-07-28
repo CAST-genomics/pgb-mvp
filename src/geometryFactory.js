@@ -20,9 +20,13 @@ class GeometryFactory {
         const bbox = this.#calculateBoundingBox(json);
 
         this.#createSplines(bbox, json.node);
+
         this.#createNodeGeometries(json.node);
 
         this.#createEdgeGeometries(json.edge);
+
+        // build genome frequency statistics and store with each node payload
+        this.#buildNodeAssemblyStatistics();
 
         const result = {
             splines: this.splines,
@@ -194,6 +198,62 @@ class GeometryFactory {
     }
 
     /**
+     * Build assembly statistics for each node by analyzing connected edges
+     */
+    #buildNodeAssemblyStatistics() {
+        const nodeAssemblyStats = new Map();
+
+        const nodeGeometries = this.getNodeGeometries();
+        for (const [nodeName, nodeData] of nodeGeometries) {
+            nodeAssemblyStats.set(nodeName, {
+                incomingAssemblies: new Set(),
+                outgoingAssemblies: new Set()
+            });
+        }
+
+        // Analyze edges to build assembly relationships
+        const edgeGeometries = this.getEdgeGeometries();
+        for (const [edgeKey, edgeData] of edgeGeometries) {
+            const { startNode, endNode } = edgeData;
+
+            // Get startNode assembly
+            const startNodeAssembly = this.genomicService.getAssemblyForNodeName(startNode);
+            if (startNodeAssembly) {
+                const endNodeStats = nodeAssemblyStats.get(endNode);
+                if (endNodeStats) {
+
+                    // startNode assemblies contribute to the assemblies associated with the endNode
+                    // they "flow in" to the endNode
+                    endNodeStats.incomingAssemblies.add(startNodeAssembly);
+                }
+            }
+
+            // Get endNode assembly
+            const endNodeAssembly = this.genomicService.getAssemblyForNodeName(endNode);
+            if (endNodeAssembly) {
+                const startNodeStats = nodeAssemblyStats.get(startNode);
+                if (startNodeStats) {
+
+                    // endNode assemblies contribute to the assemblies associated with the startNode
+                    // tthey "flow out" of the startNode
+                    startNodeStats.outgoingAssemblies.add(endNodeAssembly);
+                }
+            }
+        }
+
+        console.log('Node Assembly Statistics:');
+        for (const [nodeName, stats] of nodeAssemblyStats.entries()) {
+            const incomingList = Array.from(stats.incomingAssemblies).join(', ');
+            const outgoingList = Array.from(stats.outgoingAssemblies).join(', ');
+            console.log(`Node ${nodeName}: assembly(${this.genomicService.getAssemblyForNodeName(nodeName)})`);
+            console.log(`  Incoming assemblies: ${incomingList || 'none'}`);
+            console.log(`  Outgoing assemblies: ${outgoingList || 'none'}`);
+        }
+
+        return nodeAssemblyStats;
+    }
+
+    /**
      * Dispose of all geometries
      */
     dispose() {
@@ -204,57 +264,6 @@ class GeometryFactory {
         });
         this.geometryCache.clear();
         this.splines.clear();
-    }
-
-        /**
-     * Log the number of occurrences of each frequencyCalculationNodeID in the geometry cache
-     */
-    logFrequencyCalculationNodeIDCounts() {
-        const frequencyCounts = new Map();
-
-        // get list of all edge geometries with their keys
-        const edgeGeometriesMap = this.getEdgeGeometries()
-        for (const [edgeKey, {frequencyCalculationNodeID}] of edgeGeometriesMap) {
-            if (!frequencyCounts.has(frequencyCalculationNodeID)) {
-                frequencyCounts.set(frequencyCalculationNodeID, []);
-            }
-            frequencyCounts.get(frequencyCalculationNodeID).push(edgeKey);
-        }
-
-        console.log('Frequency Calculation Node ID Counts:');
-        for (const [nodeID, edgeKeys] of frequencyCounts.entries()) {
-            console.log(`${nodeID}: ${edgeKeys.length} occurrences - Edge Keys: ${edgeKeys.join(', ')}`);
-        }
-
-        return frequencyCounts;
-    }
-
-    /**
-     * Log the number of unique assemblies for each frequencyCalculationNodeID in the geometry cache
-     */
-    logFrequencyCalculationNodeIDAssemblyCounts(genomicService) {
-        const nodeIDAssemblyCounts = new Map();
-
-        for (const [key, data] of this.geometryCache.entries()) {
-            if (data.type === 'edge' && data.frequencyCalculationNodeID) {
-                const nodeID = data.frequencyCalculationNodeID;
-                const assembly = genomicService.getAssemblyForNodeName(nodeID);
-
-                if (assembly) {
-                    if (!nodeIDAssemblyCounts.has(nodeID)) {
-                        nodeIDAssemblyCounts.set(nodeID, new Set());
-                    }
-                    nodeIDAssemblyCounts.get(nodeID).add(assembly);
-                }
-            }
-        }
-
-        console.log('Frequency Calculation Node ID Assembly Counts:');
-        for (const [nodeID, assemblySet] of nodeIDAssemblyCounts.entries()) {
-            console.log(`${nodeID}: ${assemblySet.size} unique assemblies (${Array.from(assemblySet).join(', ')})`);
-        }
-
-        return nodeIDAssemblyCounts;
     }
 }
 
