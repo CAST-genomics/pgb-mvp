@@ -117,22 +117,12 @@ class GeometryFactory {
             const xyzEnd = endSpline.getPoint(signEnd === '+' ? 0 : 1);
             xyzEnd.z = GeometryFactory.EDGE_LINE_Z_OFFSET;
 
-
-            let frequencyCalculationNodeID
-            if ('+' === signEnd) {
-                frequencyCalculationNodeID = `${nodeNameStart}+`
-            } else if ('+' === signStart) {
-                frequencyCalculationNodeID = `${nodeNameEnd}+`
-            } else {
-                console.error(`edge with start sign ${ signStart} and end sign ${ signEnd } will NOT have a frequency calculation node id`)
-            }
             const startNode = `${nodeNameStart}+`
             const endNode = `${nodeNameEnd}+`
             const payload =
                 {
                     type: 'edge',
                     geometry: LineFactory.createEdgeRectGeometry(xyzStart, xyzEnd),
-                    frequencyCalculationNodeID,
                     startPoint: xyzStart,
                     endPoint: xyzEnd,
                     startNode,
@@ -244,12 +234,12 @@ class GeometryFactory {
      */
     logFrequencyCalculationNodeIDAssemblyCounts(genomicService) {
         const nodeIDAssemblyCounts = new Map();
-        
+
         for (const [key, data] of this.geometryCache.entries()) {
             if (data.type === 'edge' && data.frequencyCalculationNodeID) {
                 const nodeID = data.frequencyCalculationNodeID;
                 const assembly = genomicService.getAssemblyForNodeName(nodeID);
-                
+
                 if (assembly) {
                     if (!nodeIDAssemblyCounts.has(nodeID)) {
                         nodeIDAssemblyCounts.set(nodeID, new Set());
@@ -258,12 +248,12 @@ class GeometryFactory {
                 }
             }
         }
-        
+
         console.log('Frequency Calculation Node ID Assembly Counts:');
         for (const [nodeID, assemblySet] of nodeIDAssemblyCounts.entries()) {
             console.log(`${nodeID}: ${assemblySet.size} unique assemblies (${Array.from(assemblySet).join(', ')})`);
         }
-        
+
         return nodeIDAssemblyCounts;
     }
 }

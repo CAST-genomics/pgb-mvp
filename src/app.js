@@ -91,7 +91,7 @@ class App {
     }
 
     showEdgeTooltip(edgeObject, point) {
-        const { nodeNameStart, nodeNameEnd, geometryKey, frequencyCalculationNodeID } = edgeObject.userData;
+        const { nodeNameStart, nodeNameEnd, geometryKey } = edgeObject.userData;
 
         // Convert 3D world coordinates to screen coordinates
         const screenPoint = point.clone().project(this.cameraManager.camera);
@@ -104,9 +104,8 @@ class App {
         // Update tooltip content
         this.edgeTooltip.innerHTML = `
             <div><strong>Key:</strong> ${geometryKey}</div>
-            <div><strong>Start:</strong> ${nodeNameStart}</div>
-            <div><strong>End:</strong> ${nodeNameEnd}</div>
-            <div><strong>Freq. Calc. Node:</strong> ${frequencyCalculationNodeID}</div>`;
+            <div><strong>Start Node:</strong> ${nodeNameStart}</div>
+            <div><strong>End Node:</strong> ${nodeNameEnd}</div>`;
 
         // Position tooltip
         const deltaX = 24
@@ -259,7 +258,7 @@ class App {
 
         this.startAnimation()
 
-        this.geometryManager.geometryFactory.logFrequencyCalculationNodeIDCounts()
+        // this.geometryManager.geometryFactory.logFrequencyCalculationNodeIDCounts()
     }
 
     /**
