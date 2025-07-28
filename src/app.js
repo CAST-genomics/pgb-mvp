@@ -7,7 +7,7 @@ import { loadPath } from './utils/utils.js'
 
 class App {
 
-    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneMap, lookManager) {
+    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneManager, lookManager) {
         this.container = container
 
         this.renderer = RendererFactory.createRenderer(container)
@@ -17,6 +17,7 @@ class App {
         this.geometryManager = geometryManager
         this.genomeWidget = genomeWidget
         this.genomeLibrary = genomeLibrary
+        this.sceneManager = sceneManager
         this.lookManager = lookManager
 
         // Initialize time tracking
@@ -27,10 +28,7 @@ class App {
 
         this.raycastService = raycastService
 
-        this.currentSceneName = 'genomeVisualizationScene'
-        this.sceneMap = sceneMap
-
-        sceneMap.get(this.currentSceneName).add(this.raycastService.setupVisualFeedback());
+        sceneManager.getActiveScene().add(this.raycastService.setupVisualFeedback());
 
         // Setup resize handler
         window.addEventListener('resize', () => {
@@ -76,11 +74,10 @@ class App {
 
         const deltaTime = this.clock.getDelta()
 
-        const look = this.lookManager.getLook(this.currentSceneName)
+        const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         look.updateBehavior(deltaTime, this.geometryManager)
 
-        const scene = this.sceneMap.get(this.currentSceneName)
-        this.renderer.render(scene, this.cameraManager.camera)
+        this.renderer.render(this.sceneManager.getActiveScene(), this.cameraManager.camera)
     }
 
     startAnimation() {
@@ -161,21 +158,25 @@ class App {
     }
 
     async handleSearch(url) {
-
         this.stopAnimation()
+
+        // Clear existing data and geometry
+        this.clearCurrentData()
 
         let json
         try {
             json = await loadPath(url)
         } catch (error) {
             console.error(`Error loading ${url}:`, error)
+            this.startAnimation()
+            return
         }
 
         this.genomicService.clear()
         await this.genomicService.createMetadata(json.node, json.sequence, this.genomeLibrary, this.raycastService)
 
-        const look = this.lookManager.getLook(this.currentSceneName)
-        const scene = this.sceneMap.get(this.currentSceneName)
+        const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
+        const scene = this.sceneManager.getActiveScene()
 
         this.geometryManager.createGeometry(json, look)
         this.geometryManager.addToScene(scene)
@@ -185,6 +186,57 @@ class App {
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)
 
         this.startAnimation()
+    }
+
+    /**
+     * Clear current data and geometry from the active scene
+     */
+    clearCurrentData() {
+        // Clear genomic service data
+        this.genomicService.clear()
+
+        // Clear geometry manager
+        this.geometryManager.clear()
+
+        // Clear the current scene (but keep the scene itself)
+        this.sceneManager.clearScene(this.sceneManager.getActiveScene())
+
+        // Re-add visual feedback to the cleared scene
+        const scene = this.sceneManager.getActiveScene()
+        scene.add(this.raycastService.setupVisualFeedback())
+    }
+
+    /**
+     * Switch to a different scene
+     * @param {string} sceneName - Name of the scene to switch to
+     */
+    switchScene(sceneName) {
+        if (!this.sceneManager.hasScene(sceneName)) {
+            console.error(`Scene '${sceneName}' not found`)
+            return false
+        }
+
+        this.sceneManager.setActiveScene(sceneName)
+        return true
+    }
+
+    /**
+     * Create a new scene with the given name and look
+     * @param {string} sceneName - Name for the new scene
+     * @param {Object} look - The look to apply to the scene
+     * @param {THREE.Color} backgroundColor - Background color for the scene
+     */
+    createScene(sceneName, look, backgroundColor = new THREE.Color(0xffffff)) {
+        // Create the scene
+        const scene = this.sceneManager.createScene(sceneName, backgroundColor)
+
+        // Set the look for this scene
+        this.lookManager.setLook(sceneName, look)
+
+        // Add visual feedback to the new scene
+        scene.add(this.raycastService.setupVisualFeedback())
+
+        return scene
     }
 }
 

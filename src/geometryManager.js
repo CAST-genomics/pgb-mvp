@@ -53,6 +53,23 @@ class GeometryManager {
         scene.add(this.edgesGroup);
     }
 
+    /**
+     * Clear all geometry data and groups without full disposal
+     * This is useful when loading new data files
+     */
+    clear() {
+        // Remove from scene
+        this.linesGroup.parent?.remove(this.linesGroup);
+        this.edgesGroup.parent?.remove(this.edgesGroup);
+
+        // Clear the groups
+        this.linesGroup.clear();
+        this.edgesGroup.clear();
+
+        // Clear the geometry data
+        this.geometryData = null;
+    }
+
     dispose() {
         // Unsubscribe from events
         if (this.deemphasizeUnsub) {

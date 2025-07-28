@@ -10,6 +10,7 @@ import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
 import materialService from './materialService.js'
 import LookManager from './lookManager.js'
 import GenomeVisualizationLook from './genomeVisualizationLook.js'
+import SceneManager from './sceneManager.js'
 import './styles/app.scss'
 
 let app
@@ -40,19 +41,16 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const genomeVisualizationLook = GenomeVisualizationLook.createGenomeVisualizationLook('default-genome-look', { genomicService, geometryManager })
 
-    // Scene collection
-    const sceneMap = new Map()
-    const scene = new THREE.Scene()
-    scene.name = 'genomeVisualizationScene'
-    scene.background = new THREE.Color(0xffffff)
-    sceneMap.set('genomeVisualizationScene', scene)
+    // Scene and Look managers
+    const sceneManager = new SceneManager()
+    sceneManager.createScene('genomeVisualizationScene', new THREE.Color(0xffffff))
+    sceneManager.setActiveScene('genomeVisualizationScene')
 
-    // Look manager
     const lookManager = new LookManager()
-    lookManager.setLook('genomeVisualizationScene', genomeVisualizationLook);
+    lookManager.setLook(sceneManager.getActiveSceneName(), genomeVisualizationLook);
 
     const frustumSize = 5
-    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneMap, lookManager)
+    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneManager, lookManager)
 
     app.startAnimation()
 
