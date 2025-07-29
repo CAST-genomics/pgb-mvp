@@ -25,9 +25,6 @@ class GeometryFactory {
 
         this.#createEdgeGeometries(json.edge);
 
-        // build genome frequency statistics and store with each node payload
-        this.#buildNodeAssemblyStatistics();
-
         const result = {
             splines: this.splines,
             nodeGeometries: this.getNodeGeometries(),
@@ -197,60 +194,7 @@ class GeometryFactory {
         };
     }
 
-    /**
-     * Build assembly statistics for each node by analyzing connected edges
-     */
-    #buildNodeAssemblyStatistics() {
-        const nodeAssemblyStats = new Map();
 
-        const nodeGeometries = this.getNodeGeometries();
-        for (const [nodeName, nodeData] of nodeGeometries) {
-            nodeAssemblyStats.set(nodeName, {
-                incomingAssemblies: new Set(),
-                outgoingAssemblies: new Set()
-            });
-        }
-
-        const edgeGeometries = this.getEdgeGeometries();
-        for (const [edgeKey, edgeData] of edgeGeometries) {
-            const { startNode, endNode } = edgeData;
-
-            // Get startNode assembly
-            const startNodeAssembly = this.genomicService.getAssemblyForNodeName(startNode);
-            if (startNodeAssembly) {
-                const endNodeStats = nodeAssemblyStats.get(endNode);
-                if (endNodeStats) {
-
-                    // startNode assemblies contribute to the tally of assemblies associated
-                    // with the endNode. They "flow in" to the endNode
-                    endNodeStats.incomingAssemblies.add(startNodeAssembly);
-                }
-            }
-
-            // Get endNode assembly
-            const endNodeAssembly = this.genomicService.getAssemblyForNodeName(endNode);
-            if (endNodeAssembly) {
-                const startNodeStats = nodeAssemblyStats.get(startNode);
-                if (startNodeStats) {
-
-                    // endNode assemblies contribute to the tally of assemblies associated
-                    // with the startNode they "flow out" of the startNode
-                    startNodeStats.outgoingAssemblies.add(endNodeAssembly);
-                }
-            }
-        }
-
-        console.log('Node Assembly Statistics:');
-        for (const [nodeName, stats] of nodeAssemblyStats.entries()) {
-            const incomingList = Array.from(stats.incomingAssemblies).join(', ');
-            const outgoingList = Array.from(stats.outgoingAssemblies).join(', ');
-            console.log(`Node ${nodeName}: assembly(${this.genomicService.getAssemblyForNodeName(nodeName)})`);
-            console.log(`  Incoming assemblies: ${incomingList || 'none'}`);
-            console.log(`  Outgoing assemblies: ${outgoingList || 'none'}`);
-        }
-
-        return nodeAssemblyStats;
-    }
 
     /**
      * Dispose of all geometries

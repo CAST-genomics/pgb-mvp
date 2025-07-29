@@ -251,6 +251,10 @@ class App {
         this.geometryManager.createGeometry(json, look)
         this.geometryManager.addToScene(scene)
 
+        const nodeGeometries = this.geometryManager.geometryFactory.getNodeGeometries()
+        const edgeGeometries = this.geometryManager.geometryFactory.getEdgeGeometries()
+        this.genomicService.buildNodeAssemblyStatistics(nodeGeometries, edgeGeometries)
+
         this.genomeWidget.populateList()
 
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)

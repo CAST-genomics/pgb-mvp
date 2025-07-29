@@ -7,10 +7,11 @@ class GenomicService {
     constructor() {
         this.metadata = new Map()
         this.assemblyPayload = new Map()
+        this.nodeAssemblyStats = new Map()
     }
 
     async createMetadata(nodes, sequences, genomeLibrary, raycastService) {
-        
+
         const assemblySet = new Set()
         const assemblyColors = new Map()
         const renderLibrary = new Map()
@@ -76,7 +77,7 @@ class GenomicService {
             const color = assemblyColors.get(assembly);
             const annotationRenderService = renderLibrary.get(assembly);
             const locus = locusExtentMap.get(assembly);
-            
+
             this.assemblyPayload.set(assembly, { color, annotationRenderService, locus });
         }
     }
@@ -109,6 +110,62 @@ class GenomicService {
         return new Set(this.metadata.keys());
     }
 
+    /**
+     * Build assembly statistics for each node by analyzing connected edges
+     * @param {Map} nodeGeometries - Map of node geometries
+     * @param {Map} edgeGeometries - Map of edge geometries
+     * @returns {Map} Node assembly statistics
+     */
+    buildNodeAssemblyStatistics(nodeGeometries, edgeGeometries) {
+
+        this.nodeAssemblyStats.clear()
+
+        for (const [nodeName, nodeData] of nodeGeometries) {
+            this.nodeAssemblyStats.set(nodeName, {
+                incomingAssemblies: new Set(),
+                outgoingAssemblies: new Set()
+            });
+        }
+
+        for (const [edgeKey, edgeData] of edgeGeometries) {
+            const { startNode, endNode } = edgeData;
+
+            // Get startNode assembly
+            const startNodeAssembly = this.getAssemblyForNodeName(startNode);
+            if (startNodeAssembly) {
+                const endNodeStats = this.nodeAssemblyStats.get(endNode);
+                if (endNodeStats) {
+
+                    // startNode assemblies contribute to the tally of assemblies associated
+                    // with the endNode. They "flow in" to the endNode
+                    endNodeStats.incomingAssemblies.add(startNodeAssembly);
+                }
+            }
+
+            // Get endNode assembly
+            const endNodeAssembly = this.getAssemblyForNodeName(endNode);
+            if (endNodeAssembly) {
+                const startNodeStats = this.nodeAssemblyStats.get(startNode);
+                if (startNodeStats) {
+
+                    // endNode assemblies contribute to the tally of assemblies associated
+                    // with the startNode they "flow out" of the startNode
+                    startNodeStats.outgoingAssemblies.add(endNodeAssembly);
+                }
+            }
+        }
+
+        console.log('Node Assembly Statistics:');
+        for (const [nodeName, stats] of this.nodeAssemblyStats.entries()) {
+            const incomingList = Array.from(stats.incomingAssemblies).join(', ');
+            const outgoingList = Array.from(stats.outgoingAssemblies).join(', ');
+            console.log(`Node ${nodeName}: assembly(${this.getAssemblyForNodeName(nodeName)})`);
+            console.log(`  Incoming assemblies: ${incomingList || 'none'}`);
+            console.log(`  Outgoing assemblies: ${outgoingList || 'none'}`);
+        }
+
+    }
+
     clear() {
         this.metadata.clear();
 
@@ -119,7 +176,8 @@ class GenomicService {
             }
         }
 
-        this.assemblyPayload.clear();
+        this.assemblyPayload.clear()
+        this.nodeAssemblyStats.clear()
     }
 }
 
