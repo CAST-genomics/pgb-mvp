@@ -30,15 +30,9 @@ class GenomeVisualizationLook extends Look {
                 enabled: config.behaviors?.edgeArrowAnimation?.enabled ?? false
             };
 
-        // Subscribe to genome interaction events
-        this.deemphasizeUnsub = eventBus.subscribe('genome:deemphasizeNodes', (data) => {
-            this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames);
-        });
-
-        this.restoreUnsub = eventBus.subscribe('genome:restoreEmphasis', (data) => {
-            this.restoreLinesandEdgesViaZOffset(data.nodeNames);
-        });
-
+        // Event subscription references - will be set up when activated
+        this.deemphasizeUnsub = null;
+        this.restoreUnsub = null;
     }
 
     /**
@@ -328,7 +322,42 @@ class GenomeVisualizationLook extends Look {
         });
     }
 
+    /**
+     * Activate this look - subscribe to events
+     */
+    activate() {
+        super.activate();
+        
+        // Subscribe to genome interaction events
+        this.deemphasizeUnsub = eventBus.subscribe('genome:deemphasizeNodes', (data) => {
+            this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames);
+        });
+
+        this.restoreUnsub = eventBus.subscribe('genome:restoreEmphasis', (data) => {
+            this.restoreLinesandEdgesViaZOffset(data.nodeNames);
+        });
+    }
+
+    /**
+     * Deactivate this look - unsubscribe from events
+     */
+    deactivate() {
+        super.deactivate();
+        
+        // Unsubscribe from events
+        if (this.deemphasizeUnsub) {
+            this.deemphasizeUnsub();
+            this.deemphasizeUnsub = null;
+        }
+        
+        if (this.restoreUnsub) {
+            this.restoreUnsub();
+            this.restoreUnsub = null;
+        }
+    }
+
     dispose() {
+        this.deactivate(); // Ensure we unsubscribe before disposing
         super.dispose();
         this.emphasisStates.clear();
     }

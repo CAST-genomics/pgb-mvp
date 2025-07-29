@@ -29,6 +29,25 @@ class LookManager {
     }
 
     /**
+     * Activate a look for a specific scene and deactivate others
+     * @param {string} sceneName - The name of the scene to activate
+     */
+    activateLook(sceneName) {
+        // Deactivate all other looks
+        this.looks.forEach((look, name) => {
+            if (name !== sceneName) {
+                look.deactivate();
+            }
+        });
+
+        // Activate the specified look
+        const look = this.looks.get(sceneName);
+        if (look) {
+            look.activate();
+        }
+    }
+
+    /**
      * Get the Look for a specific scene
      * @param {string} sceneName - The name of the scene
      * @returns {Look|null} The Look instance or null if not found

@@ -55,6 +55,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     lookManager.setLook('genomeFrequencyScene', genomeFrequencyLook);
 
     sceneManager.setActiveScene('genomeFrequencyScene')
+    lookManager.activateLook('genomeFrequencyScene')
 
 
 

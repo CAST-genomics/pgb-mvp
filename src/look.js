@@ -11,6 +11,7 @@ class Look {
         this.material = config.material;
         this.behaviors = config.behaviors || {};
         this.zOffset = config.zOffset || 0;
+        this.isActive = false; // Track if this look is currently active
     }
 
     /**
@@ -38,6 +39,22 @@ class Look {
 
     createEdgeMesh(geometry, context) {
         throw new Error('createEdgeMesh() must be implemented by subclass');
+    }
+
+    /**
+     * Called when this look becomes active
+     * Subclasses should override to enable event subscriptions
+     */
+    activate() {
+        this.isActive = true;
+    }
+
+    /**
+     * Called when this look becomes inactive
+     * Subclasses should override to disable event subscriptions
+     */
+    deactivate() {
+        this.isActive = false;
     }
 
     dispose() {
