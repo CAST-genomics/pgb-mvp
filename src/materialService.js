@@ -39,7 +39,7 @@ class MaterialService {
      * Creates a new edge line deemphasis material instance
      * @returns {THREE.ShaderMaterial} A new material instance
      */
-    createEdgeLineDeemphasisMaterial() {
+    getEdgeDeemphasisMaterial() {
         return colorRampArrowMaterialFactory(getAppleCrayonColorByName('mercury'), getAppleCrayonColorByName('mercury'), this.getTexture('arrow-white'), 1, MATERIAL_TYPES.DEEMPHASIS);
     }
 

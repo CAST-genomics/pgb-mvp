@@ -64,7 +64,6 @@ class App {
     }
 
     handleEdgeIntersection(edgeObject, point) {
-        // Show both visual feedback and tooltip
         this.raycastService.showVisualFeedback(point, new THREE.Color(0x00ff00));
         this.showEdgeTooltip(edgeObject, point);
     }

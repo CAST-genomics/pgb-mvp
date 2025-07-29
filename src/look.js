@@ -3,6 +3,9 @@
  * Subclasses implement specific mesh factory methods for their domain.
  */
 class Look {
+
+    static NODE_LINE_WIDTH = 16;
+
     constructor(name, config) {
         this.name = name;
         this.material = config.material;
@@ -19,12 +22,22 @@ class Look {
         // Subclasses override this method for specific animation behaviors
     }
 
-    /**
-     * Abstract method - subclasses must implement
-     * Create a mesh from geometry and context data
-     */
     createMesh(geometry, context) {
-        throw new Error('createMesh() must be implemented by subclass');
+        if (context.type === 'node') {
+            return this.createNodeMesh(geometry, context);
+        } else if (context.type === 'edge') {
+            return this.createEdgeMesh(geometry, context);
+        }
+
+        throw new Error(`Unknown context type: ${context.type}`);
+    }
+
+    createNodeMesh(geometry, context) {
+        throw new Error('createNodeMesh() must be implemented by subclass');
+    }
+
+    createEdgeMesh(geometry, context) {
+        throw new Error('createEdgeMesh() must be implemented by subclass');
     }
 
     dispose() {

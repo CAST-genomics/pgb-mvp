@@ -13,7 +13,6 @@ import eventBus from "./utils/eventBus.js"
  */
 class GenomeVisualizationLook extends Look {
 
-    static NODE_LINE_WIDTH = 16;
     static ANIMATION_SPEED = 0.5;
 
     constructor(name, config) {
@@ -65,24 +64,12 @@ class GenomeVisualizationLook extends Look {
     }
 
     /**
-     * Create a mesh from geometry and genome context
-     */
-    createMesh(geometry, context) {
-        if (context.type === 'node') {
-            return this.createNodeMesh(geometry, context.nodeName);
-        } else if (context.type === 'edge') {
-            const { startNode, endNode, edgeKey } = context;
-
-            return this.createEdgeMesh(geometry, startNode, endNode, edgeKey);
-        }
-
-        throw new Error(`Unknown context type: ${context.type}`);
-    }
-
-    /**
      * Create a node mesh from geometry
      */
-    createNodeMesh(geometry, nodeName) {
+    createNodeMesh(geometry, context) {
+
+        const {nodeName} = context
+
         const material = this.getNodeMaterial(nodeName);
 
         const mesh = new Line2(geometry, material);
@@ -102,11 +89,13 @@ class GenomeVisualizationLook extends Look {
     /**
      * Create an edge mesh from geometry
      */
-    createEdgeMesh(geometry, startNode, endNode, edgeKey) {
+    createEdgeMesh(geometry, context) {
+
+        const { startNode, endNode, edgeKey } = context;
 
         const startColor = this.genomicService.getAssemblyColor(`${startNode}`)
         const endColor = this.genomicService.getAssemblyColor(`${endNode}`)
-        const material = this.getEdgeMaterial(startColor, endColor);
+        const material = this.getEdgeMaterial(startColor, endColor)
 
         const mesh = new THREE.Mesh(geometry, material);
 
@@ -123,23 +112,17 @@ class GenomeVisualizationLook extends Look {
         return mesh;
     }
 
-    /**
-     * Get node material based on assembly
-     */
     getNodeMaterial(nodeName) {
 
         return new LineMaterial({
             color: this.genomicService.getAssemblyColor(nodeName),
-            linewidth: GenomeVisualizationLook.NODE_LINE_WIDTH,
+            linewidth: Look.NODE_LINE_WIDTH,
             worldUnits: true,
             opacity: 1,
             transparent: true
         });
     }
 
-    /**
-     * Get edge material based on colors
-     */
     getEdgeMaterial(startColor, endColor) {
         return colorRampArrowMaterialFactory(startColor, endColor, materialService.getTexture('arrow-white'), 1);
     }
@@ -193,7 +176,7 @@ class GenomeVisualizationLook extends Look {
             if (type === 'node') {
                 mesh.material = materialService.createNodeLineDeemphasisMaterial();
             } else if (type === 'edge') {
-                mesh.material = materialService.createEdgeLineDeemphasisMaterial();
+                mesh.material = materialService.getEdgeDeemphasisMaterial();
             }
         } else {
             if (originalMaterial) {
