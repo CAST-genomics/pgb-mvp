@@ -211,7 +211,6 @@ class GeometryFactory {
             });
         }
 
-        // Analyze edges to build assembly relationships
         const edgeGeometries = this.getEdgeGeometries();
         for (const [edgeKey, edgeData] of edgeGeometries) {
             const { startNode, endNode } = edgeData;

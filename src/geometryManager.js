@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import eventBus from './utils/eventBus.js';
 import GeometryFactory from './geometryFactory.js';
 
 class GeometryManager {
