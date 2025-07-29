@@ -221,8 +221,8 @@ class GeometryFactory {
                 const endNodeStats = nodeAssemblyStats.get(endNode);
                 if (endNodeStats) {
 
-                    // startNode assemblies contribute to the assemblies associated with the endNode
-                    // they "flow in" to the endNode
+                    // startNode assemblies contribute to the tally of assemblies associated
+                    // with the endNode. They "flow in" to the endNode
                     endNodeStats.incomingAssemblies.add(startNodeAssembly);
                 }
             }
@@ -233,8 +233,8 @@ class GeometryFactory {
                 const startNodeStats = nodeAssemblyStats.get(startNode);
                 if (startNodeStats) {
 
-                    // endNode assemblies contribute to the assemblies associated with the startNode
-                    // tthey "flow out" of the startNode
+                    // endNode assemblies contribute to the tally of assemblies associated
+                    // with the startNode they "flow out" of the startNode
                     startNodeStats.outgoingAssemblies.add(endNodeAssembly);
                 }
             }
