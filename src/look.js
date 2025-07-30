@@ -57,6 +57,18 @@ class Look {
         this.isActive = false;
     }
 
+    /**
+     * Generate tooltip content for a node
+     * Base implementation returns null - subclasses override to provide custom content
+     * @param {Object} nodeObject - The node object with userData
+     * @returns {string|null} HTML content for the tooltip, or null if no tooltip should be shown
+     */
+    createNodeTooltipContent(nodeObject) {
+        // Base class provides no tooltip content by default
+        // Subclasses override this method to provide custom node tooltip content
+        return null;
+    }
+
     dispose() {
         if (this.material) {
             this.material.dispose();

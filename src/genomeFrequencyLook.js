@@ -170,9 +170,43 @@ class GenomeFrequencyLook extends Look {
         return false;
     }
 
+    /**
+     * Create custom tooltip content for nodes showing frequency information
+     * @param {Object} nodeObject - The node object with userData
+     * @returns {string} HTML content for the node tooltip
+     */
+    createNodeTooltipContent(nodeObject) {
+        const { nodeName } = nodeObject.userData;
+
+        const nodeStats = this.genomicService.nodeAssemblyStats.get(nodeName);
+        if (!nodeStats) {
+            return `
+                <div><strong>Node:</strong> ${nodeName}</div>
+                <div><em>No frequency data available</em></div>`;
+        }
+
+        const percentage = nodeStats.percentage;
+        const normalizedPercentage = nodeStats.normalizedPercentage;
+        const allAssemblies = Array.from(nodeStats.allAssemblies).sort();
+        
+        // Get the node's native assembly
+        const nativeAssembly = this.genomicService.getAssemblyForNodeName(nodeName);
+        
+        // Get connected assemblies (all assemblies minus the native one)
+        const connectedAssemblies = allAssemblies.filter(assembly => assembly !== nativeAssembly);
+
+        return `
+            <div><strong>Node:</strong> ${nodeName}</div>
+            <div><strong>Native Assembly:</strong> ${nativeAssembly || 'Unknown'}</div>
+            ${connectedAssemblies.length > 0 ? `<div><strong>Connected Assemblies:</strong></div>
+            ${connectedAssemblies.map(assembly => `<div style="margin-left: 10px;">• ${assembly}</div>`).join('')}` : ''}
+            <div><strong>Frequency:</strong> ${(percentage * 100).toFixed(1)}%</div>
+            <div><strong>Normalized Frequency:</strong> ${(normalizedPercentage * 100).toFixed(1)}%</div>`;
+    }
+
     dispose() {
         super.dispose();
     }
 }
 
-export default GenomeFrequencyLook; 
+export default GenomeFrequencyLook;

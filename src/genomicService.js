@@ -191,6 +191,10 @@ class GenomicService {
             const nodeAssemblyCount = allAssemblies.size;
             const percentage = totalAssemblies > 0 ? nodeAssemblyCount / totalAssemblies : 0;
             
+            // Add allAssemblies set and assembly count to nodeStats
+            nodeStats.allAssemblies = allAssemblies;
+            nodeStats.assemblyCount = nodeAssemblyCount;
+            nodeStats.totalAssemblies = totalAssemblies;
             nodeStats.percentage = percentage;
             allPercentages.push(percentage);
             nodePercentages.set(nodeName, percentage);

@@ -30,8 +30,8 @@ class App {
 
         sceneManager.getActiveScene().add(this.raycastService.setupVisualFeedback());
 
-        // Initialize edge tooltip
-        this.edgeTooltip = this.createEdgeTooltip();
+        // Initialize tooltip
+        this.tooltip = this.createTooltip();
 
         // Setup resize handler
         window.addEventListener('resize', () => {
@@ -56,29 +56,29 @@ class App {
         this.renderer.domElement.style.cursor = 'none';
 
         if (object.userData?.type === 'edge') {
-            this.handleEdgeIntersection(object, point);
+            this.raycastService.showVisualFeedback(point, new THREE.Color(0x00ff00));
+            this.showTooltip(object, point, 'edge');
         } else if (object.userData?.type === 'node') {
             const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.geometryManager, object, pointOnLine, faceIndex);
             eventBus.publish('lineIntersection', { t, nodeName, nodeLine })
+            this.showTooltip(object, point, 'node');
         }
     }
 
     handleEdgeIntersection(edgeObject, point) {
         this.raycastService.showVisualFeedback(point, new THREE.Color(0x00ff00));
-        this.showEdgeTooltip(edgeObject, point);
+        this.showTooltip(edgeObject, point, 'edge');
     }
 
-    createEdgeTooltip() {
+    createTooltip() {
         const tooltip = document.createElement('div');
-        tooltip.className = 'edge-tooltip';
+        tooltip.className = 'graph-tooltip';
 
         this.container.appendChild(tooltip);
         return tooltip;
     }
 
-    showEdgeTooltip(edgeObject, point) {
-        const { nodeNameStart, nodeNameEnd, geometryKey } = edgeObject.userData;
-
+    showTooltip(object, point, type) {
         // Convert 3D world coordinates to screen coordinates
         const screenPoint = point.clone().project(this.cameraManager.camera);
 
@@ -87,29 +87,53 @@ class App {
         const x = (screenPoint.x + 1) * rect.width / 2;
         const y = (-screenPoint.y + 1) * rect.height / 2;
 
-        // Update tooltip content
-        this.edgeTooltip.innerHTML = 
-            `<div><strong>Start Node:</strong> ${nodeNameStart}</div>
-            <div><strong>End Node:</strong> ${nodeNameEnd}</div>`;
+        // Get the current look
+        const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName());
+        
+        // Try to get custom tooltip content from the look for nodes
+        let content = '';
+        if (type === 'edge') {
+            // Default edge tooltip content
+            const { nodeNameStart, nodeNameEnd, geometryKey } = object.userData;
+            content = `
+                <div><strong>Key:</strong> ${geometryKey}</div>
+                <div><strong>Start Node:</strong> ${nodeNameStart}</div>
+                <div><strong>End Node:</strong> ${nodeNameEnd}</div>`;
+        } else if (type === 'node') {
+            // Only use custom tooltip content if the look is active
+            if (look && look.isActive) {
+                content = look.createNodeTooltipContent(object);
+            }
+            
+            if (!content) {
+                // Fallback to default node tooltip content
+                const { nodeName, nodeLine } = object.userData;
+                content = `
+                    <div><strong>Node:</strong> ${nodeName}</div>
+                    <div><strong>Line:</strong> ${nodeLine}</div>`;
+            }
+        }
+
+        this.tooltip.innerHTML = content;
 
         // Position tooltip
         const deltaX = 24
         const deltaY = 24
-        this.edgeTooltip.style.left = `${x + deltaX}px`;
-        this.edgeTooltip.style.top = `${y - deltaY}px`;
-        this.edgeTooltip.style.display = 'block';
+        this.tooltip.style.left = `${x + deltaX}px`;
+        this.tooltip.style.top = `${y - deltaY}px`;
+        this.tooltip.style.display = 'block';
     }
 
-    hideEdgeTooltip() {
-        if (this.edgeTooltip) {
-            this.edgeTooltip.style.display = 'none';
+    hideTooltip() {
+        if (this.tooltip) {
+            this.tooltip.style.display = 'none';
         }
     }
 
     clearIntersection() {
         this.raycastService.clearIntersection()
         this.renderer.domElement.style.cursor = '';
-        this.hideEdgeTooltip();
+        this.hideTooltip();
     }
 
     animate() {
