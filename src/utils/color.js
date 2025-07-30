@@ -345,27 +345,39 @@ function getHeatmapColorHSLLightnessVariation(percentage, baseColorName = 'blueb
 /**
  * Generates a heatmap color by interpolating between two perceptually distinct colors
  * @param {number} percentage - Percentage value between 0 and 1
- * @param {string} lowColorName - Name of the color for low percentages, defaults to 'licorice'
- * @param {string} highColorName - Name of the color for high percentages, defaults to 'maraschino'
+ * @param {string|THREE.Color} lowColor - Name of the color or THREE.Color object for low percentages, defaults to 'licorice'
+ * @param {string|THREE.Color} highColor - Name of the color or THREE.Color object for high percentages, defaults to 'maraschino'
  * @returns {THREE.Color} A THREE.Color object representing the interpolated heatmap color
  */
-function getHeatmapColorViaColorInterpolation(percentage, lowColorName = 'licorice', highColorName = 'maraschino') {
+function getHeatmapColorViaColorInterpolation(percentage, lowColor = 'licorice', highColor = 'maraschino') {
     // Clamp percentage between 0 and 1
     const clampedPercentage = Math.max(0, Math.min(1, percentage));
     
-    // Get the two colors to interpolate between
-    const lowColor = getAppleCrayonColorByName(lowColorName);
-    const highColor = getAppleCrayonColorByName(highColorName);
+    // Helper function to get THREE.Color from either string name or THREE.Color object
+    const getColor = (colorInput) => {
+        if (colorInput instanceof THREE.Color) {
+            return colorInput.clone();
+        } else if (typeof colorInput === 'string') {
+            return getAppleCrayonColorByName(colorInput);
+        } else {
+            console.warn(`Invalid color input: ${colorInput}, using fallback`);
+            return null;
+        }
+    };
     
-    if (!lowColor || !highColor) {
-        console.warn(`Color names '${lowColorName}' or '${highColorName}' not found, using fallback colors`);
+    // Get the two colors to interpolate between
+    const lowColorObj = getColor(lowColor);
+    const highColorObj = getColor(highColor);
+    
+    if (!lowColorObj || !highColorObj) {
+        console.warn(`Invalid color inputs, using fallback colors`);
         const fallbackLow = getAppleCrayonColorByName('licorice') || new THREE.Color(0x000000);
         const fallbackHigh = getAppleCrayonColorByName('maraschino') || new THREE.Color(0xFF2101);
         return fallbackLow.clone().lerp(fallbackHigh, clampedPercentage);
     }
     
     // Use THREE.js lerp method to interpolate between the two colors
-    const interpolatedColor = lowColor.clone().lerp(highColor, clampedPercentage);
+    const interpolatedColor = lowColorObj.clone().lerp(highColorObj, clampedPercentage);
     
     return interpolatedColor;
 }

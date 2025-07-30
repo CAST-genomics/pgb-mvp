@@ -124,8 +124,10 @@ class GenomeFrequencyLook extends Look {
         const percentage = nodeStats.normalizedPercentage;
 
         console.log(`Node ${nodeName} - Raw: ${nodeStats.percentage.toFixed(3)}, Normalized: ${percentage.toFixed(3)}`);
-        // return getHeatmapColorHSLLightnessVariation(percentage, 'aqua');
-        return getHeatmapColorViaColorInterpolation(percentage, 'sky', 'aqua');
+        // return getHeatmapColorHSLLightnessVariation(percentage, 'salmon');
+        const startColor = new THREE.Color(0xe0ecfe);
+        const endColor = new THREE.Color(0x3c8af7);
+        return getHeatmapColorViaColorInterpolation(percentage, startColor, endColor);
     }
 
     getEdgeMaterial(startColor, endColor) {
