@@ -5,7 +5,7 @@ import Look from './look.js';
 import { colorRampArrowMaterialFactory } from './materialService.js';
 import materialService from './materialService.js';
 import GeometryFactory from "./geometryFactory.js"
-import { getRandomVibrantAppleCrayonColor } from './utils/color.js'
+import { getRandomVibrantAppleCrayonColor, getAppleCrayonColorByName, getHeatmapColorViaColorInterpolation } from './utils/color.js'
 
 /**
  * GenomeFrequencyLook - specific implementation for genome frequency visualization
@@ -72,7 +72,7 @@ class GenomeFrequencyLook extends Look {
         const { startNode, endNode, edgeKey } = context;
 
         // Use a single random vibrant color for both start and end
-        const edgeColor = getRandomVibrantAppleCrayonColor();
+        const edgeColor = getAppleCrayonColorByName('magnesium')
         const material = this.getEdgeMaterial(edgeColor, edgeColor);
 
         const mesh = new THREE.Mesh(geometry, material);
@@ -91,8 +91,8 @@ class GenomeFrequencyLook extends Look {
     }
 
     getNodeMaterial(nodeName) {
-        // Use random vibrant color for nodes
-        const nodeColor = getRandomVibrantAppleCrayonColor();
+        // Calculate assembly count percentage for this node
+        const nodeColor = this.getNodeAssemblyHeatmapColor(nodeName);
 
         return new LineMaterial({
             color: nodeColor,
@@ -101,6 +101,30 @@ class GenomeFrequencyLook extends Look {
             opacity: 1,
             transparent: true
         });
+    }
+
+    /**
+     * Calculate assembly count percentage for a node and return appropriate heatmap color
+     * @param {string} nodeName - The name of the node
+     * @returns {THREE.Color} Heatmap color based on assembly count percentage
+     */
+    getNodeAssemblyHeatmapColor(nodeName) {
+        if (!this.genomicService || !this.genomicService.nodeAssemblyStats) {
+            // Fallback to random color if genomic service is not available
+            return getRandomVibrantAppleCrayonColor();
+        }
+
+        const nodeStats = this.genomicService.nodeAssemblyStats.get(nodeName);
+        if (!nodeStats) {
+            // Fallback to random color if node stats are not available
+            return getRandomVibrantAppleCrayonColor();
+        }
+
+        // Use the pre-calculated percentage from nodeStats
+        const percentage = nodeStats.percentage;
+
+        console.log(`Node ${nodeName} has percentage: ${percentage}`);
+        return getHeatmapColorViaColorInterpolation(percentage, 'lime', 'aqua');
     }
 
     getEdgeMaterial(startColor, endColor) {

@@ -299,6 +299,77 @@ function colorToRGBString(color) {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
+/**
+ * Generates a heatmap color based on a percentage value
+ * Uses a vibrant base color and varies its intensity based on the percentage
+ * @param {number} percentage - Percentage value between 0 and 1
+ * @param {string} baseColorName - Name of the base color from appleCrayonColors, defaults to 'blueberry'
+ * @returns {THREE.Color} A THREE.Color object representing the heatmap intensity
+ */
+function getHeatmapColorHSLLightnessVariation(percentage, baseColorName = 'blueberry') {
+    // Clamp percentage between 0 and 1
+    const clampedPercentage = Math.max(0, Math.min(1, percentage));
+    
+    // Get the base color
+    const baseColor = getAppleCrayonColorByName(baseColorName);
+    if (!baseColor) {
+        console.warn(`Color name '${baseColorName}' not found, using blueberry`);
+        return getAppleCrayonColorByName('blueberry');
+    }
+    
+    // Create a new color object
+    const heatmapColor = baseColor.clone();
+    
+    // Convert to HSL for easier manipulation
+    const hsl = {};
+    heatmapColor.getHSL(hsl);
+    
+    // Vary the lightness based on percentage
+    // Higher percentage = higher lightness (brighter color)
+    // Lower percentage = lower lightness (darker color)
+    const minLightness = 0.2;  // Dark for low percentages
+    const maxLightness = 0.8;  // Bright for high percentages
+    hsl.l = minLightness + (clampedPercentage * (maxLightness - minLightness));
+    
+    // Vary saturation slightly - higher percentages get more saturated
+    const minSaturation = 0.6;
+    const maxSaturation = 1.0;
+    hsl.s = minSaturation + (clampedPercentage * (maxSaturation - minSaturation));
+    
+    // Set the new HSL values
+    heatmapColor.setHSL(hsl.h, hsl.s, hsl.l);
+    
+    return heatmapColor;
+}
+
+/**
+ * Generates a heatmap color by interpolating between two perceptually distinct colors
+ * @param {number} percentage - Percentage value between 0 and 1
+ * @param {string} lowColorName - Name of the color for low percentages, defaults to 'licorice'
+ * @param {string} highColorName - Name of the color for high percentages, defaults to 'maraschino'
+ * @returns {THREE.Color} A THREE.Color object representing the interpolated heatmap color
+ */
+function getHeatmapColorViaColorInterpolation(percentage, lowColorName = 'licorice', highColorName = 'maraschino') {
+    // Clamp percentage between 0 and 1
+    const clampedPercentage = Math.max(0, Math.min(1, percentage));
+    
+    // Get the two colors to interpolate between
+    const lowColor = getAppleCrayonColorByName(lowColorName);
+    const highColor = getAppleCrayonColorByName(highColorName);
+    
+    if (!lowColor || !highColor) {
+        console.warn(`Color names '${lowColorName}' or '${highColorName}' not found, using fallback colors`);
+        const fallbackLow = getAppleCrayonColorByName('licorice') || new THREE.Color(0x000000);
+        const fallbackHigh = getAppleCrayonColorByName('maraschino') || new THREE.Color(0xFF2101);
+        return fallbackLow.clone().lerp(fallbackHigh, clampedPercentage);
+    }
+    
+    // Use THREE.js lerp method to interpolate between the two colors
+    const interpolatedColor = lowColor.clone().lerp(highColor, clampedPercentage);
+    
+    return interpolatedColor;
+}
+
 export {
     getComplementaryThreeJSColor,
     getRandomAppleCrayonColor,
@@ -307,5 +378,7 @@ export {
     getRandomGrayAppleCrayonColor,
     getAppleCrayonColorByName,
     generateUniqueColors,
-    colorToRGBString
+    colorToRGBString,
+    getHeatmapColorHSLLightnessVariation,
+    getHeatmapColorViaColorInterpolation
 };

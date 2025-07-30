@@ -123,7 +123,8 @@ class GenomicService {
         for (const [nodeName, nodeData] of nodeGeometries) {
             this.nodeAssemblyStats.set(nodeName, {
                 incomingAssemblies: new Set(),
-                outgoingAssemblies: new Set()
+                outgoingAssemblies: new Set(),
+                percentage: 0
             });
         }
 
@@ -155,14 +156,43 @@ class GenomicService {
             }
         }
 
-        console.log('Node Assembly Statistics:');
-        for (const [nodeName, stats] of this.nodeAssemblyStats.entries()) {
-            const incomingList = Array.from(stats.incomingAssemblies).join(', ');
-            const outgoingList = Array.from(stats.outgoingAssemblies).join(', ');
-            console.log(`Node ${nodeName}: assembly(${this.getAssemblyForNodeName(nodeName)})`);
-            console.log(`  Incoming assemblies: ${incomingList || 'none'}`);
-            console.log(`  Outgoing assemblies: ${outgoingList || 'none'}`);
+        // Calculate percentage for each node
+        for (const [nodeName, nodeStats] of this.nodeAssemblyStats.entries()) {
+            // Get the node's own assembly
+            const nodeAssembly = this.getAssemblyForNodeName(nodeName);
+            
+            // Create a set of all assemblies associated with this node
+            const allAssemblies = new Set();
+            
+            // Add the node's own assembly
+            if (nodeAssembly) {
+                allAssemblies.add(nodeAssembly);
+            }
+            
+            // Add incoming assemblies
+            for (const assembly of nodeStats.incomingAssemblies) {
+                allAssemblies.add(assembly);
+            }
+            
+            // Add outgoing assemblies
+            for (const assembly of nodeStats.outgoingAssemblies) {
+                allAssemblies.add(assembly);
+            }
+
+            // Calculate percentage of total assemblies
+            const totalAssemblies = this.assemblyPayload.size;
+            const nodeAssemblyCount = allAssemblies.size;
+            nodeStats.percentage = totalAssemblies > 0 ? nodeAssemblyCount / totalAssemblies : 0;
         }
+
+        // console.log('Node Assembly Statistics:');
+        // for (const [nodeName, stats] of this.nodeAssemblyStats.entries()) {
+        //     const incomingList = Array.from(stats.incomingAssemblies).join(', ');
+        //     const outgoingList = Array.from(stats.outgoingAssemblies).join(', ');
+        //     console.log(`Node ${nodeName}: assembly(${this.getAssemblyForNodeName(nodeName)})`);
+        //     console.log(`  Incoming assemblies: ${incomingList || 'none'}`);
+        //     console.log(`  Outgoing assemblies: ${outgoingList || 'none'}`);
+        // }
 
     }
 
