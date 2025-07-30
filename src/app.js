@@ -71,19 +71,6 @@ class App {
     createEdgeTooltip() {
         const tooltip = document.createElement('div');
         tooltip.className = 'edge-tooltip';
-        tooltip.style.cssText = `
-            position: absolute;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-family: monospace;
-            pointer-events: none;
-            z-index: 1000;
-            display: none;
-            white-space: nowrap;
-        `;
 
         this.container.appendChild(tooltip);
         return tooltip;
@@ -101,9 +88,8 @@ class App {
         const y = (-screenPoint.y + 1) * rect.height / 2;
 
         // Update tooltip content
-        this.edgeTooltip.innerHTML = `
-            <div><strong>Key:</strong> ${geometryKey}</div>
-            <div><strong>Start Node:</strong> ${nodeNameStart}</div>
+        this.edgeTooltip.innerHTML = 
+            `<div><strong>Start Node:</strong> ${nodeNameStart}</div>
             <div><strong>End Node:</strong> ${nodeNameEnd}</div>`;
 
         // Position tooltip

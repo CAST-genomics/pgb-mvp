@@ -1,3 +1,5 @@
+@use 'appleCrayonColors' as colors;
+
 .pgb-locus-input {
   padding: 0 1rem;
 
@@ -5,7 +7,7 @@
     &:focus {
       outline: none;
       box-shadow: none;
-      border-color: #ced4da;
+      border-color: colors.$magnesium;
     }
   }
 
@@ -17,7 +19,7 @@
     &:focus {
       outline: none;
       box-shadow: none;
-      border-color: #ced4da;
+      border-color: colors.$magnesium;
     }
   }
 
@@ -25,7 +27,7 @@
     &:focus {
       outline: none;
       box-shadow: none;
-      border-color: #ced4da;
+      border-color: colors.$magnesium;
     }
   }
 }
