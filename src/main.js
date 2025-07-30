@@ -46,19 +46,17 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     sceneManager.createScene('genomeVisualizationScene', new THREE.Color(0xffffff))
     sceneManager.createScene('genomeFrequencyScene', new THREE.Color(0xffffff))
 
-    const lookManager = new LookManager()
-
+    // Looks
     const genomeVisualizationLook = GenomeVisualizationLook.createGenomeVisualizationLook('genomeVisualizationLook', { genomicService, geometryManager })
-    lookManager.setLook('genomeVisualizationScene', genomeVisualizationLook);
-
     const genomeFrequencyLook = GenomeFrequencyLook.createGenomeFrequencyLook('genomeFrequencyLook', { genomicService, geometryManager })
+
+    // Look Manager
+    const lookManager = new LookManager()
+    lookManager.setLook('genomeVisualizationScene', genomeVisualizationLook);
     lookManager.setLook('genomeFrequencyScene', genomeFrequencyLook);
 
-    sceneManager.setActiveScene('genomeVisualizationScene')
-    lookManager.activateLook('genomeVisualizationScene')
-
-
-
+    sceneManager.setActiveScene('genomeFrequencyScene')
+    lookManager.activateLook('genomeFrequencyScene')
 
 
     const frustumSize = 5
