@@ -5,7 +5,7 @@ import Look from './look.js';
 import { colorRampArrowMaterialFactory } from './materialService.js';
 import materialService from './materialService.js';
 import GeometryFactory from "./geometryFactory.js"
-import { getRandomVibrantAppleCrayonColor, getAppleCrayonColorByName, getHeatmapColorViaColorInterpolation } from './utils/color.js'
+import { getRandomVibrantAppleCrayonColor, getAppleCrayonColorByName, getHeatmapColorViaColorInterpolation, getHeatmapColorHSLLightnessVariation } from './utils/color.js'
 
 /**
  * GenomeFrequencyLook - specific implementation for genome frequency visualization
@@ -120,11 +120,12 @@ class GenomeFrequencyLook extends Look {
             return getRandomVibrantAppleCrayonColor();
         }
 
-        // Use the pre-calculated percentage from nodeStats
-        const percentage = nodeStats.percentage;
+        // Use the normalized percentage for better heatmap visualization
+        const percentage = nodeStats.normalizedPercentage;
 
-        console.log(`Node ${nodeName} has percentage: ${percentage}`);
-        return getHeatmapColorViaColorInterpolation(percentage, 'lime', 'aqua');
+        console.log(`Node ${nodeName} - Raw: ${nodeStats.percentage.toFixed(3)}, Normalized: ${percentage.toFixed(3)}`);
+        // return getHeatmapColorHSLLightnessVariation(percentage, 'aqua');
+        return getHeatmapColorViaColorInterpolation(percentage, 'sky', 'aqua');
     }
 
     getEdgeMaterial(startColor, endColor) {

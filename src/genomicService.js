@@ -1,6 +1,7 @@
 import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
 import AnnotationRenderService from "./annotationRenderService.js"
 import { locusInput } from "./main.js"
+import { calculateDistributionStats, normalizeDataset } from "./utils/stats.js"
 
 class GenomicService {
 
@@ -124,7 +125,10 @@ class GenomicService {
             this.nodeAssemblyStats.set(nodeName, {
                 incomingAssemblies: new Set(),
                 outgoingAssemblies: new Set(),
-                percentage: 0
+                percentage: 0,
+                normalizedPercentage: 0,
+                percentile: 0,
+                distributionStats: null
             });
         }
 
@@ -157,6 +161,9 @@ class GenomicService {
         }
 
         // Calculate percentage for each node
+        const allPercentages = [];
+        const nodePercentages = new Map();
+
         for (const [nodeName, nodeStats] of this.nodeAssemblyStats.entries()) {
             // Get the node's own assembly
             const nodeAssembly = this.getAssemblyForNodeName(nodeName);
@@ -182,17 +189,30 @@ class GenomicService {
             // Calculate percentage of total assemblies
             const totalAssemblies = this.assemblyPayload.size;
             const nodeAssemblyCount = allAssemblies.size;
-            nodeStats.percentage = totalAssemblies > 0 ? nodeAssemblyCount / totalAssemblies : 0;
+            const percentage = totalAssemblies > 0 ? nodeAssemblyCount / totalAssemblies : 0;
+            
+            nodeStats.percentage = percentage;
+            allPercentages.push(percentage);
+            nodePercentages.set(nodeName, percentage);
         }
 
-        // console.log('Node Assembly Statistics:');
-        // for (const [nodeName, stats] of this.nodeAssemblyStats.entries()) {
-        //     const incomingList = Array.from(stats.incomingAssemblies).join(', ');
-        //     const outgoingList = Array.from(stats.outgoingAssemblies).join(', ');
-        //     console.log(`Node ${nodeName}: assembly(${this.getAssemblyForNodeName(nodeName)})`);
-        //     console.log(`  Incoming assemblies: ${incomingList || 'none'}`);
-        //     console.log(`  Outgoing assemblies: ${outgoingList || 'none'}`);
-        // }
+        // Calculate distribution statistics across all nodes
+        const distributionStats = calculateDistributionStats(allPercentages);
+        
+        // Calculate normalized percentages using percentile-based normalization
+        const normalizedPercentages = normalizeDataset(allPercentages, 'percentile');
+        
+        // Update each node with distribution stats and normalized values
+        let index = 0;
+        for (const [nodeName, nodeStats] of this.nodeAssemblyStats.entries()) {
+            nodeStats.normalizedPercentage = normalizedPercentages[index];
+            nodeStats.percentile = (index / (allPercentages.length - 1)) || 0; // Rank among all nodes
+            nodeStats.distributionStats = distributionStats;
+            index++;
+        }
+
+        // Log distribution statistics for debugging
+        console.log('Node Assembly Distribution Statistics:', distributionStats);
 
     }
 
