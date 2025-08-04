@@ -14,8 +14,8 @@ class GeometryManager {
         this.geometryData = null;
     }
 
-    createGeometry(json, look) {
-        this.geometryData = this.geometryFactory.createGeometryData(json);
+    createGeometry(json, look, pangenomeGraph) {
+        this.geometryData = this.geometryFactory.createGeometryData(json, pangenomeGraph);
 
         this.genomicService.buildNodeAssemblyStatistics(this.geometryData.nodeGeometries, this.geometryData.edgeGeometries);
         

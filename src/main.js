@@ -11,6 +11,7 @@ import materialService from './materialService.js'
 import LookManager from './lookManager.js'
 import GenomeVisualizationLook from './genomeVisualizationLook.js'
 import GenomeFrequencyLook from './genomeFrequencyLook.js'
+import PangenomeGraph from './pangenomeGraph.js';
 import SceneManager from './sceneManager.js'
 import './styles/app.scss'
 
@@ -29,6 +30,8 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const threshold = 8
     const raycastService = new RayCastService(container, threshold)
+
+    const pangenomeGraph = new PangenomeGraph()
 
     const genomicService = new GenomicService()
 
@@ -60,7 +63,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
 
     const frustumSize = 5
-    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneManager, lookManager)
+    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneManager, lookManager, pangenomeGraph)
 
     app.startAnimation()
 

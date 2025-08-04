@@ -7,7 +7,7 @@ import { loadPath } from './utils/utils.js'
 
 class App {
 
-    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneManager, lookManager) {
+    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneManager, lookManager, pangenomeGraph) {
         this.container = container
 
         this.renderer = RendererFactory.createRenderer(container)
@@ -19,7 +19,8 @@ class App {
         this.genomeLibrary = genomeLibrary
         this.sceneManager = sceneManager
         this.lookManager = lookManager
-
+        this.pangenomeGraph = pangenomeGraph
+        
         // Initialize time tracking
         this.clock = new THREE.Clock()
 
@@ -258,7 +259,9 @@ class App {
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         const scene = this.sceneManager.getActiveScene()
 
-        this.geometryManager.createGeometry(json, look)
+        this.pangenomeGraph.buildFromJSON(json)
+
+        this.geometryManager.createGeometry(json, look, this.pangenomeGraph)
         this.geometryManager.addToScene(scene)
 
         this.genomeWidget.populateList()

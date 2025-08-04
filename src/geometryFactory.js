@@ -13,7 +13,7 @@ class GeometryFactory {
         this.geometryCache = new Map(); // Cache geometries by node name
     }
 
-    createGeometryData(json) {
+    createGeometryData(json, pangenomeGraph) {
         this.splines.clear();
         this.geometryCache.clear();
 
@@ -23,7 +23,7 @@ class GeometryFactory {
 
         this.#createNodeGeometries(json.node);
 
-        this.#createEdgeGeometries(json.edge);
+        this.#createEdgeGeometries(json.edge, pangenomeGraph);
 
         const result = {
             splines: this.splines,
@@ -76,61 +76,34 @@ class GeometryFactory {
     /**
      * Create edge line geometries without materials
      */
-    #createEdgeGeometries(edges) {
-
-        const getEdgeNodeSign = node => {
-            const parts = node.split('');
-            const sign = parts.pop();
-            const nodeName = parts.join('');
-            return { sign, nodeName };
-        }
+    #createEdgeGeometries(edges, pangenomeGraph) {
 
         for (const { starting_node, ending_node } of Object.values(edges)) {
-            // Start node
-            const { sign: signStart, nodeName: nodeNameStart } = getEdgeNodeSign(starting_node);
 
-            // NOTE: We currently assume node names with ALWAYS have a positive (+) sign
-            // TODO: In the future generalize this to handle either (-) or (+) signed node
-            const startSpline = this.splines.get(`${nodeNameStart}+`);
-            if (!startSpline) {
-                console.error(`Could not find start spline at node ${nodeNameStart}+`);
-                continue;
-            }
-
-            // This is a starting_node. If the sign is opposite to the node sign
-            // use node.start xyz. If the sign is the same, use node.end xyz
-            const xyzStart = startSpline.getPoint(signStart === '+' ? 1 : 0);
+            const startNodeName = pangenomeGraph.getActualSignedNodeName(starting_node);
+            const startParam = pangenomeGraph.getSplineParameter(starting_node, 'starting');
+            const startSpline = this.splines.get(startNodeName);
+            const xyzStart = startSpline.getPoint(startParam);
             xyzStart.z = GeometryFactory.EDGE_LINE_Z_OFFSET;
 
-            // End node
-            const { sign: signEnd, nodeName: nodeNameEnd } = getEdgeNodeSign(ending_node);
-
-            // NOTE: We currently assume node names with ALWAYS have a positive (+) sign
-            // TODO: In the future generalize this to handle either (-) or (+) signed node
-            const endSpline = this.splines.get(`${nodeNameEnd}+`);
-            if (!endSpline) {
-                console.error(`Could not find end spline at node ${nodeNameEnd}+`);
-                continue;
-            }
-
-            // This is an ending_node. If the sign is opposite to the node sign
-            // use node.end xyz. If the sign is the same, use node.start xyz
-            const xyzEnd = endSpline.getPoint(signEnd === '+' ? 0 : 1);
+            const endNodeName = pangenomeGraph.getActualSignedNodeName(ending_node);
+            const endParam = pangenomeGraph.getSplineParameter(ending_node, 'ending');
+            const endSpline = this.splines.get(endNodeName);
+            const xyzEnd = endSpline.getPoint(endParam);
             xyzEnd.z = GeometryFactory.EDGE_LINE_Z_OFFSET;
 
-            const startNode = `${nodeNameStart}+`
-            const endNode = `${nodeNameEnd}+`
+
             const payload =
                 {
                     type: 'edge',
                     geometry: LineFactory.createEdgeRectGeometry(xyzStart, xyzEnd),
                     startPoint: xyzStart,
                     endPoint: xyzEnd,
-                    startNode,
-                    endNode
+                    startNode: startNodeName,
+                    endNode: endNodeName
                 };
 
-            const edgeKey = `edge:${nodeNameStart}+:${nodeNameEnd}+`;
+            const edgeKey = `edge:${starting_node}:${ending_node}`;
             this.geometryCache.set(edgeKey, payload);
         }
     }
