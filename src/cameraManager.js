@@ -15,6 +15,7 @@ class CameraManager {
             ];
 
         this.camera = new THREE.OrthographicCamera(left, right, top, bottom, near, far)
+        this.camera.name = 'camera'
         this.camera.position.set(0, 0, 5)
 
     }

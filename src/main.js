@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import SceneManager from './sceneManager.js'
+import App from './app.js'
 import RayCastService from './raycastService.js'
 import LocusInput from './locusInput.js'
 import GenomicService from './genomicService.js'
@@ -7,10 +7,14 @@ import SequenceService from './sequenceService.js'
 import GeometryManager from './geometryManager.js'
 import GenomeWidget from './genomeWidget.js'
 import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
-import materialService from './utils/materialService.js'
+import materialService from './materialService.js'
+import LookManager from './lookManager.js'
+import GenomeVisualizationLook from './genomeVisualizationLook.js'
+import GenomeFrequencyLook from './genomeFrequencyLook.js'
+import SceneManager from './sceneManager.js'
 import './styles/app.scss'
 
-let sceneManager
+let app
 let locusInput
 let defaultGenome
 document.addEventListener("DOMContentLoaded", async (event) => {
@@ -34,16 +38,33 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const gear = document.getElementById('pgb-gear-btn-container')
     const genomeWidgetContainer = document.getElementById('pgb-gear-card')
-    const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, geometryManager, raycastService);
+    const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, raycastService);
 
-    const backgroundColor = new THREE.Color(0xffffff)
+
+    // Scene and Look managers
+    const sceneManager = new SceneManager()
+    sceneManager.createScene('genomeVisualizationScene', new THREE.Color(0xffffff))
+    sceneManager.createScene('genomeFrequencyScene', new THREE.Color(0xffffff))
+
+    // Looks
+    const genomeVisualizationLook = GenomeVisualizationLook.createGenomeVisualizationLook('genomeVisualizationLook', { genomicService, geometryManager })
+    const genomeFrequencyLook = GenomeFrequencyLook.createGenomeFrequencyLook('genomeFrequencyLook', { genomicService, geometryManager })
+
+    // Look Manager
+    const lookManager = new LookManager()
+    lookManager.setLook('genomeVisualizationScene', genomeVisualizationLook);
+    lookManager.setLook('genomeFrequencyScene', genomeFrequencyLook);
+
+    sceneManager.setActiveScene('genomeVisualizationScene')
+    lookManager.activateLook('genomeVisualizationScene')
+
+
     const frustumSize = 5
+    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneManager, lookManager)
 
-    sceneManager = new SceneManager(container, backgroundColor, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary)
+    app.startAnimation()
 
-    sceneManager.startAnimation()
-
-    locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), sceneManager)
+    locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), app)
 
     const urlParameter = locusInput.getUrlParameter('locus');
     let locus = null;

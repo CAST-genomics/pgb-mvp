@@ -1,17 +1,19 @@
 import * as THREE from 'three';
-import vertexShader from '../../shaders/animated-arrow.vert.glsl';
-import fragmentShader from '../../shaders/animated-arrow.frag.glsl';
-import { createGradientTexture } from './textureService.js';
-import textureService from './textureService.js';
-import { textures } from './textureLibrary.js';
-import {getAppleCrayonColorByName} from "./color.js"
+import vertexShader from '../shaders/animated-arrow.vert.glsl';
+import fragmentShader from '../shaders/animated-arrow.frag.glsl';
+import { createGradientTexture } from './utils/textureService.js';
+import textureService from './utils/textureService.js';
+import { textures } from './utils/textureLibrary.js';
+import {getAppleCrayonColorByName} from "./utils/color.js"
 import {LineMaterial} from "three/addons/lines/LineMaterial.js"
 
+// Material type constants
+const MATERIAL_TYPES =
+    {
+    DEEMPHASIS: 'deemphasisMaterial'
+};
+
 class MaterialService {
-
-    #EDGE_LINE_DEEMPHASIS_MATERIAL
-
-    #NODE_LINE_DEEMPHASIS_MATERIAL
 
     constructor() {
         this.materialLibrary = new Map();
@@ -31,11 +33,23 @@ class MaterialService {
      */
     async initialize() {
         await this.initializeTextureService({ textures });
+    }
 
-        this.#EDGE_LINE_DEEMPHASIS_MATERIAL =
-            getColorRampArrowMaterial(getAppleCrayonColorByName('mercury'), getAppleCrayonColorByName('mercury'), materialService.getTexture('arrow-white'), 1);
+    /**
+     * Creates a new edge line deemphasis material instance
+     * @returns {THREE.ShaderMaterial} A new material instance
+     */
+    getEdgeDeemphasisMaterial() {
+        return colorRampArrowMaterialFactory(getAppleCrayonColorByName('mercury'), getAppleCrayonColorByName('mercury'), this.getTexture('arrow-white'), 1, MATERIAL_TYPES.DEEMPHASIS);
+    }
 
-        this.#NODE_LINE_DEEMPHASIS_MATERIAL = new LineMaterial({
+    /**
+     * Creates a new node line deemphasis material instance
+     * @returns {THREE.LineMaterial} A new material instance
+     */
+    createNodeLineDeemphasisMaterial() {
+
+        const material = new LineMaterial({
             color: getAppleCrayonColorByName('mercury'),
             linewidth: 16,
             worldUnits: true,
@@ -43,18 +57,10 @@ class MaterialService {
             transparent: true,
             // depthWrite: false
         });
-
-
+        material.materialType = MATERIAL_TYPES.DEEMPHASIS;
+        return material;
     }
 
-    getEdgeLineDeemphasisMaterial() {
-        return this.#EDGE_LINE_DEEMPHASIS_MATERIAL;
-    }
-
-    getNodeLineDeemphasisMaterial() {
-        return this.#NODE_LINE_DEEMPHASIS_MATERIAL;
-    }   
-    
     getTexture(name) {
         return textureService.getTexture(name);
     }
@@ -69,9 +75,10 @@ class MaterialService {
  * @param {THREE.Color} endColor - The color at the end of the gradient
  * @param {THREE.Texture} heroTexture - The texture to use for the arrow shape (e.g., arrow-white)
  * @param {number} [opacity=1] - The opacity of the material (0.0 to 1.0)
+ * @param {string} [materialType] - Optional material type identifier
  * @returns {THREE.ShaderMaterial} The configured material instance
  */
-function getColorRampArrowMaterial(startColor, endColor, heroTexture, opacity = 1) {
+function colorRampArrowMaterialFactory(startColor, endColor, heroTexture, opacity = 1, materialType = null) {
 
     // Configure hero texture wrapping
     heroTexture.wrapS = THREE.RepeatWrapping;
@@ -88,7 +95,14 @@ function getColorRampArrowMaterial(startColor, endColor, heroTexture, opacity = 
     }
 
     // Create the shader material
-    return new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader, transparent:true, side:THREE.DoubleSide, alphaTest:0.1, depthWrite:false });
+    const material = new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader, transparent:true, side:THREE.DoubleSide, alphaTest:0.1, depthWrite:true });
+
+    // Set material type if provided
+    if (materialType) {
+        material.materialType = materialType;
+    }
+
+    return material;
 }
 
 /**
@@ -98,7 +112,7 @@ function getColorRampArrowMaterial(startColor, endColor, heroTexture, opacity = 
  * @param {THREE.Color} color - The color to tint the arrow
  * @returns {THREE.MeshBasicMaterial} The configured material instance
  */
-function getArrowMaterial(heroTexture, color) {
+function arrowMaterialFactory(heroTexture, color) {
 
     const material = new THREE.MeshBasicMaterial({
         color,
@@ -107,7 +121,7 @@ function getArrowMaterial(heroTexture, color) {
         transparent: true,
         alphaTest: 0.1,
         opacity: 1,
-        depthWrite: false,
+        depthWrite: true,
     });
 
     // Enable texture wrapping
@@ -121,4 +135,4 @@ function getArrowMaterial(heroTexture, color) {
 const materialService = new MaterialService(textureService);
 export default materialService;
 
-export { getArrowMaterial, getColorRampArrowMaterial }
+export { arrowMaterialFactory, colorRampArrowMaterialFactory, MATERIAL_TYPES }

@@ -1,4 +1,4 @@
-@use 'appleCrayonColors' as *;
+@use 'appleCrayonColors' as colors;
 
 .pgb-sequence-container {
     position: relative;
@@ -12,7 +12,7 @@
         position: absolute;
         top: 0;
         left: 0;
-        border: 2px solid rgb(71, 71, 71);
+        border: 2px solid colors.$tungsten;
         border-radius: 50%;
         pointer-events: none;
         display: none;

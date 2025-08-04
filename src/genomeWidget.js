@@ -1,8 +1,9 @@
 import { Draggable } from './utils/draggable.js';
 import { colorToRGBString } from './utils/color.js';
+import eventBus from './utils/eventBus.js';
 
 class GenomeWidget {
-  constructor(gear, genomeWidgetContainer, genomicService, geometryManager, raycastService) {
+  constructor(gear, genomeWidgetContainer, genomicService, raycastService) {
     this.gear = gear;
     this.gear.addEventListener('click', this.onGearClick.bind(this));
 
@@ -10,7 +11,6 @@ class GenomeWidget {
     this.listGroup = this.genomeWidgetContainer.querySelector('.list-group');
 
     this.genomicService = genomicService;
-    this.geometryManager = geometryManager;
 
     raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
 
@@ -28,17 +28,26 @@ class GenomeWidget {
       if (this.selectedGenomes.size > 0) {
         const previousAssembly = [...this.selectedGenomes][0];
         this.selectedGenomes.delete(previousAssembly);
-        this.geometryManager.restoreLinesViaZOffset(this.genomicService.getNodeNameSet());
+        // Publish event instead of direct call
+        eventBus.publish('genome:restoreEmphasis', {
+          nodeNames: this.genomicService.getNodeNameSet()
+        });
       }
 
       this.selectedGenomes.add(assembly);
       const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
       const deemphasizedNodeNames = this.genomicService.getNodeNameSet().difference(set);
-      this.geometryManager.deemphasizeLinesViaNodeNameSet(deemphasizedNodeNames);
+      // Publish event instead of direct call
+      eventBus.publish('genome:deemphasizeNodes', {
+        nodeNames: deemphasizedNodeNames
+      });
 
     } else {
       this.selectedGenomes.clear();
-      this.geometryManager.restoreLinesViaZOffset(this.genomicService.getNodeNameSet());
+      // Publish event instead of direct call
+      eventBus.publish('genome:restoreEmphasis', {
+        nodeNames: this.genomicService.getNodeNameSet()
+      });
     }
   }
 
@@ -90,7 +99,10 @@ class GenomeWidget {
       // Deselect
       this.selectedGenomes.delete(assembly);
       event.target.style.border = '2px solid transparent';
-      this.geometryManager.restoreLinesViaZOffset(this.genomicService.getNodeNameSet());
+      // Publish event instead of direct call
+      eventBus.publish('genome:restoreEmphasis', {
+        nodeNames: this.genomicService.getNodeNameSet()
+      });
     } else {
       // Deselect any previously selected genome
       if (this.selectedGenomes.size > 0) {
@@ -101,7 +113,10 @@ class GenomeWidget {
         if (previousSelector) {
           previousSelector.style.border = '2px solid transparent';
         }
-        this.geometryManager.restoreLinesViaZOffset(this.genomicService.getNodeNameSet());
+        // Publish event instead of direct call
+        eventBus.publish('genome:restoreEmphasis', {
+          nodeNames: this.genomicService.getNodeNameSet()
+        });
       }
 
       // Select new genome
@@ -109,7 +124,10 @@ class GenomeWidget {
       event.target.style.border = '2px solid #000';
       const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
       const deemphasizedNodeNames = this.genomicService.getNodeNameSet().difference(set);
-      this.geometryManager.deemphasizeLinesViaNodeNameSet(deemphasizedNodeNames);
+      // Publish event instead of direct call
+      eventBus.publish('genome:deemphasizeNodes', {
+        nodeNames: deemphasizedNodeNames
+      });
     }
   }
 
