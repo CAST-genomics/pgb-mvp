@@ -55,8 +55,8 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     lookManager.setLook('genomeVisualizationScene', genomeVisualizationLook);
     lookManager.setLook('genomeFrequencyScene', genomeFrequencyLook);
 
-    sceneManager.setActiveScene('genomeFrequencyScene')
-    lookManager.activateLook('genomeFrequencyScene')
+    sceneManager.setActiveScene('genomeVisualizationScene')
+    lookManager.activateLook('genomeVisualizationScene')
 
 
     const frustumSize = 5

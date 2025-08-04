@@ -210,6 +210,17 @@ class GenomeVisualizationLook extends Look {
     isAnimationEnabled() {
         return this.edgeArrowAnimationState.enabled;
     }
+    
+    createNodeTooltipContent(nodeObject) {
+
+        const { nodeName } = nodeObject.userData;
+
+        const nativeAssembly = this.genomicService.getAssemblyForNodeName(nodeName);
+
+        return `
+            <div><strong>Node:</strong> ${nodeName}</div>
+            <div><strong>Native Assembly:</strong> ${nativeAssembly || 'Unknown'}</div>`;
+    }
 
     #updateEdgeAnimation(edgesGroup) {
 
@@ -327,7 +338,7 @@ class GenomeVisualizationLook extends Look {
      */
     activate() {
         super.activate();
-        
+
         // Subscribe to genome interaction events
         this.deemphasizeUnsub = eventBus.subscribe('genome:deemphasizeNodes', (data) => {
             this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames);
@@ -343,13 +354,13 @@ class GenomeVisualizationLook extends Look {
      */
     deactivate() {
         super.deactivate();
-        
+
         // Unsubscribe from events
         if (this.deemphasizeUnsub) {
             this.deemphasizeUnsub();
             this.deemphasizeUnsub = null;
         }
-        
+
         if (this.restoreUnsub) {
             this.restoreUnsub();
             this.restoreUnsub = null;
