@@ -570,41 +570,43 @@
             const tailNode = sinkNodes[0];
 
             // Get all assemblies
-            const assemblies = new Set();
+            const assemblySet = new Set();
             const nodeAssemblies = new Map();
 
             for (const [nodeName, nodeData] of Object.entries(jsonData.node)) {
-                const assemblyData = nodeData.assembly;
-                if (Array.isArray(assemblyData)) {
-                    assemblyData.forEach(assembly => assemblies.add(assembly));
-                    nodeAssemblies.set(nodeName, assemblyData);
+                const assemblies = nodeData.assembly;
+                if (Array.isArray(assemblies)) {
+                    assemblies.forEach(assembly => assemblySet.add(assembly));
+                    nodeAssemblies.set(nodeName, assemblies);
                 } else {
-                    assemblies.add(assemblyData);
-                    nodeAssemblies.set(nodeName, [assemblyData]);
+                    assemblySet.add(assemblies);
+                    nodeAssemblies.set(nodeName, [assemblies]);
                 }
             }
 
-            log(`Assemblies: ${Array.from(assemblies).join(', ')}`);
+            log(`Assemblies: ${Array.from(assemblySet).join(', ')}`);
 
             // For each assembly, find one path
-            for (const assembly of assemblies) {
+            for (const assembly of assemblySet) {
                 log(`\n${assembly}:`);
-                
+
                 const path = [];
                 let currentNode = headNode;
-                
+
                 while (currentNode && currentNode !== tailNode) {
                     path.push(currentNode);
-                    
+
                     const neighbors = graph.getNeighbors(currentNode);
+
                     // Find neighbor that includes this assembly
                     // If multiple neighbors support the assembly, prefer variation nodes
                     let nextNode = null;
                     let variationNode = null;
-                    
+
                     for (const neighbor of neighbors) {
                         const neighborAssemblies = nodeAssemblies.get(neighbor);
                         if (neighborAssemblies && neighborAssemblies.includes(assembly)) {
+
                             // Check if this is a variation-only node (doesn't include GRCh38)
                             if (!neighborAssemblies.includes('GRCh38')) {
                                 variationNode = neighbor;
@@ -613,15 +615,15 @@
                             }
                         }
                     }
-                    
+
                     // Prefer variation node if available, otherwise use backbone node
                     currentNode = variationNode || nextNode;
                 }
-                
+
                 if (currentNode === tailNode) {
                     path.push(tailNode);
                 }
-                
+
                 log(`  ${path.join(' -> ')}`);
             }
 
