@@ -562,93 +562,67 @@
         }
 
         try {
-            log('\n=== Assembly Walk Analysis ===');
+            log('\n=== Assembly Walk ===');
 
             const sourceNodes = graph.getSourceNodes();
             const sinkNodes = graph.getSinkNodes();
-
-            if (sourceNodes.length === 0 || sinkNodes.length === 0) {
-                log('No source or sink nodes found for assembly walk.');
-                return;
-            }
-
             const headNode = sourceNodes[0];
             const tailNode = sinkNodes[0];
 
-            log(`Starting assembly walk from head node: ${headNode} to tail node: ${tailNode}`);
-
-            // Get assembly data from JSON
+            // Get all assemblies
             const assemblies = new Set();
             const nodeAssemblies = new Map();
 
             for (const [nodeName, nodeData] of Object.entries(jsonData.node)) {
-                const assembly = nodeData.assembly;
-                assemblies.add(assembly);
-                nodeAssemblies.set(nodeName, assembly);
+                const assemblyData = nodeData.assembly;
+                if (Array.isArray(assemblyData)) {
+                    assemblyData.forEach(assembly => assemblies.add(assembly));
+                    nodeAssemblies.set(nodeName, assemblyData);
+                } else {
+                    assemblies.add(assemblyData);
+                    nodeAssemblies.set(nodeName, [assemblyData]);
+                }
             }
 
-            log(`Found ${assemblies.size} assemblies: ${Array.from(assemblies).join(', ')}`);
-            log('Starting assembly walk to find all paths for all assemblies');
+            log(`Assemblies: ${Array.from(assemblies).join(', ')}`);
 
-            log('\n=== Assembly Walk Algorithm ===');
-            log('Algorithm:');
-            log('1. Start at head node (reference assembly)');
-            log('2. For each assembly type, find all paths that use ONLY that assembly');
-            log('3. A path can switch from reference to a variation, but then must stay with that variation');
-            log('4. Continue until reaching tail node');
-            log('5. Record the complete assembly path');
-
-            // Start from scratch - simple assembly walk
-            const allResults = [];
-
-            // For each assembly, do a separate walk
+            // For each assembly, find one path
             for (const assembly of assemblies) {
-                log(`\n=== Walking assembly: ${assembly} ===`);
-
-                const paths = []; // Separate list for this walk
-
-                const walk = (currentNode, currentPath) => {
-                    const currentAssembly = nodeAssemblies.get(currentNode);
-                    const newPath = [...currentPath, { node: currentNode, assembly: currentAssembly }];
-
-                    if (currentNode === tailNode) {
-                        // For variation assemblies, only include paths that contain at least one variation node
-                        if (assembly === 'GRCh38' || newPath.some(p => p.assembly === assembly)) {
-                            paths.push(newPath);
-                            log(`Found path: ${newPath.map(p => `${p.node}(${p.assembly})`).join(' -> ')}`);
-                        }
-                        return;
-                    }
-
+                log(`\n${assembly}:`);
+                
+                const path = [];
+                let currentNode = headNode;
+                
+                while (currentNode && currentNode !== tailNode) {
+                    path.push(currentNode);
+                    
                     const neighbors = graph.getNeighbors(currentNode);
+                    // Find neighbor that includes this assembly
+                    // If multiple neighbors support the assembly, prefer variation nodes
+                    let nextNode = null;
+                    let variationNode = null;
+                    
                     for (const neighbor of neighbors) {
-                        const neighborAssembly = nodeAssemblies.get(neighbor);
-
-                        // For backbone assembly: only follow backbone nodes
-                        if (assembly === 'GRCh38' && neighborAssembly === 'GRCh38') {
-                            walk(neighbor, newPath);
-                        }
-                        // For variation assemblies: follow backbone OR the specific variation
-                        else if (assembly !== 'GRCh38' && (neighborAssembly === assembly || neighborAssembly === 'GRCh38')) {
-                            walk(neighbor, newPath);
+                        const neighborAssemblies = nodeAssemblies.get(neighbor);
+                        if (neighborAssemblies && neighborAssemblies.includes(assembly)) {
+                            // Check if this is a variation-only node (doesn't include GRCh38)
+                            if (!neighborAssemblies.includes('GRCh38')) {
+                                variationNode = neighbor;
+                            } else if (!nextNode) {
+                                nextNode = neighbor; // Backbone node as fallback
+                            }
                         }
                     }
-                };
-
-                walk(headNode, []);
-                log(`Found ${paths.length} paths for ${assembly}`);
-
-                allResults.push({ assembly, paths });
-            }
-
-            // Show results
-            log('\n=== Assembly Walk Results ===');
-
-            for (const result of allResults) {
-                log(`\n${result.assembly}: ${result.paths.length} paths`);
-                result.paths.forEach((path, index) => {
-                    log(`  Path ${index + 1}: ${path.map(p => `${p.node}(${p.assembly})`).join(' -> ')}`);
-                });
+                    
+                    // Prefer variation node if available, otherwise use backbone node
+                    currentNode = variationNode || nextNode;
+                }
+                
+                if (currentNode === tailNode) {
+                    path.push(tailNode);
+                }
+                
+                log(`  ${path.join(' -> ')}`);
             }
 
         } catch (error) {
