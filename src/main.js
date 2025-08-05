@@ -9,7 +9,7 @@ import GenomeWidget from './genomeWidget.js'
 import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
 import materialService from './materialService.js'
 import LookManager from './lookManager.js'
-import GenomeVisualizationLook from './genomeVisualizationLook.js'
+import AssemblyVisualizationLook from './assemblyVisualizationLook.js'
 import GenomeFrequencyLook from './genomeFrequencyLook.js'
 import PangenomeGraph from './pangenomeGraph.js';
 import SceneManager from './sceneManager.js'
@@ -46,20 +46,23 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     // Scene and Look managers
     const sceneManager = new SceneManager()
-    sceneManager.createScene('genomeVisualizationScene', new THREE.Color(0xffffff))
+    sceneManager.createScene('assemblyVisualizationScene', new THREE.Color(0xffffff))
     sceneManager.createScene('genomeFrequencyScene', new THREE.Color(0xffffff))
 
     // Looks
-    const genomeVisualizationLook = GenomeVisualizationLook.createGenomeVisualizationLook('genomeVisualizationLook', { genomicService, geometryManager })
+    const assemblyVisualizationLook = AssemblyVisualizationLook.createAssemblyVisualizationLook('assemblyVisualizationLook', {
+        genomicService,
+        geometryManager
+    })
     const genomeFrequencyLook = GenomeFrequencyLook.createGenomeFrequencyLook('genomeFrequencyLook', { genomicService, geometryManager })
 
     // Look Manager
     const lookManager = new LookManager()
-    lookManager.setLook('genomeVisualizationScene', genomeVisualizationLook);
+    lookManager.setLook('assemblyVisualizationScene', assemblyVisualizationLook);
     lookManager.setLook('genomeFrequencyScene', genomeFrequencyLook);
 
-    sceneManager.setActiveScene('genomeVisualizationScene')
-    lookManager.activateLook('genomeVisualizationScene')
+    sceneManager.setActiveScene('assemblyVisualizationScene')
+    lookManager.activateLook('assemblyVisualizationScene')
 
 
     const frustumSize = 5
