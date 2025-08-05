@@ -5,7 +5,7 @@ import LocusInput from './locusInput.js'
 import GenomicService from './genomicService.js'
 import SequenceService from './sequenceService.js'
 import GeometryManager from './geometryManager.js'
-import GenomeWidget from './genomeWidget.js'
+import AssemblyWidget from './assemblyWidget.js'
 import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
 import materialService from './materialService.js'
 import LookManager from './lookManager.js'
@@ -40,8 +40,8 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), raycastService, genomicService, geometryManager)
 
     const gear = document.getElementById('pgb-gear-btn-container')
-    const genomeWidgetContainer = document.getElementById('pgb-gear-card')
-    const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, raycastService);
+    const assemblyWidgetContainer = document.getElementById('pgb-gear-card')
+    const assemblyWidget = new AssemblyWidget(gear, assemblyWidgetContainer, genomicService, raycastService);
 
 
     // Scene and Look managers
@@ -66,7 +66,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
 
     const frustumSize = 5
-    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneManager, lookManager, pangenomeGraph)
+    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager, pangenomeGraph)
 
     app.startAnimation()
 
