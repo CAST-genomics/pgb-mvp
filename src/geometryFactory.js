@@ -103,7 +103,9 @@ class GeometryFactory {
                     endNode: endNodeName
                 };
 
-            const edgeKey = `edge:${starting_node}:${ending_node}`;
+            // Use the proper node name for key design. This will allow
+            // direct retrieval of the associated nodes.
+            const edgeKey = `edge:${startNodeName}:${endNodeName}`;
             this.geometryCache.set(edgeKey, payload);
         }
     }
