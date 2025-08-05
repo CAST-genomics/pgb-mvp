@@ -607,12 +607,25 @@
                         const neighborAssemblies = nodeAssemblies.get(neighbor);
                         if (neighborAssemblies && neighborAssemblies.includes(assembly)) {
 
-                            // Check if this is a variation-only node (doesn't include GRCh38)
-                            if (!neighborAssemblies.includes('GRCh38')) {
-                                variationNode = neighbor;
-                            } else if (!nextNode) {
-                                nextNode = neighbor; // Backbone node as fallback
+                            // Dugla rule
+                            // We have a node with a single assembly that matches
+                            // the assembly we are walking. Follow it. Simple.
+                            if (1 === neighborAssemblies.size) {
+                                variationNode = neighbor
+                            } else {
+                                nextNode = neighbor
                             }
+
+                            // NOTE: Legacy rule created by Cursor. The GRCh38 bias could be
+                            //       an issue.
+                            // Check if this is a variation-only node (doesn't include GRCh38)
+                            // if (!neighborAssemblies.includes('GRCh38')) {
+                            //     variationNode = neighbor;
+                            // } else if (!nextNode) {
+                            //     nextNode = neighbor; // Backbone node as fallback
+                            // }
+
+
                         }
                     }
 
