@@ -7,7 +7,7 @@ import { loadPath } from './utils/utils.js'
 
 class App {
 
-    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneManager, lookManager, pangenomeGraph) {
+    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager, pangenomeGraph) {
         this.container = container
 
         this.renderer = RendererFactory.createRenderer(container)
@@ -15,12 +15,12 @@ class App {
         this.sequenceService = sequenceService
         this.genomicService = genomicService
         this.geometryManager = geometryManager
-        this.genomeWidget = genomeWidget
+        this.assemblyWidget = assemblyWidget
         this.genomeLibrary = genomeLibrary
         this.sceneManager = sceneManager
         this.lookManager = lookManager
         this.pangenomeGraph = pangenomeGraph
-        
+
         // Initialize time tracking
         this.clock = new THREE.Clock()
 
@@ -90,7 +90,7 @@ class App {
 
         // Get the current look
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName());
-        
+
         // Try to get custom tooltip content from the look for nodes
         let content = '';
         if (type === 'edge') {
@@ -105,7 +105,7 @@ class App {
             if (look && look.isActive) {
                 content = look.createNodeTooltipContent(object);
             }
-            
+
             if (!content) {
                 // Fallback to default node tooltip content
                 const { nodeName, nodeLine } = object.userData;
@@ -264,7 +264,7 @@ class App {
         this.geometryManager.createGeometry(json, look, this.pangenomeGraph)
         this.geometryManager.addToScene(scene)
 
-        this.genomeWidget.populateList()
+        this.assemblyWidget.populateList()
 
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)
 

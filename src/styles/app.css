@@ -45,7 +45,7 @@
   background-color: transparent;
 }
 
-.genome-widget__container {
+.assembly-widget__container {
   z-index: 1000;
   position: absolute;
   top: 0;
@@ -56,16 +56,16 @@
   align-items: center;
   justify-content: center;
 }
-.genome-widget__button {
+.assembly-widget__button {
   transition: transform 0.2s ease;
 }
-.genome-widget__button:hover {
+.assembly-widget__button:hover {
   transform: scale(1.2);
 }
-.genome-widget__icon {
+.assembly-widget__icon {
   font-size: 2rem;
 }
-.genome-widget__card {
+.assembly-widget__card {
   z-index: 1000;
   position: absolute;
   top: 0;
@@ -80,20 +80,20 @@
   pointer-events: none;
   transform: translate(0, 0);
 }
-.genome-widget__card.show {
+.assembly-widget__card.show {
   opacity: 1;
   pointer-events: auto;
 }
-.genome-widget__card .card-body {
+.assembly-widget__card .card-body {
   height: calc(100% - 120px);
   padding: 0;
   overflow: hidden;
 }
-.genome-widget__list-container {
+.assembly-widget__list-container {
   height: 100%;
   overflow-y: auto;
 }
-.genome-widget__genome-selector {
+.assembly-widget__genome-selector {
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -101,7 +101,7 @@
   transition: all 0.2s ease;
   border: 2px solid transparent;
 }
-.genome-widget__genome-selector:hover {
+.assembly-widget__genome-selector:hover {
   transform: scale(1.5);
 }
 

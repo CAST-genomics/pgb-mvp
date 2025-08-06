@@ -324,7 +324,7 @@ class AssemblyVisualizationLook extends Look {
     activate() {
         super.activate();
 
-        // Subscribe to genome interaction events
+        // Subscribe to assembly interaction events
         this.deemphasizeUnsub = eventBus.subscribe('assembly:deemphasizeNodes', (data) => {
             this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames);
         });
