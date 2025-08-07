@@ -48,7 +48,7 @@ document.body.appendChild(sliderContainer);
 
 const material = new LineMaterial({ color: 0x00ff88, linewidth: 3 });
 
-const divisions = 100;
+const divisions = 64;
 const geometry = new LineGeometry();
 
 // Parameters for the spline
@@ -114,8 +114,47 @@ const sineKnots = createKnots(numKnots, 2);
 addKnotVisualization(sineKnots, 0xff0000); // Red spheres for sine knots
 addDerivedPointsVisualization(points, 0xffff00); // Yellow spheres for derived points
 
-// Create target knots (straight line)
-const straightKnots = createKnots(numKnots, 0);
+// Calculate bounding box and centroid of the sine curve
+function calculateBoundingBox(points) {
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    let minZ = Infinity, maxZ = -Infinity;
+    
+    points.forEach(point => {
+        minX = Math.min(minX, point.x);
+        maxX = Math.max(maxX, point.x);
+        minY = Math.min(minY, point.y);
+        maxY = Math.max(maxY, point.y);
+        minZ = Math.min(minZ, point.z);
+        maxZ = Math.max(maxZ, point.z);
+    });
+    
+    return {
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        centroid: new THREE.Vector3((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2)
+    };
+}
+
+// Get bounding box of sine curve
+const bbox = calculateBoundingBox(points);
+console.log('Sine curve bounding box:', bbox);
+console.log('Centroid:', bbox.centroid);
+
+// Create target knots (straight line) - horizontal line through centroid with 1.5x bbox width
+function createHorizontalKnots(numKnots, yPosition, bboxWidth) {
+    const targetWidth = bboxWidth * 1.5; // 1.5 times the bbox width
+    const knots = [];
+    for (let i = 0; i < numKnots; i++) {
+        const t = i / (numKnots - 1); // 0 to 1
+        const x = (t - 0.5) * targetWidth; // Use 1.5x bbox width
+        const y = yPosition; // Use the centroid Y position
+        knots.push(new THREE.Vector3(x, y, 0));
+    }
+    return knots;
+}
+
+const straightKnots = createHorizontalKnots(numKnots, bbox.centroid.y, bbox.max.x - bbox.min.x);
 const splineTarget = new THREE.CatmullRomCurve3(straightKnots);
 const pointsTarget = splineTarget.getPoints(divisions);
 const xyzTarget = pointsTarget.flatMap(p => [p.x, p.y, p.z]);
