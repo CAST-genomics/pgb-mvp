@@ -5,13 +5,15 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 
 // Scene setup
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+camera.position.z = 8;
+
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0x000000);
+
 document.body.appendChild(renderer.domElement);
 
-// Create UI for the slider
 const sliderContainer = document.createElement('div');
 sliderContainer.style.position = 'absolute';
 sliderContainer.style.top = '20px';
@@ -44,6 +46,11 @@ sliderContainer.appendChild(slider);
 sliderContainer.appendChild(valueDisplay);
 document.body.appendChild(sliderContainer);
 
+const material = new LineMaterial({ color: 0x00ff88, linewidth: 3 });
+
+const divisions = 100;
+const geometry = new LineGeometry();
+
 // Parameters for the spline
 const numKnots = 20;
 const worldWidth = 10;
@@ -51,81 +58,51 @@ const worldHeight = 6;
 let sineAmplitude
 
 // Create sine curve knots (base shape)
-const sineKnots = [];
 sineAmplitude = 2
+const knots = [];
 for (let i = 0; i < numKnots; i++) {
     const t = i / (numKnots - 1); // 0 to 1
     const x = (t - 0.5) * worldWidth; // -5 to 5
     const y = Math.sin(t * 2 * Math.PI) * sineAmplitude; // One complete sine cycle
-    sineKnots.push(new THREE.Vector3(x, y, 0));
+    knots.push(new THREE.Vector3(x, y, 0));
 }
+const spline = new THREE.CatmullRomCurve3(knots);
+const points = spline.getPoints(divisions);
+const xyz = points.flatMap(p => [p.x, p.y, p.z]);
+geometry.setPositions(xyz);
 
-// Create straight line knots (morph target) - same X positions, Y = 0
+const line = new Line2(geometry, material);
+scene.add(line);
+
 sineAmplitude = 0
-const straightKnots = [];
+const knotsTarget = [];
 for (let i = 0; i < numKnots; i++) {
     const t = i / (numKnots - 1); // 0 to 1
     const x = (t - 0.5) * worldWidth; // -5 to 5
     const y = Math.sin(t * 2 * Math.PI) * sineAmplitude
-    straightKnots.push(new THREE.Vector3(x, y, 0));
+    knotsTarget.push(new THREE.Vector3(x, y, 0));
 }
+const splineTarget = new THREE.CatmullRomCurve3(knotsTarget);
+const pointsTarget = splineTarget.getPoints(divisions);
+const xyzTarget = pointsTarget.flatMap(p => [p.x, p.y, p.z]);
 
-// Create the base spline
-const spline = new THREE.CatmullRomCurve3(sineKnots);
+function updateMorph(src, dst) {
 
-// Create LineGeometry from spline
-const divisions = 100;
-const points = spline.getPoints(divisions);
-const xyzList = points.flatMap(p => [p.x, p.y, p.z]);
-
-const geometry = new LineGeometry();
-geometry.setPositions(xyzList);
-
-// Create target data from straight spline
-const straightSpline = new THREE.CatmullRomCurve3(straightKnots);
-const straightPoints = straightSpline.getPoints(divisions);
-const straightXyzList = straightPoints.flatMap(p => [p.x, p.y, p.z]);
-
-// Store the original XYZ lists for lerping
-console.log('Original xyzList length:', xyzList.length);
-console.log('Straight xyzList length:', straightXyzList.length);
-
-// Create LineMaterial
-const material = new LineMaterial({
-    color: 0x00ff88,
-    linewidth: 3
-});
-
-// Create Line2
-const line = new Line2(geometry, material);
-scene.add(line);
-
-// Position camera
-camera.position.z = 8;
-
-// Update function - simple lerp between xyzList and straightXyzList
-function updateMorph() {
     const weight = parseFloat(slider.value);
-    
-    // Create lerped XYZ list from the lerp between xyzList and straightXyzList
-    const lerpedXyzList = [];
-    for (let i = 0; i < xyzList.length; i++) {
-        lerpedXyzList[i] = xyzList[i] * (1 - weight) + straightXyzList[i] * weight;
-    }
-    
-    // Call geometry.setPositions(lerpedXyzList) for the interactive lerp
-    geometry.setPositions(lerpedXyzList);
-    
-    // Update line distances for Line2 objects
-    if (line.computeLineDistances) {
+    valueDisplay.textContent = weight.toFixed(2);
+
+    const lerped = src.map((number, i) => number * (1 - weight) + dst[i] * weight);
+
+    geometry.setPositions(lerped);
+
+    if (line.computeLineDistances) {    
         line.computeLineDistances();
     }
-    
-    valueDisplay.textContent = weight.toFixed(2);
+
 }
 
 // Event listeners
-slider.addEventListener('input', updateMorph);
+slider.addEventListener('input', () => updateMorph(xyz, xyzTarget));
 
 // Animation loop
 function animate() {
