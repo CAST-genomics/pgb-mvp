@@ -55,18 +55,21 @@ const geometry = new LineGeometry();
 const numKnots = 20;
 const worldWidth = 10;
 const worldHeight = 6;
-let sineAmplitude
+
+// Function to create knots with given amplitude
+function createKnots(numKnots, sineAmplitude) {
+    const knots = [];
+    for (let i = 0; i < numKnots; i++) {
+        const t = i / (numKnots - 1); // 0 to 1
+        const x = (t - 0.5) * worldWidth; // -5 to 5
+        const y = Math.sin(t * 2 * Math.PI) * sineAmplitude; // One complete sine cycle
+        knots.push(new THREE.Vector3(x, y, 0));
+    }
+    return knots;
+}
 
 // Create sine curve knots (base shape)
-sineAmplitude = 2
-const knots = [];
-for (let i = 0; i < numKnots; i++) {
-    const t = i / (numKnots - 1); // 0 to 1
-    const x = (t - 0.5) * worldWidth; // -5 to 5
-    const y = Math.sin(t * 2 * Math.PI) * sineAmplitude; // One complete sine cycle
-    knots.push(new THREE.Vector3(x, y, 0));
-}
-const spline = new THREE.CatmullRomCurve3(knots);
+const spline = new THREE.CatmullRomCurve3(createKnots(numKnots, 2));
 const points = spline.getPoints(divisions);
 const xyz = points.flatMap(p => [p.x, p.y, p.z]);
 geometry.setPositions(xyz);
@@ -74,17 +77,52 @@ geometry.setPositions(xyz);
 const line = new Line2(geometry, material);
 scene.add(line);
 
-sineAmplitude = 0
-const knotsTarget = [];
-for (let i = 0; i < numKnots; i++) {
-    const t = i / (numKnots - 1); // 0 to 1
-    const x = (t - 0.5) * worldWidth; // -5 to 5
-    const y = Math.sin(t * 2 * Math.PI) * sineAmplitude
-    knotsTarget.push(new THREE.Vector3(x, y, 0));
+// Add knot visualization helpers
+function addKnotVisualization(knots, color = 0xff0000) {
+    // Add axes helper for reference
+    const axesHelper = new THREE.AxesHelper(1);
+    // scene.add(axesHelper);
+    
+    // Add spheres at each knot position
+    const sphereGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+    const sphereMaterial = new THREE.MeshBasicMaterial({ color: color });
+    
+    knots.forEach((knot, index) => {
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        sphere.position.copy(knot);
+        sphere.userData = { knotIndex: index };
+        // scene.add(sphere);
+    });
 }
-const splineTarget = new THREE.CatmullRomCurve3(knotsTarget);
+
+// Add derived points visualization
+function addDerivedPointsVisualization(points, color = 0xffff00) {
+    // Add smaller spheres at each derived point position
+    const smallSphereGeometry = new THREE.SphereGeometry(0.05, 6, 6);
+    const smallSphereMaterial = new THREE.MeshBasicMaterial({ color: color });
+    
+    points.forEach((point, index) => {
+        const sphere = new THREE.Mesh(smallSphereGeometry, smallSphereMaterial);
+        sphere.position.copy(point);
+        sphere.userData = { derivedPointIndex: index };
+        scene.add(sphere);
+    });
+}
+
+// Visualize the sine curve knots and derived points
+const sineKnots = createKnots(numKnots, 2);
+addKnotVisualization(sineKnots, 0xff0000); // Red spheres for sine knots
+addDerivedPointsVisualization(points, 0xffff00); // Yellow spheres for derived points
+
+// Create target knots (straight line)
+const straightKnots = createKnots(numKnots, 0);
+const splineTarget = new THREE.CatmullRomCurve3(straightKnots);
 const pointsTarget = splineTarget.getPoints(divisions);
 const xyzTarget = pointsTarget.flatMap(p => [p.x, p.y, p.z]);
+
+// Visualize the straight line knots and derived points
+addKnotVisualization(straightKnots, 0x00ff00); // Green spheres for straight knots
+addDerivedPointsVisualization(pointsTarget, 0x00ffff); // Cyan spheres for target derived points
 
 function updateMorph(src, dst) {
 
