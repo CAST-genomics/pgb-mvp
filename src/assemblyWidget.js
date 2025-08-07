@@ -17,10 +17,9 @@ class AssemblyWidget {
         // Subscribe to assembly interaction events
         this.deemphasizeUnsub = eventBus.subscribe('assembly:deemphasizeNodes', data => {
             console.log(`AssemblyWidget - handle assembly:deemphasizeNodes`)
-            const assemblySet = new Set(this.genomicService.assemblyPayload.keys())
             const list = [ ...data.nodeNames ].map(nodeName => this.genomicService.getAssemblyForNodeName(nodeName))
             const assemblyDemphasisSet = new Set([ ...list ])
-            const assemblyEmphasisSet = assemblySet.difference(assemblyDemphasisSet)
+            const assemblyEmphasisSet = this.genomicService.assemblySet.difference(assemblyDemphasisSet)
             const [ assemblyEmphasisName ] = [ ...assemblyEmphasisSet ]
 
             this.selectedAssemblies.clear();
@@ -28,9 +27,14 @@ class AssemblyWidget {
 
             const selectors = Array.from(this.listGroup.querySelectorAll('.assembly-widget__genome-selector'))
             for (const selector of selectors) {
-                selector.dataset.assembly === assemblyEmphasisName
-                    ? selector.style.border = '2px solid #000'
-                    : selector.style.border = '2px solid transparent'
+                if (selector.dataset.assembly === assemblyEmphasisName) {
+                    // Apply the same styling as hover effect
+                    selector.style.border = '2px solid #000'
+                    selector.style.transform = 'scale(1.5)'
+                } else {
+                    selector.style.border = '2px solid transparent'
+                    selector.style.transform = 'scale(1)' // Reset to normal size
+                }
             }
 
         });
@@ -39,6 +43,7 @@ class AssemblyWidget {
             const selectors = Array.from(this.listGroup.querySelectorAll('.assembly-widget__genome-selector'))
             for (const selector of selectors) {
                 selector.style.border = '2px solid transparent'
+                selector.style.transform = 'scale(1)' // Reset to normal size
             }
         });
 
