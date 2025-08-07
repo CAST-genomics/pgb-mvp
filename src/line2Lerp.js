@@ -8,8 +8,8 @@ document.addEventListener("DOMContentLoaded",  (event) => {
     const worldWidth = 10;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
-    camera.position.z = 8;
+    const camera = new THREE.PerspectiveCamera(6, window.innerWidth / window.innerHeight, 0.1, 1000)
+    camera.position.z = 100;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -73,7 +73,7 @@ document.addEventListener("DOMContentLoaded",  (event) => {
     addKnotVisualization(scene, sineKnots, 0xff0000); // Red spheres for sine knots
     addDerivedPointsVisualization(scene, points, 0xffff00); // Yellow spheres for derived points
 
-    const straightKnots = createHorizontalKnots(numKnots, bbox.centroid.y, bbox.max.x - bbox.min.x);
+    const straightKnots = createHorizontalKnots(numKnots, bbox.centroid.y, 1.5*(bbox.max.x - bbox.min.x));
     const splineTarget = new THREE.CatmullRomCurve3(straightKnots);
     const pointsTarget = splineTarget.getPoints(divisions);
     const xyzTarget = pointsTarget.flatMap(({ x, y, z }) => [x, y, z]);
@@ -122,7 +122,7 @@ function addKnotVisualization(scene, knots, color = 0xff0000) {
         const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
         sphere.position.copy(knot);
         sphere.userData = { knotIndex: index };
-        // scene.add(sphere);
+        scene.add(sphere);
     });
 }
 
@@ -160,13 +160,12 @@ function calculateBoundingBox(points) {
     };
 }
 
-function createHorizontalKnots(numKnots, yPosition, bboxWidth) {
-    const targetWidth = bboxWidth * 1.5; // 1.5 times the bbox width
+function createHorizontalKnots(numKnots, y, width) {
+
     const knots = [];
     for (let i = 0; i < numKnots; i++) {
         const t = i / (numKnots - 1); // 0 to 1
-        const x = (t - 0.5) * targetWidth; // Use 1.5x bbox width
-        const y = yPosition; // Use the centroid Y position
+        const x = (t - 0.5) * width
         knots.push(new THREE.Vector3(x, y, 0));
     }
     return knots;
