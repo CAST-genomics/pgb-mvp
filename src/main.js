@@ -5,12 +5,13 @@ import LocusInput from './locusInput.js'
 import GenomicService from './genomicService.js'
 import SequenceService from './sequenceService.js'
 import GeometryManager from './geometryManager.js'
-import GenomeWidget from './genomeWidget.js'
+import AssemblyWidget from './assemblyWidget.js'
 import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
 import materialService from './materialService.js'
 import LookManager from './lookManager.js'
-import GenomeVisualizationLook from './genomeVisualizationLook.js'
+import AssemblyVisualizationLook from './assemblyVisualizationLook.js'
 import GenomeFrequencyLook from './genomeFrequencyLook.js'
+import PangenomeGraph from './pangenomeGraph.js';
 import SceneManager from './sceneManager.js'
 import './styles/app.scss'
 
@@ -30,6 +31,8 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const threshold = 8
     const raycastService = new RayCastService(container, threshold)
 
+    const pangenomeGraph = new PangenomeGraph()
+
     const genomicService = new GenomicService()
 
     const geometryManager = new GeometryManager(genomicService)
@@ -37,30 +40,33 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), raycastService, genomicService, geometryManager)
 
     const gear = document.getElementById('pgb-gear-btn-container')
-    const genomeWidgetContainer = document.getElementById('pgb-gear-card')
-    const genomeWidget = new GenomeWidget(gear, genomeWidgetContainer, genomicService, raycastService);
+    const assemblyWidgetContainer = document.getElementById('pgb-gear-card')
+    const assemblyWidget = new AssemblyWidget(gear, assemblyWidgetContainer, genomicService, raycastService);
 
 
     // Scene and Look managers
     const sceneManager = new SceneManager()
-    sceneManager.createScene('genomeVisualizationScene', new THREE.Color(0xffffff))
+    sceneManager.createScene('assemblyVisualizationScene', new THREE.Color(0xffffff))
     sceneManager.createScene('genomeFrequencyScene', new THREE.Color(0xffffff))
 
     // Looks
-    const genomeVisualizationLook = GenomeVisualizationLook.createGenomeVisualizationLook('genomeVisualizationLook', { genomicService, geometryManager })
+    const assemblyVisualizationLook = AssemblyVisualizationLook.createAssemblyVisualizationLook('assemblyVisualizationLook', {
+        genomicService,
+        geometryManager
+    })
     const genomeFrequencyLook = GenomeFrequencyLook.createGenomeFrequencyLook('genomeFrequencyLook', { genomicService, geometryManager })
 
     // Look Manager
     const lookManager = new LookManager()
-    lookManager.setLook('genomeVisualizationScene', genomeVisualizationLook);
+    lookManager.setLook('assemblyVisualizationScene', assemblyVisualizationLook);
     lookManager.setLook('genomeFrequencyScene', genomeFrequencyLook);
 
-    sceneManager.setActiveScene('genomeVisualizationScene')
-    lookManager.activateLook('genomeVisualizationScene')
+    sceneManager.setActiveScene('assemblyVisualizationScene')
+    lookManager.activateLook('assemblyVisualizationScene')
 
 
     const frustumSize = 5
-    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, genomeWidget, genomeLibrary, sceneManager, lookManager)
+    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager, pangenomeGraph)
 
     app.startAnimation()
 

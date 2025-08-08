@@ -87,9 +87,9 @@ app.switchScene('analysisScene')
 
 ```javascript
 // Create a new scene with a specific look
-const newLook = GenomeVisualizationLook.createGenomeVisualizationLook('analysis-look', { 
-    genomicService, 
-    geometryManager 
+const newLook = AssemblyVisualizationLook.createAssemblyVisualizationLook('analysis-look', {
+    genomicService,
+    geometryManager
 })
 
 app.createScene('analysisScene', newLook, new THREE.Color(0x000000))

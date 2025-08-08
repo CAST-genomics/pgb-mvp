@@ -7,11 +7,7 @@ import materialService from './materialService.js';
 import GeometryFactory from "./geometryFactory.js"
 import eventBus from "./utils/eventBus.js"
 
-/**
- * GenomeVisualizationLook - specific implementation for genome visualization
- * Handles node lines and edge meshes with genome-specific material creation
- */
-class GenomeVisualizationLook extends Look {
+class AssemblyVisualizationLook extends Look {
 
     static ANIMATION_SPEED = 0.5;
 
@@ -23,7 +19,6 @@ class GenomeVisualizationLook extends Look {
         this.genomicService = config.genomicService;
         this.geometryManager = config.geometryManager;
 
-        // Animation state specific to genome visualization (arrow texture animation)
         this.edgeArrowAnimationState =
             {
                 uvOffset: 0,
@@ -35,11 +30,7 @@ class GenomeVisualizationLook extends Look {
         this.restoreUnsub = null;
     }
 
-    /**
-     * Factory method for creating a complete genome visualization look
-     * with animated edges and node emphasis/deemphasis
-     */
-    static createGenomeVisualizationLook(name, config) {
+    static createAssemblyVisualizationLook(name, config) {
 
         const factoryConfig =
             {
@@ -48,13 +39,13 @@ class GenomeVisualizationLook extends Look {
                         edgeArrowAnimation:
                             {
                                 type: 'uvOffset',
-                                speed: GenomeVisualizationLook.ANIMATION_SPEED,
+                                speed: AssemblyVisualizationLook.ANIMATION_SPEED,
                                 enabled: true
                             }
                     }
             };
 
-        return new GenomeVisualizationLook(name, {...factoryConfig, ...config });
+        return new AssemblyVisualizationLook(name, {...factoryConfig, ...config });
     }
 
     /**
@@ -197,20 +188,14 @@ class GenomeVisualizationLook extends Look {
 
     }
 
-    /**
-     * Override setAnimationEnabled for genome-specific animation
-     */
     setAnimationEnabled(enabled) {
         this.edgeArrowAnimationState.enabled = enabled;
     }
 
-    /**
-     * Override isAnimationEnabled for genome-specific animation
-     */
     isAnimationEnabled() {
         return this.edgeArrowAnimationState.enabled;
     }
-    
+
     createNodeTooltipContent(nodeObject) {
 
         const { nodeName } = nodeObject.userData;
@@ -339,12 +324,12 @@ class GenomeVisualizationLook extends Look {
     activate() {
         super.activate();
 
-        // Subscribe to genome interaction events
-        this.deemphasizeUnsub = eventBus.subscribe('genome:deemphasizeNodes', (data) => {
+        // Subscribe to assembly interaction events
+        this.deemphasizeUnsub = eventBus.subscribe('assembly:deemphasizeNodes', (data) => {
             this.deemphasizeLinesAndEdgesViaNodeNameSet(data.nodeNames);
         });
 
-        this.restoreUnsub = eventBus.subscribe('genome:restoreEmphasis', (data) => {
+        this.restoreUnsub = eventBus.subscribe('assembly:restoreEmphasis', (data) => {
             this.restoreLinesandEdgesViaZOffset(data.nodeNames);
         });
     }
@@ -374,4 +359,4 @@ class GenomeVisualizationLook extends Look {
     }
 }
 
-export default GenomeVisualizationLook;
+export default AssemblyVisualizationLook;

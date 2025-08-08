@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Line2 Lerp Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+        }
+
+        #info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            max-width: 300px;
+            z-index: 1000;
+        }
+
+        #info h2 {
+            margin-top: 0;
+            color: #00ff88;
+        }
+
+        #info p {
+            margin: 10px 0;
+            line-height: 1.4;
+        }
+
+        .highlight {
+            color: #00ff88;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h2>Line2 Lerp Demo</h2>
+        <p>This demo creates a <span class="highlight">one-cycle sine curve</span> using Line2 derived from a CatmullRom spline.</p>
+        <p>The morph target is the same spline with <span class="highlight">sine displacement set to 0</span> (straight line).</p>
+        <p>Use the slider to morph between the sine curve and straight line.</p>
+    </div>
+
+    <script type="module" src="src/line2Lerp.js"></script>
+</body>
+</html>

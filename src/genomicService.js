@@ -9,11 +9,12 @@ class GenomicService {
         this.metadata = new Map()
         this.assemblyPayload = new Map()
         this.nodeAssemblyStats = new Map()
+        this.assemblySet = new Set()
     }
 
     async createMetadata(nodes, sequences, genomeLibrary, raycastService) {
 
-        const assemblySet = new Set()
+        this.assemblySet.clear()
         const assemblyColors = new Map()
         const renderLibrary = new Map()
         const locusExtentMap = new Map()
@@ -60,13 +61,13 @@ class GenomicService {
             }
 
             this.metadata.set(nodeName, metadata);
-            assemblySet.add(assembly);
+            this.assemblySet.add(assembly);
         }
 
-        const uniqueColors = getPerceptuallyDistinctColors(assemblySet.size)
+        const uniqueColors = getPerceptuallyDistinctColors(this.assemblySet.size)
 
         let i = 0;
-        for (const assembly of assemblySet) {
+        for (const assembly of this.assemblySet) {
             assemblyColors.set(assembly, uniqueColors[i]);
             i++;
         }
@@ -74,7 +75,7 @@ class GenomicService {
         console.log(`GenomicService: Created ${assemblyColors.size} assembly colors`);
 
         // Combine all local instances into assemblyPayload
-        for (const assembly of assemblySet) {
+        for (const assembly of this.assemblySet) {
             const color = assemblyColors.get(assembly);
             const annotationRenderService = renderLibrary.get(assembly);
             const locus = locusExtentMap.get(assembly);

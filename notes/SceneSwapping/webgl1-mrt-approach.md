@@ -149,8 +149,8 @@ Your `LookManager` already supports multiple scenes perfectly:
 
 ```javascript
 // Create different Looks for different scenes
-const blueLook = new GenomeVisualizationLook('blue', { colorScheme: 'blue' });
-const redLook = new GenomeVisualizationLook('red', { colorScheme: 'red' });
+const blueLook = new AssemblyVisualizationLook('blue', {colorScheme: 'blue'});
+const redLook = new AssemblyVisualizationLook('red', {colorScheme: 'red'});
 
 // Register with LookManager
 lookManager.setLook('blue-scene', blueLook);

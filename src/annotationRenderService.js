@@ -73,7 +73,7 @@ class AnnotationRenderService {
     }
 
     clearCanvas(canvas) {
-        
+
         const { width, height } = canvas.getBoundingClientRect();
 
         const ctx = canvas.getContext('2d');
@@ -105,7 +105,7 @@ class AnnotationRenderService {
                     const { chr, startBP, endBP } = locus
                     const features = await this.getFeatures(chr, startBP, endBP)
                     // if (features.length > 0) {
-                    console.log(`AnnotationRenderService: genome: ${assembly} locus: ${locusInput.prettyPrintLocus(locus)} features: ${features.length}`)
+                    console.log(`AnnotationRenderService: assembly: ${assembly} locus: ${locusInput.prettyPrintLocus(locus)} features: ${features.length}`)
                     this.render({ container: this.container, bpStart: startBP, bpEnd: endBP, features })
                     // }
                 }
@@ -115,7 +115,7 @@ class AnnotationRenderService {
             }
         } else {
             this.clearCanvas(this.container.querySelector('canvas'))
-        }   
+        }
     }
 
 }
