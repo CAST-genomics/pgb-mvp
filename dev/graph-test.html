@@ -566,14 +566,24 @@
 
             const sourceNodes = graph.getSourceNodes();
             const sinkNodes = graph.getSinkNodes();
+            log(`Source nodes: ${sourceNodes.join(', ')}`);
+            log(`Sink nodes: ${sinkNodes.join(', ')}`);
+            
             const headNode = sourceNodes[0];
             const tailNode = sinkNodes[0];
+            log(`Head node: ${headNode}, Tail node: ${tailNode}`);
 
             // Get all assemblies
             const assemblySet = new Set();
             const nodeAssemblies = new Map();
 
+            log('Processing node assemblies...');
+            let nodeCount = 0;
             for (const [nodeName, nodeData] of Object.entries(jsonData.node)) {
+                nodeCount++;
+                if (nodeCount <= 3) {
+                    log(`Node ${nodeName}: ${JSON.stringify(nodeData.assembly)}`);
+                }
 
                 // NOTE: August 8 2025 - Version 1 - Multiple Assemblies
                 const assemblies = nodeData.assembly.map(({assembly_name}) => assembly_name);
@@ -587,6 +597,7 @@
                 }
             }
 
+            log(`Total nodes processed: ${nodeCount}`);
             log(`Assemblies: ${Array.from(assemblySet).join(', ')}`);
 
             // For each assembly, find one path
