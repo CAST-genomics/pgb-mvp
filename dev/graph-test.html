@@ -574,7 +574,10 @@
             const nodeAssemblies = new Map();
 
             for (const [nodeName, nodeData] of Object.entries(jsonData.node)) {
-                const assemblies = nodeData.assembly;
+
+                // NOTE: August 8 2025 - Version 1 - Multiple Assemblies
+                const assemblies = nodeData.assembly.map(({assembly_name}) => assembly_name);
+
                 if (Array.isArray(assemblies)) {
                     assemblies.forEach(assembly => assemblySet.add(assembly));
                     nodeAssemblies.set(nodeName, assemblies);

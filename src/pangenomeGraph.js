@@ -561,8 +561,11 @@ class PangenomeGraph {
 
         for (const [edgeId, edgeData] of this.edges) {
             const { startingNode, endingNode } = edgeData;
+            // Get the actual signed node names that exist in the graph
+            const actualStartingNode = this.getActualSignedNodeName(startingNode);
+            const actualEndingNode = this.getActualSignedNodeName(endingNode);
             // Use the actual signed node names for the transpose
-            transpose.get(endingNode).add(startingNode);
+            transpose.get(actualEndingNode).add(actualStartingNode);
         }
 
         // Second DFS on transpose
@@ -907,11 +910,11 @@ class PangenomeGraph {
         // Find all nodes reachable from start
         const queue = [startNode];
         const visited = new Set([startNode]);
-        
+
         while (queue.length > 0) {
             const current = queue.shift();
             analysis.reachableNodes.add(current);
-            
+
             const neighbors = this.getNeighbors(current);
             for (const neighbor of neighbors) {
                 if (!visited.has(neighbor)) {
@@ -924,11 +927,11 @@ class PangenomeGraph {
         // Find all nodes that can reach end
         const reverseQueue = [endNode];
         const reverseVisited = new Set([endNode]);
-        
+
         while (reverseQueue.length > 0) {
             const current = reverseQueue.shift();
             analysis.nodesReachingEnd.add(current);
-            
+
             const predecessors = this.getPredecessors(current);
             for (const predecessor of predecessors) {
                 if (!reverseVisited.has(predecessor)) {
