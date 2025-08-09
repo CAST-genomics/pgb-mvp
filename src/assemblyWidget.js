@@ -17,8 +17,13 @@ class AssemblyWidget {
         // Subscribe to assembly interaction events
         this.deemphasizeUnsub = eventBus.subscribe('assembly:deemphasizeNodes', data => {
             console.log(`AssemblyWidget - handle assembly:deemphasizeNodes`)
-            const list = [ ...data.nodeNames ].map(nodeName => this.genomicService.getAssemblyForNodeName(nodeName))
-            const assemblyDemphasisSet = new Set([ ...list ])
+            const acc = []
+            for (const nodeName of data.nodeNames) {
+                const list = this.genomicService.getAssemblyListForNodeName(nodeName)
+                acc.push([ ...list ])
+            }
+            const flat = acc.flat()
+            const assemblyDemphasisSet = new Set([ ...flat ])
             const assemblyEmphasisSet = this.genomicService.assemblySet.difference(assemblyDemphasisSet)
             const [ assemblyEmphasisName ] = [ ...assemblyEmphasisSet ]
 
@@ -37,7 +42,7 @@ class AssemblyWidget {
                 }
             }
 
-        });
+        })
 
         this.restoreUnsub = eventBus.subscribe('assembly:restoreEmphasis', data => {
             const selectors = Array.from(this.listGroup.querySelectorAll('.assembly-widget__genome-selector'))
@@ -45,7 +50,7 @@ class AssemblyWidget {
                 selector.style.border = '2px solid transparent'
                 selector.style.transform = 'scale(1)' // Reset to normal size
             }
-        });
+        })
 
 
         this.draggable = new Draggable(this.assemblyWidgetContainer);
@@ -56,25 +61,25 @@ class AssemblyWidget {
     raycastClickHandler(intersection) {
 
         if (intersection) {
-            const { nodeName } = intersection
-            const assembly = this.genomicService.getAssemblyForNodeName(nodeName);
-
-            if (this.selectedAssemblies.size > 0) {
-                const previousAssembly = [...this.selectedAssemblies][0];
-                this.selectedAssemblies.delete(previousAssembly);
-
-                eventBus.publish('assembly:restoreEmphasis', {
-                    nodeNames: this.genomicService.getNodeNameSet()
-                });
-            }
-
-            this.selectedAssemblies.add(assembly);
-            const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
-            const deemphasizedNodeNames = this.genomicService.getNodeNameSet().difference(set);
-
-            eventBus.publish('assembly:deemphasizeNodes', {
-                nodeNames: deemphasizedNodeNames
-            });
+            // const { nodeName } = intersection
+            // const assembly = this.genomicService.getAssemblyForNodeName(nodeName);
+            //
+            // if (this.selectedAssemblies.size > 0) {
+            //     const previousAssembly = [...this.selectedAssemblies][0];
+            //     this.selectedAssemblies.delete(previousAssembly);
+            //
+            //     eventBus.publish('assembly:restoreEmphasis', {
+            //         nodeNames: this.genomicService.getNodeNameSet()
+            //     });
+            // }
+            //
+            // this.selectedAssemblies.add(assembly);
+            // const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
+            // const deemphasizedNodeNames = this.genomicService.getNodeNameSet().difference(set);
+            //
+            // eventBus.publish('assembly:deemphasizeNodes', {
+            //     nodeNames: deemphasizedNodeNames
+            // });
 
         } else {
             this.selectedAssemblies.clear();

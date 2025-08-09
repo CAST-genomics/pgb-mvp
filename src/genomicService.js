@@ -23,7 +23,7 @@ class GenomicService {
 
             const { length: bpLength, assembly, range } = nodeData;
 
-            const metadata =  { nodeName, bpLength, assembly, sequence: sequences[nodeName] };
+            const metadata =  { bpLength, assembly, sequence: sequences[nodeName] };
 
             if (typeof range === 'string' && range.trim().length > 0) {
                 const locus = locusInput.parseLocusString(range)
@@ -88,6 +88,15 @@ class GenomicService {
         }
     }
 
+    getAssemblyListForNodeName(nodeName) {
+        const metadata = this.metadata.get(nodeName);
+        if (!metadata) {
+            console.error(`GenomicService: Metadata not found for node: ${nodeName}`);
+            return null;
+        }
+        return metadata.assembly.map(({ assembly_name }) => assembly_name);
+    }
+
     getAssemblyForNodeName(nodeName) {
         const metadata = this.metadata.get(nodeName);
         if (!metadata) {
@@ -107,9 +116,16 @@ class GenomicService {
     }
 
     getNodeNameSetWithAssembly(assembly) {
-        const metadataList = [ ...this.metadata.values() ];
-        const some = metadataList.filter(metadata => metadata.assembly === assembly);
-        return new Set(some.map(metadata => metadata.nodeName));
+
+        const nodeNameSet = new Set()
+        for (const nodeName of this.getNodeNameSet()) {
+            const assemblies = this.metadata.get(nodeName).assembly.map(({ assembly_name }) => assembly_name)
+            if (new Set([ ...assemblies]).has(assembly)) {
+                nodeNameSet.add (nodeName)
+            }
+        }
+
+        return nodeNameSet.size > 0 ? nodeNameSet : undefined
     }
 
     getNodeNameSet() {
