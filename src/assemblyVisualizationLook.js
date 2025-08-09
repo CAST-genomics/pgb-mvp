@@ -6,6 +6,7 @@ import { colorRampArrowMaterialFactory } from './materialService.js';
 import materialService from './materialService.js';
 import GeometryFactory from "./geometryFactory.js"
 import eventBus from "./utils/eventBus.js"
+import {getRandomAppleCrayonColor} from "./utils/color.js"
 
 class AssemblyVisualizationLook extends Look {
 
@@ -78,8 +79,10 @@ class AssemblyVisualizationLook extends Look {
 
         const { startNode, endNode, edgeKey } = context;
 
-        const startColor = this.genomicService.getAssemblyColor(`${startNode}`)
-        const endColor = this.genomicService.getAssemblyColor(`${endNode}`)
+        // const startColor = this.genomicService.getAssemblyColor(`${startNode}`)
+        // const endColor = this.genomicService.getAssemblyColor(`${endNode}`)
+        const startColor = getRandomAppleCrayonColor()
+        const endColor = getRandomAppleCrayonColor()
         const material = this.getEdgeMaterial(startColor, endColor)
 
         const mesh = new THREE.Mesh(geometry, material);
@@ -100,7 +103,8 @@ class AssemblyVisualizationLook extends Look {
     getNodeMaterial(nodeName) {
 
         return new LineMaterial({
-            color: this.genomicService.getAssemblyColor(nodeName),
+            color: getRandomAppleCrayonColor(),
+            // color: this.genomicService.getAssemblyColor(nodeName),
             linewidth: Look.NODE_LINE_WIDTH,
             worldUnits: true,
             opacity: 1,

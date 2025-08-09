@@ -61,7 +61,12 @@ class GenomicService {
             }
 
             this.metadata.set(nodeName, metadata);
-            this.assemblySet.add(assembly);
+
+            const list = assembly.map(({ assembly_name }) => assembly_name)
+            for (const str of list) {
+                this.assemblySet.add(str)
+            }
+
         }
 
         const uniqueColors = getPerceptuallyDistinctColors(this.assemblySet.size)
@@ -72,9 +77,8 @@ class GenomicService {
             i++;
         }
 
-        console.log(`GenomicService: Created ${assemblyColors.size} assembly colors`);
+        // console.log(`GenomicService: Created ${assemblyColors.size} assembly colors`);
 
-        // Combine all local instances into assemblyPayload
         for (const assembly of this.assemblySet) {
             const color = assemblyColors.get(assembly);
             const annotationRenderService = renderLibrary.get(assembly);
@@ -168,20 +172,20 @@ class GenomicService {
         for (const [nodeName, nodeStats] of this.nodeAssemblyStats.entries()) {
             // Get the node's own assembly
             const nodeAssembly = this.getAssemblyForNodeName(nodeName);
-            
+
             // Create a set of all assemblies associated with this node
             const allAssemblies = new Set();
-            
+
             // Add the node's own assembly
             if (nodeAssembly) {
                 allAssemblies.add(nodeAssembly);
             }
-            
+
             // Add incoming assemblies
             for (const assembly of nodeStats.incomingAssemblies) {
                 allAssemblies.add(assembly);
             }
-            
+
             // Add outgoing assemblies
             for (const assembly of nodeStats.outgoingAssemblies) {
                 allAssemblies.add(assembly);
@@ -191,7 +195,7 @@ class GenomicService {
             const totalAssemblies = this.assemblyPayload.size;
             const nodeAssemblyCount = allAssemblies.size;
             const percentage = totalAssemblies > 0 ? nodeAssemblyCount / totalAssemblies : 0;
-            
+
             // Add allAssemblies set and assembly count to nodeStats
             nodeStats.allAssemblies = allAssemblies;
             nodeStats.assemblyCount = nodeAssemblyCount;
@@ -203,10 +207,10 @@ class GenomicService {
 
         // Calculate distribution statistics across all nodes
         const distributionStats = calculateDistributionStats(allPercentages);
-        
+
         // Calculate normalized percentages using percentile-based normalization
         const normalizedPercentages = normalizeDataset(allPercentages, 'percentile');
-        
+
         // Update each node with distribution stats and normalized values
         let index = 0;
         for (const [nodeName, nodeStats] of this.nodeAssemblyStats.entries()) {
