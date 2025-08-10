@@ -10,8 +10,9 @@ import {LineMaterial} from "three/addons/lines/LineMaterial.js"
 // Material type constants
 const MATERIAL_TYPES =
     {
-    DEEMPHASIS: 'deemphasisMaterial'
-};
+        DEEMPHASIS: 'deemphasisMaterial',
+        EMPHASIS: 'emphasisMaterial'
+    };
 
 class MaterialService {
 
@@ -27,26 +28,18 @@ class MaterialService {
         await textureService.initialize(textures);
     }
 
-    /**
-     * Initialize the material service
-     * @returns {Promise<void>}
-     */
     async initialize() {
         await this.initializeTextureService({ textures });
     }
 
-    /**
-     * Creates a new edge line deemphasis material instance
-     * @returns {THREE.ShaderMaterial} A new material instance
-     */
     getEdgeDeemphasisMaterial() {
         return colorRampArrowMaterialFactory(getAppleCrayonColorByName('mercury'), getAppleCrayonColorByName('mercury'), this.getTexture('arrow-white'), 1, MATERIAL_TYPES.DEEMPHASIS);
     }
 
-    /**
-     * Creates a new node line deemphasis material instance
-     * @returns {THREE.LineMaterial} A new material instance
-     */
+    getEdgeEmphasisMaterial(color) {
+        return colorRampArrowMaterialFactory(color, color, this.getTexture('arrow-white'), 1, MATERIAL_TYPES.EMPHASIS);
+    }
+
     createNodeLineDeemphasisMaterial() {
 
         const material = new LineMaterial({
