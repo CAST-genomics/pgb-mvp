@@ -14,9 +14,9 @@ class GenomicService {
         this.assemblySet = new Set()
     }
 
-    async createMetadata(json, genomeLibrary, raycastService) {
+    async createMetadata(json, walksByTriple, genomeLibrary, raycastService) {
 
-        const { locus:locusString, node:nodes, sequence:sequences } = json
+        const { locus:locusString, node:nodes, edge:edges, sequence:sequences } = json
 
         // TODO: For now we will use a single graph spanning locus in conjunction
         //       with the annotation renderer
@@ -29,25 +29,12 @@ class GenomicService {
         this.assemblySet.clear()
         const renderLibrary = new Map()
         const locusExtentMap = new Map()
-        const endToEndSequenceLengthMap = new Map()
 
-        let accumulatedBPLength = 0
-        for (const [nodeName, nodeData] of Object.entries(nodes)) {
+        for (const [nodeName, { assembly, length }] of Object.entries(nodes)) {
 
-            const { assembly, length } = nodeData;
-            accumulatedBPLength += length
+            const { assembly_name, haplotype, sequence_id } = assembly
 
             const metadata =  { assembly, sequence: sequences[nodeName] }
-
-            for (const { assembly_name, haplotype } of assembly){
-                const key = `${assembly_name}#${haplotype}`
-                const currentSequenceLength = endToEndSequenceLengthMap.get(key)
-                if (currentSequenceLength) {
-                    endToEndSequenceLengthMap.set(key, length + currentSequenceLength)
-                } else {
-                    endToEndSequenceLengthMap.set(key, length)
-                }
-            }
 
             // TODO: Revisit how to approach using the annotation renderer in the context of each
             //       nodes sequence.
@@ -107,11 +94,6 @@ class GenomicService {
         }
 
         console.log(`GenomicService: Created ${this.assemblySet.size} assembly colors`);
-        console.log(`GenomicService: accumulated length ${prettyPrint(accumulatedBPLength)}`);
-
-        for (const [ key, value ] of endToEndSequenceLengthMap) {
-            console.log(`assembly ${ key } sequence length ${ prettyPrint(value)}`)
-        }
 
     }
 
