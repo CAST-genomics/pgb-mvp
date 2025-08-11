@@ -1,5 +1,8 @@
 // Color utility functions will be added here
 import * as THREE from 'three'
+import { colors32Distinct } from "./32-distinct-colors.js"
+import { colors64Distinct } from "./64-distinct-colors.js"
+import { colors128Distinct } from "./128-distinct-colors.js"
 
 /**
  * Apple Crayon color palette
@@ -134,7 +137,7 @@ const colorComplements = new Map([
     ['magenta', 'lime'],
     ['strawberry', 'spring'],
     ['carnation', 'sea foam'],
-    
+
     // Pastels
     ['salmon', 'sky'],
     ['cantaloupe', 'orchid'],
@@ -147,7 +150,7 @@ const colorComplements = new Map([
     ['orchid', 'cantaloupe'],
     ['lavender', 'banana'],
     ['bubblegum', 'honeydew'],
-    
+
     // Earth tones
     ['cayenne', 'teal'],
     ['mocha', 'ocean'],
@@ -161,7 +164,7 @@ const colorComplements = new Map([
     ['eggplant', 'fern'],
     ['plum', 'clover'],
     ['maroon', 'moss'],
-    
+
     // Grays - complement with vibrant colors
     ['licorice', 'lemon'],
     ['lead', 'tangerine'],
@@ -232,18 +235,18 @@ function getAppleCrayonColorByName(name) {
 function getComplementaryThreeJSColor(threeJSColor) {
     // Create a new color object to avoid modifying the input
     const color = threeJSColor.clone();
-    
+
     // Get HSL values
     const hsl = {};
     color.getHSL(hsl);
-    
+
     // Shift hue by 180 degrees (0.5 in normalized HSL)
     hsl.h = (hsl.h + 0.5) % 1.0;
-    
+
     // Create and return new color with complementary hue
     const complementaryColor = new THREE.Color();
     complementaryColor.setHSL(hsl.h, hsl.s, hsl.l);
-    
+
     return complementaryColor;
 }
 
@@ -309,36 +312,36 @@ function colorToRGBString(color) {
 function getHeatmapColorHSLLightnessVariation(percentage, baseColorName = 'blueberry') {
     // Clamp percentage between 0 and 1
     const clampedPercentage = Math.max(0, Math.min(1, percentage));
-    
+
     // Get the base color
     const baseColor = getAppleCrayonColorByName(baseColorName);
     if (!baseColor) {
         console.warn(`Color name '${baseColorName}' not found, using blueberry`);
         return getAppleCrayonColorByName('blueberry');
     }
-    
+
     // Create a new color object
     const heatmapColor = baseColor.clone();
-    
+
     // Convert to HSL for easier manipulation
     const hsl = {};
     heatmapColor.getHSL(hsl);
-    
+
     // Vary the lightness based on percentage
     // Higher percentage = higher lightness (brighter color)
     // Lower percentage = lower lightness (darker color)
     const minLightness = 0.2;  // Dark for low percentages
     const maxLightness = 0.8;  // Bright for high percentages
     hsl.l = minLightness + (clampedPercentage * (maxLightness - minLightness));
-    
+
     // Vary saturation slightly - higher percentages get more saturated
     const minSaturation = 0.6;
     const maxSaturation = 1.0;
     hsl.s = minSaturation + (clampedPercentage * (maxSaturation - minSaturation));
-    
+
     // Set the new HSL values
     heatmapColor.setHSL(hsl.h, hsl.s, hsl.l);
-    
+
     return heatmapColor;
 }
 
@@ -352,7 +355,7 @@ function getHeatmapColorHSLLightnessVariation(percentage, baseColorName = 'blueb
 function getHeatmapColorViaColorInterpolation(percentage, lowColor = 'licorice', highColor = 'maraschino') {
     // Clamp percentage between 0 and 1
     const clampedPercentage = Math.max(0, Math.min(1, percentage));
-    
+
     // Helper function to get THREE.Color from either string name or THREE.Color object
     const getColor = (colorInput) => {
         if (colorInput instanceof THREE.Color) {
@@ -364,25 +367,28 @@ function getHeatmapColorViaColorInterpolation(percentage, lowColor = 'licorice',
             return null;
         }
     };
-    
+
     // Get the two colors to interpolate between
     const lowColorObj = getColor(lowColor);
     const highColorObj = getColor(highColor);
-    
+
     if (!lowColorObj || !highColorObj) {
         console.warn(`Invalid color inputs, using fallback colors`);
         const fallbackLow = getAppleCrayonColorByName('licorice') || new THREE.Color(0x000000);
         const fallbackHigh = getAppleCrayonColorByName('maraschino') || new THREE.Color(0xFF2101);
         return fallbackLow.clone().lerp(fallbackHigh, clampedPercentage);
     }
-    
+
     // Use THREE.js lerp method to interpolate between the two colors
     const interpolatedColor = lowColorObj.clone().lerp(highColorObj, clampedPercentage);
-    
+
     return interpolatedColor;
 }
 
 export {
+    colors32Distinct,
+    colors64Distinct,
+    colors128Distinct,
     getComplementaryThreeJSColor,
     getRandomAppleCrayonColor,
     getRandomVibrantAppleCrayonColor,

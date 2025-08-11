@@ -1,7 +1,8 @@
-import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
 import AnnotationRenderService from "./annotationRenderService.js"
 import { locusInput } from "./main.js"
-import { calculateDistributionStats, normalizeDataset } from "./utils/stats.js"
+import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
+import {colors32Distinct, colors64Distinct} from "./utils/color.js"
+import {uniqueRandomGenerator} from "./utils/utils.js"
 
 class GenomicService {
 
@@ -15,7 +16,6 @@ class GenomicService {
     async createMetadata(nodes, sequences, genomeLibrary, raycastService) {
 
         this.assemblySet.clear()
-        const assemblyColors = new Map()
         const renderLibrary = new Map()
         const locusExtentMap = new Map()
 
@@ -69,23 +69,19 @@ class GenomicService {
 
         }
 
-        const uniqueColors = getPerceptuallyDistinctColors(this.assemblySet.size)
+        const uniqueColors = getPerceptuallyDistinctColors(1 + this.assemblySet.size)
+        const uniqueColorsRandomized = Array.from(uniqueRandomGenerator(uniqueColors, uniqueColors.length - 1));
 
         let i = 0;
         for (const assembly of this.assemblySet) {
-            assemblyColors.set(assembly, uniqueColors[i]);
+            const annotationRenderService = renderLibrary.get(assembly);
+            const locus = locusExtentMap.get(assembly);
+            this.assemblyPayload.set(assembly, { color:uniqueColorsRandomized[ i ], annotationRenderService, locus });
             i++;
         }
 
-        // console.log(`GenomicService: Created ${assemblyColors.size} assembly colors`);
+        console.log(`GenomicService: Created ${this.assemblySet.size} assembly colors`);
 
-        for (const assembly of this.assemblySet) {
-            const color = assemblyColors.get(assembly);
-            const annotationRenderService = renderLibrary.get(assembly);
-            const locus = locusExtentMap.get(assembly);
-
-            this.assemblyPayload.set(assembly, { color, annotationRenderService, locus });
-        }
     }
 
     getAssemblyListForNodeName(nodeName) {
@@ -125,115 +121,6 @@ class GenomicService {
 
     getNodeNameSet() {
         return new Set(this.metadata.keys());
-    }
-
-    /**
-     * Build assembly statistics for each node by analyzing connected edges
-     * @param {Map} nodeGeometries - Map of node geometries
-     * @param {Map} edgeGeometries - Map of edge geometries
-     * @returns {Map} Node assembly statistics
-     */
-    buildNodeAssemblyStatistics(nodeGeometries, edgeGeometries) {
-
-        this.nodeAssemblyStats.clear()
-
-        for (const [nodeName, nodeData] of nodeGeometries) {
-            this.nodeAssemblyStats.set(nodeName, {
-                incomingAssemblies: new Set(),
-                outgoingAssemblies: new Set(),
-                percentage: 0,
-                normalizedPercentage: 0,
-                percentile: 0,
-                distributionStats: null
-            });
-        }
-
-        for (const [edgeKey, edgeData] of edgeGeometries) {
-            const { startNode, endNode } = edgeData;
-
-            // Get startNode assembly
-            const startNodeAssembly = this.getAssemblyForNodeName(startNode);
-            if (startNodeAssembly) {
-                const endNodeStats = this.nodeAssemblyStats.get(endNode);
-                if (endNodeStats) {
-
-                    // startNode assemblies contribute to the tally of assemblies associated
-                    // with the endNode. They "flow in" to the endNode
-                    endNodeStats.incomingAssemblies.add(startNodeAssembly);
-                }
-            }
-
-            // Get endNode assembly
-            const endNodeAssembly = this.getAssemblyForNodeName(endNode);
-            if (endNodeAssembly) {
-                const startNodeStats = this.nodeAssemblyStats.get(startNode);
-                if (startNodeStats) {
-
-                    // endNode assemblies contribute to the tally of assemblies associated
-                    // with the startNode they "flow out" of the startNode
-                    startNodeStats.outgoingAssemblies.add(endNodeAssembly);
-                }
-            }
-        }
-
-        // Calculate percentage for each node
-        const allPercentages = [];
-        const nodePercentages = new Map();
-
-        for (const [nodeName, nodeStats] of this.nodeAssemblyStats.entries()) {
-            // Get the node's own assembly
-            const nodeAssembly = this.getAssemblyForNodeName(nodeName);
-
-            // Create a set of all assemblies associated with this node
-            const allAssemblies = new Set();
-
-            // Add the node's own assembly
-            if (nodeAssembly) {
-                allAssemblies.add(nodeAssembly);
-            }
-
-            // Add incoming assemblies
-            for (const assembly of nodeStats.incomingAssemblies) {
-                allAssemblies.add(assembly);
-            }
-
-            // Add outgoing assemblies
-            for (const assembly of nodeStats.outgoingAssemblies) {
-                allAssemblies.add(assembly);
-            }
-
-            // Calculate percentage of total assemblies
-            const totalAssemblies = this.assemblyPayload.size;
-            const nodeAssemblyCount = allAssemblies.size;
-            const percentage = totalAssemblies > 0 ? nodeAssemblyCount / totalAssemblies : 0;
-
-            // Add allAssemblies set and assembly count to nodeStats
-            nodeStats.allAssemblies = allAssemblies;
-            nodeStats.assemblyCount = nodeAssemblyCount;
-            nodeStats.totalAssemblies = totalAssemblies;
-            nodeStats.percentage = percentage;
-            allPercentages.push(percentage);
-            nodePercentages.set(nodeName, percentage);
-        }
-
-        // Calculate distribution statistics across all nodes
-        const distributionStats = calculateDistributionStats(allPercentages);
-
-        // Calculate normalized percentages using percentile-based normalization
-        const normalizedPercentages = normalizeDataset(allPercentages, 'percentile');
-
-        // Update each node with distribution stats and normalized values
-        let index = 0;
-        for (const [nodeName, nodeStats] of this.nodeAssemblyStats.entries()) {
-            nodeStats.normalizedPercentage = normalizedPercentages[index];
-            nodeStats.percentile = (index / (allPercentages.length - 1)) || 0; // Rank among all nodes
-            nodeStats.distributionStats = distributionStats;
-            index++;
-        }
-
-        // Log distribution statistics for debugging
-        console.log('Node Assembly Distribution Statistics:', distributionStats);
-
     }
 
     clear() {
