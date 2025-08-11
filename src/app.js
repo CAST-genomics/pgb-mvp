@@ -254,7 +254,7 @@ class App {
         }
 
         this.genomicService.clear()
-        await this.genomicService.createMetadata(json.node, json.sequence, this.genomeLibrary, this.raycastService)
+        await this.genomicService.createMetadata(json, this.genomeLibrary, this.raycastService)
 
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         const scene = this.sceneManager.getActiveScene()
