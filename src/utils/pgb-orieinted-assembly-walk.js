@@ -138,4 +138,57 @@ function tripleKey(a) {
     return `${a.assembly_name}#${a.haplotype}#${a.sequence_id}`
 }
 
-export { buildAssemblyWalks, tripleKey }
+/**
+ * Pretty print the walks array returned by buildAssemblyWalks()
+ * @param {Array<Array>} walks - Array of walks, where each walk is an array of node objects
+ * @param {string} assemblyName - Name of the assembly
+ */
+function prettyPrintAssemblyWalks(walks, assemblyName) {
+  console.log('\n=== Assembly Walks ===\n');
+  
+  console.log(`📋 Assembly: ${assemblyName}`);
+  console.log(`   Found ${walks.length} walk(s):`);
+  
+  if (walks.length === 0) {
+    console.log('   └─ No walks for this assembly');
+  } else {
+    walks.forEach((walk, walkIndex) => {
+      console.log(`   ${walkIndex + 1}. Walk (${walk.length} nodes):`);
+      
+      if (walk.length === 0) {
+        console.log('      └─ Empty walk');
+      } else {
+        // Group consecutive nodes with same orientation for cleaner display
+        let currentOrient = null;
+        let currentGroup = [];
+        
+        walk.forEach((node, nodeIndex) => {
+          if (node.orient !== currentOrient) {
+            // Print previous group
+            if (currentGroup.length > 0) {
+              const nodesStr = currentGroup.map(n => n.id).join(' → ');
+              const orientStr = currentOrient === '+' ? '→' : '←';
+              console.log(`      ${orientStr} ${nodesStr}`);
+            }
+            // Start new group
+            currentOrient = node.orient;
+            currentGroup = [node];
+          } else {
+            currentGroup.push(node);
+          }
+        });
+        
+        // Print last group
+        if (currentGroup.length > 0) {
+          const nodesStr = currentGroup.map(n => n.id).join(' → ');
+          const orientStr = currentOrient === '+' ? '→' : '←';
+          console.log(`      ${orientStr} ${nodesStr}`);
+        }
+      }
+    });
+  }
+  
+  console.log('=== End Assembly Walks ===\n');
+}
+
+export { buildAssemblyWalks, tripleKey, prettyPrintAssemblyWalks }

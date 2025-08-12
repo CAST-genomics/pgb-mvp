@@ -1,6 +1,7 @@
 import { Draggable } from './utils/draggable.js';
 import { colorToRGBString } from './utils/color.js';
 import eventBus from './utils/eventBus.js';
+import {prettyPrintAssemblyWalks} from "./utils/pgb-orieinted-assembly-walk.js"
 
 class AssemblyWidget {
     constructor(gear, assemblyWidgetContainer, genomicService, raycastService) {
@@ -96,6 +97,10 @@ class AssemblyWidget {
             }
 
             // Select new genome
+            console.log(`selected ${ assembly }`)
+            const walks = this.genomicService.walksByTriple.get(assembly)
+            prettyPrintAssemblyWalks(walks, assembly)
+
             this.selectedAssemblies.add(assembly);
             event.target.style.border = '2px solid #000';
             event.target.style.transform = 'scale(1.5)'
@@ -125,7 +130,7 @@ class AssemblyWidget {
     onSearchInput(event) {
         const searchTerm = event.target.value.toLowerCase().trim();
         console.log('Search term:', searchTerm);
-        
+
         if (searchTerm === '') {
             // When search is cleared, show all items
             this.allAssemblyItems.forEach((item) => {
@@ -139,7 +144,6 @@ class AssemblyWidget {
     }
 
     filterAssemblies(searchTerm) {
-        console.log('Filtering assemblies, total items:', this.allAssemblyItems.size);
         this.allAssemblyItems.forEach((item, assembly) => {
             const matches = assembly.toLowerCase().includes(searchTerm);
             if (matches) {
@@ -147,11 +151,8 @@ class AssemblyWidget {
             } else {
                 item.classList.add('d-none');
             }
-            console.log(`Assembly: ${assembly}, matches: ${matches}, has d-none: ${item.classList.contains('d-none')}`);
         });
     }
-
-
 
     cleanupListItem(item) {
 
