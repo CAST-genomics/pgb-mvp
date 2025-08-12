@@ -104,7 +104,8 @@ class AssemblyVisualizationLook extends Look {
     getNodeMaterial(nodeName) {
 
         return new LineMaterial({
-            color: getAppleCrayonColorByName('aqua'),
+            // color: getAppleCrayonColorByName('aqua'),
+            color: getAppleCrayonColorByName('ocean'),
             linewidth: Look.NODE_LINE_WIDTH,
             worldUnits: true,
             opacity: 1,
