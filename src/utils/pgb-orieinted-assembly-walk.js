@@ -135,7 +135,7 @@ function buildAssemblyWalks(graph) {
 }
 
 function tripleKey(a) {
-    return `${a.assembly_name}||${a.haplotype}||${a.sequence_id}`
+    return `${a.assembly_name}#${a.haplotype}#${a.sequence_id}`
 }
 
 export { buildAssemblyWalks, tripleKey }

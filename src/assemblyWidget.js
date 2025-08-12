@@ -9,6 +9,7 @@ class AssemblyWidget {
 
         this.assemblyWidgetContainer = assemblyWidgetContainer;
         this.listGroup = this.assemblyWidgetContainer.querySelector('.list-group');
+        this.searchInput = null; // Will be initialized when card is shown
 
         this.genomicService = genomicService;
 
@@ -22,9 +23,9 @@ class AssemblyWidget {
             }
         })
 
-
         this.draggable = new Draggable(this.assemblyWidgetContainer);
         this.selectedAssemblies = new Set()
+        this.allAssemblyItems = new Map(); // Store all items for filtering
 
     }
 
@@ -109,6 +110,49 @@ class AssemblyWidget {
         console.log('Flow switch toggled for:', assembly, event.target.checked);
     }
 
+    initializeSearchInput() {
+        if (!this.searchInput) {
+            this.searchInput = this.assemblyWidgetContainer.querySelector('#assembly-search');
+            if (this.searchInput) {
+                this.searchInput.addEventListener('input', this.onSearchInput.bind(this));
+                console.log('Search input initialized successfully');
+            } else {
+                console.error('Search input element not found');
+            }
+        }
+    }
+
+    onSearchInput(event) {
+        const searchTerm = event.target.value.toLowerCase().trim();
+        console.log('Search term:', searchTerm);
+        
+        if (searchTerm === '') {
+            // When search is cleared, show all items
+            this.allAssemblyItems.forEach((item) => {
+                item.classList.remove('d-none');
+            });
+            console.log('Search cleared - all assemblies restored');
+        } else {
+            // Filter based on search term
+            this.filterAssemblies(searchTerm);
+        }
+    }
+
+    filterAssemblies(searchTerm) {
+        console.log('Filtering assemblies, total items:', this.allAssemblyItems.size);
+        this.allAssemblyItems.forEach((item, assembly) => {
+            const matches = assembly.toLowerCase().includes(searchTerm);
+            if (matches) {
+                item.classList.remove('d-none');
+            } else {
+                item.classList.add('d-none');
+            }
+            console.log(`Assembly: ${assembly}, matches: ${matches}, has d-none: ${item.classList.contains('d-none')}`);
+        });
+    }
+
+
+
     cleanupListItem(item) {
 
         const assemblySelector = item.querySelector('.assembly-widget__genome-selector');
@@ -132,10 +176,12 @@ class AssemblyWidget {
         }
 
         this.listGroup.innerHTML = '';
+        this.allAssemblyItems.clear();
 
         for (const [assembly, {color}] of this.genomicService.assemblyPayload.entries()) {
             const item = this.createListItem(assembly, color);
             this.listGroup.appendChild(item);
+            this.allAssemblyItems.set(assembly, item);
         }
     }
 
@@ -152,6 +198,8 @@ class AssemblyWidget {
         this.assemblyWidgetContainer.style.display = '';
         setTimeout(() => {
             this.assemblyWidgetContainer.classList.add('show');
+            // Initialize search input when card is shown
+            this.initializeSearchInput();
         }, 0);
     }
 
@@ -159,11 +207,19 @@ class AssemblyWidget {
         this.assemblyWidgetContainer.classList.remove('show');
         setTimeout(() => {
             this.assemblyWidgetContainer.style.display = 'none';
+            // Clear search input when hiding card
+            if (this.searchInput) {
+                this.searchInput.value = '';
+                this.filterAssemblies(''); // Show all items
+            }
         }, 200);
     }
 
     destroy() {
         this.draggable.destroy();
+        if (this.searchInput) {
+            this.searchInput.removeEventListener('input', this.onSearchInput.bind(this));
+        }
     }
 }
 
