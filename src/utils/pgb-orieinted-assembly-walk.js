@@ -8,10 +8,11 @@
  * tripleKey format: "assembly_name||haplotype||sequence_id"
  */
 function buildAssemblyWalks(graph) {
+
   const { node, edge } = graph;
 
   // ---- helpers ----
-  const tripleKey = (a) => `${a.assembly_name}||${a.haplotype}||${a.sequence_id}`;
+
   const baseOf = (oriented) => oriented.slice(0, -1); // "85853+" -> "85853"
   const orientOf = (oriented) => oriented.slice(-1);  // "+" or "-"
   const nameOf = (base, orient) => `${base}${orient}`;
@@ -142,4 +143,6 @@ function buildAssemblyWalks(graph) {
   return walksByTriple;
 }
 
-export { buildAssemblyWalks }
+const tripleKey = (a) => `${a.assembly_name}||${a.haplotype}||${a.sequence_id}`;
+
+export { buildAssemblyWalks, tripleKey }
