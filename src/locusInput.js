@@ -3,8 +3,9 @@ import { prettyPrint } from './utils/utils.js';
 import {searchFeatures} from "./igvCore/search.js"
 import {defaultGenome} from "./main.js"
 
-// Regular expressions for parsing genomic loci
+// Regular expressions for parsing genomic loci and URLs
 const LOCUS_PATTERN = { REGION: /^(chr[0-9XY]+):([0-9,]+)-([0-9,]+)$/i };
+const URL_PATTERN = /^https?:\/\/.+/i;
 
 const pangenomeURLTemplate = 'https://3.145.184.140:8443/json?chrom=_CHR_&start=_START_&end=_END_&graphtype=minigraph&version=_VERSION_&debug_small_graphs=false&minnodelen=5&nodeseglen=20&edgelen=5&nodelenpermb=1000'
 
@@ -32,17 +33,26 @@ class LocusInput {
 
     setupEventListeners() {
         const handleLocusUpdate = async () => {
-            const candidateLocus = this.inputElement.value.trim()
-            const locus = this.processLocusInput(candidateLocus);
+            const candidateInput = this.inputElement.value.trim()
+            
+            // First check if it's a URL
+            if (this.isUrl(candidateInput)) {
+                await this.ingestUrl(candidateInput);
+                return;
+            }
+            
+            // Then check if it's a locus
+            const locus = this.processLocusInput(candidateInput);
             if (locus) {
                 await this.ingestLocus(locus.chr, locus.startBP, locus.endBP);
             } else {
-                const result = await searchFeatures({ genome: defaultGenome }, candidateLocus)
+                // Finally try gene name search
+                const result = await searchFeatures({ genome: defaultGenome }, candidateInput)
                 if (result) {
                     const { chr, start, end, name } = result
                     await this.ingestLocus(chr, start, end);
                 } else {
-                    this.showError(`Invalid locus format value: ${candidateLocus}`);
+                    this.showError(`Invalid input format. Please enter a locus (e.g., chr1:25240000-25460000), gene name, or URL.`);
                 }
             }
         };
@@ -62,13 +72,17 @@ class LocusInput {
         });
     }
 
+    isUrl(value) {
+        return URL_PATTERN.test(value);
+    }
+
     processLocusInput(value) {
         // Reset error state
         this.inputElement.classList.remove('is-invalid');
         this.errorDiv.style.display = 'none';
 
         if (!value) {
-            this.showError('Please enter a genomic locus, e.g. chr1:25240000-25460000');
+            this.showError('Please enter a genomic locus, gene name, or URL');
             return null;
         }
 
@@ -136,6 +150,14 @@ class LocusInput {
         .replace('_END_', endBP)
         .replace('_VERSION_', this.version);
         await this.sceneManager.handleSearch(path);
+    }
+
+    async ingestUrl(url) {
+        // Reset error state
+        this.inputElement.classList.remove('is-invalid');
+        this.errorDiv.style.display = 'none';
+        
+        await this.sceneManager.handleSearch(url);
     }
 }
 
