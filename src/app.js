@@ -4,6 +4,7 @@ import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
 import { loadPath } from './utils/utils.js'
+import {buildAssemblyWalks} from "./utils/pgb-orieinted-assembly-walk.js"
 
 class App {
 
@@ -253,8 +254,10 @@ class App {
             return
         }
 
+        const walksByTriple = buildAssemblyWalks(json)
+
         this.genomicService.clear()
-        await this.genomicService.createMetadata(json.node, json.sequence, this.genomeLibrary, this.raycastService)
+        await this.genomicService.createMetadata(json, walksByTriple, this.genomeLibrary, this.raycastService)
 
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         const scene = this.sceneManager.getActiveScene()

@@ -1,6 +1,7 @@
 import { Draggable } from './utils/draggable.js';
 import { colorToRGBString } from './utils/color.js';
 import eventBus from './utils/eventBus.js';
+import {prettyPrintAssemblyWalks} from "./utils/pgb-orieinted-assembly-walk.js"
 
 class AssemblyWidget {
     constructor(gear, assemblyWidgetContainer, genomicService, raycastService) {
@@ -9,35 +10,11 @@ class AssemblyWidget {
 
         this.assemblyWidgetContainer = assemblyWidgetContainer;
         this.listGroup = this.assemblyWidgetContainer.querySelector('.list-group');
+        this.searchInput = null; // Will be initialized when card is shown
 
         this.genomicService = genomicService;
 
         raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
-
-        // Subscribe to assembly interaction events
-        this.deemphasizeUnsub = eventBus.subscribe('assembly:deemphasizeNodes', data => {
-            console.log(`AssemblyWidget - handle assembly:deemphasizeNodes`)
-            const list = [ ...data.nodeNames ].map(nodeName => this.genomicService.getAssemblyForNodeName(nodeName))
-            const assemblyDemphasisSet = new Set([ ...list ])
-            const assemblyEmphasisSet = this.genomicService.assemblySet.difference(assemblyDemphasisSet)
-            const [ assemblyEmphasisName ] = [ ...assemblyEmphasisSet ]
-
-            this.selectedAssemblies.clear();
-            this.selectedAssemblies.add(assemblyEmphasisName);
-
-            const selectors = Array.from(this.listGroup.querySelectorAll('.assembly-widget__genome-selector'))
-            for (const selector of selectors) {
-                if (selector.dataset.assembly === assemblyEmphasisName) {
-                    // Apply the same styling as hover effect
-                    selector.style.border = '2px solid #000'
-                    selector.style.transform = 'scale(1.5)'
-                } else {
-                    selector.style.border = '2px solid transparent'
-                    selector.style.transform = 'scale(1)' // Reset to normal size
-                }
-            }
-
-        });
 
         this.restoreUnsub = eventBus.subscribe('assembly:restoreEmphasis', data => {
             const selectors = Array.from(this.listGroup.querySelectorAll('.assembly-widget__genome-selector'))
@@ -45,43 +22,20 @@ class AssemblyWidget {
                 selector.style.border = '2px solid transparent'
                 selector.style.transform = 'scale(1)' // Reset to normal size
             }
-        });
-
+        })
 
         this.draggable = new Draggable(this.assemblyWidgetContainer);
         this.selectedAssemblies = new Set()
+        this.allAssemblyItems = new Map(); // Store all items for filtering
 
     }
 
     raycastClickHandler(intersection) {
 
         if (intersection) {
-            const { nodeName } = intersection
-            const assembly = this.genomicService.getAssemblyForNodeName(nodeName);
-
-            if (this.selectedAssemblies.size > 0) {
-                const previousAssembly = [...this.selectedAssemblies][0];
-                this.selectedAssemblies.delete(previousAssembly);
-
-                eventBus.publish('assembly:restoreEmphasis', {
-                    nodeNames: this.genomicService.getNodeNameSet()
-                });
-            }
-
-            this.selectedAssemblies.add(assembly);
-            const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
-            const deemphasizedNodeNames = this.genomicService.getNodeNameSet().difference(set);
-
-            eventBus.publish('assembly:deemphasizeNodes', {
-                nodeNames: deemphasizedNodeNames
-            });
-
         } else {
             this.selectedAssemblies.clear();
-
-            eventBus.publish('assembly:restoreEmphasis', {
-                nodeNames: this.genomicService.getNodeNameSet()
-            });
+            eventBus.publish('assembly:restoreEmphasis', { nodeNames: this.genomicService.getNodeNameSet(), assemblySet: this.genomicService.assemblySet });
         }
     }
 
@@ -132,27 +86,26 @@ class AssemblyWidget {
         if (this.selectedAssemblies.has(assembly)) {
             // Deselect
             this.selectedAssemblies.delete(assembly);
-            event.target.style.border = '2px solid transparent';
             eventBus.publish('assembly:restoreEmphasis', { nodeNames: this.genomicService.getNodeNameSet() });
         } else {
-            // Deselect any previously selected genome
+            // Deselect previously selected assembly
             if (this.selectedAssemblies.size > 0) {
+
                 const previousAssembly = [...this.selectedAssemblies][0];
                 this.selectedAssemblies.delete(previousAssembly);
-                const previousSelector = Array.from(this.listGroup.querySelectorAll('.assembly-widget__genome-selector'))
-                    .find(selector => selector.dataset.assembly === previousAssembly);
-                if (previousSelector) {
-                    previousSelector.style.border = '2px solid transparent';
-                }
-                eventBus.publish('assembly:restoreEmphasis', { nodeNames: this.genomicService.getNodeNameSet() });
+                eventBus.publish('assembly:restoreEmphasis', { nodeNames: this.genomicService.getNodeNameSet(), assemblySet:this.genomicService.assemblySet });
             }
 
             // Select new genome
+            console.log(`selected ${ assembly }`)
+            const walks = this.genomicService.walksByTriple.get(assembly)
+            prettyPrintAssemblyWalks(walks, assembly)
+
             this.selectedAssemblies.add(assembly);
             event.target.style.border = '2px solid #000';
-            const set = this.genomicService.getNodeNameSetWithAssembly(assembly);
-            const deemphasizedNodeNames = this.genomicService.getNodeNameSet().difference(set);
-            eventBus.publish('assembly:deemphasizeNodes', { nodeNames: deemphasizedNodeNames });
+            event.target.style.transform = 'scale(1.5)'
+
+            eventBus.publish('assembly:deemphasizeNodes', { assembly  });
         }
     }
 
@@ -160,6 +113,45 @@ class AssemblyWidget {
         event.stopPropagation();
         // TODO: Handle flow switch toggle
         console.log('Flow switch toggled for:', assembly, event.target.checked);
+    }
+
+    initializeSearchInput() {
+        if (!this.searchInput) {
+            this.searchInput = this.assemblyWidgetContainer.querySelector('#assembly-search');
+            if (this.searchInput) {
+                this.searchInput.addEventListener('input', this.onSearchInput.bind(this));
+                console.log('Search input initialized successfully');
+            } else {
+                console.error('Search input element not found');
+            }
+        }
+    }
+
+    onSearchInput(event) {
+        const searchTerm = event.target.value.toLowerCase().trim();
+        console.log('Search term:', searchTerm);
+
+        if (searchTerm === '') {
+            // When search is cleared, show all items
+            this.allAssemblyItems.forEach((item) => {
+                item.classList.remove('d-none');
+            });
+            console.log('Search cleared - all assemblies restored');
+        } else {
+            // Filter based on search term
+            this.filterAssemblies(searchTerm);
+        }
+    }
+
+    filterAssemblies(searchTerm) {
+        this.allAssemblyItems.forEach((item, assembly) => {
+            const matches = assembly.toLowerCase().includes(searchTerm);
+            if (matches) {
+                item.classList.remove('d-none');
+            } else {
+                item.classList.add('d-none');
+            }
+        });
     }
 
     cleanupListItem(item) {
@@ -185,10 +177,12 @@ class AssemblyWidget {
         }
 
         this.listGroup.innerHTML = '';
+        this.allAssemblyItems.clear();
 
         for (const [assembly, {color}] of this.genomicService.assemblyPayload.entries()) {
             const item = this.createListItem(assembly, color);
             this.listGroup.appendChild(item);
+            this.allAssemblyItems.set(assembly, item);
         }
     }
 
@@ -205,6 +199,8 @@ class AssemblyWidget {
         this.assemblyWidgetContainer.style.display = '';
         setTimeout(() => {
             this.assemblyWidgetContainer.classList.add('show');
+            // Initialize search input when card is shown
+            this.initializeSearchInput();
         }, 0);
     }
 
@@ -212,11 +208,19 @@ class AssemblyWidget {
         this.assemblyWidgetContainer.classList.remove('show');
         setTimeout(() => {
             this.assemblyWidgetContainer.style.display = 'none';
+            // Clear search input when hiding card
+            if (this.searchInput) {
+                this.searchInput.value = '';
+                this.filterAssemblies(''); // Show all items
+            }
         }, 200);
     }
 
     destroy() {
         this.draggable.destroy();
+        if (this.searchInput) {
+            this.searchInput.removeEventListener('input', this.onSearchInput.bind(this));
+        }
     }
 }
 

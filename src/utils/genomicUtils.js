@@ -33,6 +33,7 @@ function getRandomChromosomeName() {
     const randomIndex = Math.floor(Math.random() * chromosomeNames.length);
     return chromosomeNames[randomIndex];
 }
+
 function getChromosomeLength(chromosomeName) {
     if (chromosomeData.hasOwnProperty(chromosomeName)) {
         return chromosomeData[chromosomeName];
@@ -42,8 +43,4 @@ function getChromosomeLength(chromosomeName) {
     }
 }
 
-function prettyPrint(value) {
-    return value.toLocaleString(); // Adds commas for readability
-}
-
-export { getRandomChromosomeName, getChromosomeLength, prettyPrint }
+export { getRandomChromosomeName, getChromosomeLength }

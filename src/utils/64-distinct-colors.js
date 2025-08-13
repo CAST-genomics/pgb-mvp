@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
-const colors = [
+// Refer to: https://mokole.com/palette.html
+const colors64Distinct = [
   // row 1
   new THREE.Color(0xa9a9a9), // darkgray
   new THREE.Color(0xdcdcdc), // gainsboro
@@ -84,4 +85,4 @@ const colors = [
   new THREE.Color(0xffb6c1), // lightpink
 ];
 
-export { colors };
+export { colors64Distinct };

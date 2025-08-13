@@ -17,15 +17,13 @@ class GeometryManager {
     createGeometry(json, look, pangenomeGraph) {
         this.geometryData = this.geometryFactory.createGeometryData(json, pangenomeGraph);
 
-        this.genomicService.buildNodeAssemblyStatistics(this.geometryData.nodeGeometries, this.geometryData.edgeGeometries);
-        
         this.linesGroup.clear();
         this.edgesGroup.clear();
 
         this.#createNodeMeshes(look);
         this.#createEdgeMeshes(look);
 
-        
+
     }
 
     #createNodeMeshes(look) {

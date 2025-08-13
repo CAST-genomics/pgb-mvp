@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
-const colors = [
+// Refer to: https://mokole.com/palette.html
+const colors32Distinct = [
   // row 1
   new THREE.Color(0x696969), // dimgray
   new THREE.Color(0x7f0000), // maroon2
@@ -42,4 +43,4 @@ const colors = [
   new THREE.Color(0xffc0cb), // pink
 ];
 
-export { colors };
+export { colors32Distinct };

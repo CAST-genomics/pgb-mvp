@@ -108,13 +108,16 @@ class PangenomeGraph {
 
         // Add to adjacency lists (the actual graph connections)
         // Note: The adjacency lists represent the actual graph topology
-        // based on the sign interpretation rules
-        if (this.adjacencyList.has(startingNode)) {
-            this.adjacencyList.get(startingNode).add(endingNode);
+        // Convert edge references to actual signed node names
+        const actualStartingNode = this.getActualSignedNodeName(startingNode);
+        const actualEndingNode = this.getActualSignedNodeName(endingNode);
+        
+        if (this.adjacencyList.has(actualStartingNode)) {
+            this.adjacencyList.get(actualStartingNode).add(actualEndingNode);
         }
 
-        if (this.reverseAdjacencyList.has(endingNode)) {
-            this.reverseAdjacencyList.get(endingNode).add(startingNode);
+        if (this.reverseAdjacencyList.has(actualEndingNode)) {
+            this.reverseAdjacencyList.get(actualEndingNode).add(actualStartingNode);
         }
     }
 
@@ -224,12 +227,16 @@ class PangenomeGraph {
 
         const { from, to, fromSign, toSign, startingNode, endingNode } = edgeData;
 
+        // Convert edge references to actual signed node names
+        const actualStartingNode = this.getActualSignedNodeName(startingNode);
+        const actualEndingNode = this.getActualSignedNodeName(endingNode);
+
         // Get the actual signs of the nodes by parsing the signed node names
-        const fromNodeSign = this.getNodeSign(startingNode);
-        const toNodeSign = this.getNodeSign(endingNode);
+        const fromNodeSign = this.getNodeSign(actualStartingNode);
+        const toNodeSign = this.getNodeSign(actualEndingNode);
 
         if (!fromNodeSign || !toNodeSign) {
-            throw new Error(`Node signs not found for ${startingNode} or ${endingNode}`);
+            throw new Error(`Node signs not found for ${actualStartingNode} or ${actualEndingNode}`);
         }
 
         // Determine connection points based on sign interpretation rules
@@ -561,8 +568,11 @@ class PangenomeGraph {
 
         for (const [edgeId, edgeData] of this.edges) {
             const { startingNode, endingNode } = edgeData;
+            // Get the actual signed node names that exist in the graph
+            const actualStartingNode = this.getActualSignedNodeName(startingNode);
+            const actualEndingNode = this.getActualSignedNodeName(endingNode);
             // Use the actual signed node names for the transpose
-            transpose.get(endingNode).add(startingNode);
+            transpose.get(actualEndingNode).add(actualStartingNode);
         }
 
         // Second DFS on transpose
@@ -716,7 +726,10 @@ class PangenomeGraph {
             // Get edge to next node
             if (i < path.length - 1) {
                 const nextNode = path[i + 1];
-                const edge = this.getEdge(node, nextNode);
+                // Convert signed node names to base node names for getEdge
+                const baseNodeName = this.getNodeNameFromSignedRef(node);
+                const nextBaseNodeName = this.getNodeNameFromSignedRef(nextNode);
+                const edge = this.getEdge(baseNodeName, nextBaseNodeName);
                 if (edge) {
                     pathInfo.edges.push(edge);
 
@@ -864,10 +877,12 @@ class PangenomeGraph {
      */
     getSplineParameter(signedNodeRef, nodeType) {
         const { nodeName, sign: edgeSign } = this.#parseSignedNode(signedNodeRef);
-        const nodeSign = this.getNodeSign(signedNodeRef);
+        // Get the actual signed node name and then its sign
+        const actualSignedNodeName = this.getActualSignedNodeName(signedNodeRef);
+        const nodeSign = this.getNodeSign(actualSignedNodeName);
 
         if (!nodeSign) {
-            throw new Error(`Node sign not found for ${signedNodeRef}`);
+            throw new Error(`Node sign not found for ${actualSignedNodeName}`);
         }
 
         // Determine if signs are opposite (edge sign ≠ node sign)
@@ -907,11 +922,11 @@ class PangenomeGraph {
         // Find all nodes reachable from start
         const queue = [startNode];
         const visited = new Set([startNode]);
-        
+
         while (queue.length > 0) {
             const current = queue.shift();
             analysis.reachableNodes.add(current);
-            
+
             const neighbors = this.getNeighbors(current);
             for (const neighbor of neighbors) {
                 if (!visited.has(neighbor)) {
@@ -924,11 +939,11 @@ class PangenomeGraph {
         // Find all nodes that can reach end
         const reverseQueue = [endNode];
         const reverseVisited = new Set([endNode]);
-        
+
         while (reverseQueue.length > 0) {
             const current = reverseQueue.shift();
             analysis.nodesReachingEnd.add(current);
-            
+
             const predecessors = this.getPredecessors(current);
             for (const predecessor of predecessors) {
                 if (!reverseVisited.has(predecessor)) {

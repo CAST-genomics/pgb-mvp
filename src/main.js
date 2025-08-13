@@ -54,6 +54,8 @@ document.addEventListener("DOMContentLoaded", async (event) => {
         genomicService,
         geometryManager
     })
+    assemblyVisualizationLook.setAnimationEnabled(false)
+
     const genomeFrequencyLook = GenomeFrequencyLook.createGenomeFrequencyLook('genomeFrequencyLook', { genomicService, geometryManager })
 
     // Look Manager

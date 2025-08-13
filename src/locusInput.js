@@ -12,7 +12,7 @@ class LocusInput {
     constructor(container, sceneManager) {
         this.container = container;
         this.sceneManager = sceneManager;
-        this.version = 'v2';
+        this.version = 'v1';
         this.render();
         this.setupEventListeners();
     }

@@ -566,15 +566,28 @@
 
             const sourceNodes = graph.getSourceNodes();
             const sinkNodes = graph.getSinkNodes();
+            log(`Source nodes: ${sourceNodes.join(', ')}`);
+            log(`Sink nodes: ${sinkNodes.join(', ')}`);
+
             const headNode = sourceNodes[0];
             const tailNode = sinkNodes[0];
+            log(`Head node: ${headNode}, Tail node: ${tailNode}`);
 
             // Get all assemblies
             const assemblySet = new Set();
             const nodeAssemblies = new Map();
 
+            log('Processing node assemblies...');
+            let nodeCount = 0;
             for (const [nodeName, nodeData] of Object.entries(jsonData.node)) {
-                const assemblies = nodeData.assembly;
+                nodeCount++;
+                if (nodeCount <= 3) {
+                    log(`Node ${nodeName}: ${JSON.stringify(nodeData.assembly)}`);
+                }
+
+                // NOTE: August 8 2025 - Version 1 - Multiple Assemblies
+                const assemblies = nodeData.assembly.map(({assembly_name}) => assembly_name);
+
                 if (Array.isArray(assemblies)) {
                     assemblies.forEach(assembly => assemblySet.add(assembly));
                     nodeAssemblies.set(nodeName, assemblies);
@@ -584,6 +597,7 @@
                 }
             }
 
+            log(`Total nodes processed: ${nodeCount}`);
             log(`Assemblies: ${Array.from(assemblySet).join(', ')}`);
 
             // For each assembly, find one path
@@ -591,9 +605,18 @@
                 log(`\n${assembly}:`);
 
                 const path = [];
+                const visitedNodes = new Set(); // Cycle detection
                 let currentNode = headNode;
+                const maxPathLength = 1000; // Safety limit
 
-                while (currentNode && currentNode !== tailNode) {
+                while (currentNode && currentNode !== tailNode && path.length < maxPathLength) {
+                    // Check for cycles
+                    if (visitedNodes.has(currentNode)) {
+                        log(`  Cycle detected at node ${currentNode}. Breaking.`);
+                        break;
+                    }
+
+                    visitedNodes.add(currentNode);
                     path.push(currentNode);
 
                     const neighbors = graph.getNeighbors(currentNode);
@@ -633,11 +656,24 @@
                     currentNode = variationNode || nextNode;
                 }
 
+                // Add final node if we reached the tail
                 if (currentNode === tailNode) {
                     path.push(tailNode);
+                    log(`  Successfully reached tail node`);
+                } else if (path.length >= maxPathLength) {
+                    log(`  Path length limit reached (${maxPathLength}). Stopping.`);
+                } else if (!currentNode) {
+                    log(`  Dead end reached. No valid path found.`);
+                } else {
+                    log(`  Stopped at node ${currentNode} (cycle or no valid neighbors)`);
                 }
 
-                log(`  ${path.join(' -> ')}`);
+                log(`  Path length: ${path.length} nodes`);
+                if (path.length > 0 && path.length <= 50) {
+                    log(`  ${path.join(' -> ')}`);
+                } else if (path.length > 50) {
+                    log(`  Path too long to display (${path.length} nodes). First 10: ${path.slice(0, 10).join(' -> ')} ... Last 10: ${path.slice(-10).join(' -> ')}`);
+                }
             }
 
         } catch (error) {

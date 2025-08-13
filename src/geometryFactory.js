@@ -135,6 +135,7 @@ class GeometryFactory {
         }
         return edgeGeometries;
     }
+
     /**
      * Get spline by node name
      */
@@ -168,8 +169,6 @@ class GeometryFactory {
             y: { min: minY, max: maxY, centroid: (minY + maxY) / 2 }
         };
     }
-
-
 
     /**
      * Dispose of all geometries
