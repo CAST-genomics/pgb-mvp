@@ -14,7 +14,7 @@ class AssemblyWidget {
 
         this.genomicService = genomicService;
 
-        raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
+        // raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
 
         this.restoreUnsub = eventBus.subscribe('assembly:restoreEmphasis', data => {
             const selectors = Array.from(this.listGroup.querySelectorAll('.assembly-widget__genome-selector'))
