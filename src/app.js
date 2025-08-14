@@ -4,11 +4,12 @@ import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
 import { loadPath } from './utils/utils.js'
-import {buildAssemblyWalks} from "./utils/pgb-orieinted-assembly-walk.js"
+import {createGraph} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createGraph.js"
+import {createAssemblyWalks} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createAssemblyWalk.js"
 
 class App {
 
-    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager, pangenomeGraph) {
+    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager) {
         this.container = container
 
         this.renderer = RendererFactory.createRenderer(container)
@@ -20,7 +21,6 @@ class App {
         this.genomeLibrary = genomeLibrary
         this.sceneManager = sceneManager
         this.lookManager = lookManager
-        this.pangenomeGraph = pangenomeGraph
 
         // Initialize time tracking
         this.clock = new THREE.Clock()
@@ -254,20 +254,19 @@ class App {
             return
         }
 
-        const walksByTriple = buildAssemblyWalks(json)
 
         this.genomicService.clear()
-        await this.genomicService.createMetadata(json, walksByTriple, this.genomeLibrary, this.raycastService)
+        await this.genomicService.createMetadata(json, this.genomeLibrary, this.raycastService)
 
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         const scene = this.sceneManager.getActiveScene()
 
-        this.pangenomeGraph.buildFromJSON(json)
-
-        this.geometryManager.createGeometry(json, look, this.pangenomeGraph)
+        this.geometryManager.createGeometry(json, look)
         this.geometryManager.addToScene(scene)
 
-        this.assemblyWidget.populateList()
+        const graph = createGraph(json)
+        const walks = createAssemblyWalks(graph)
+        this.assemblyWidget.configure(walks)
 
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)
 

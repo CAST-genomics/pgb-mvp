@@ -13,7 +13,7 @@ class GeometryFactory {
         this.geometryCache = new Map(); // Cache geometries by node name
     }
 
-    createGeometryData(json, pangenomeGraph) {
+    createGeometryData(json) {
         this.splines.clear();
         this.geometryCache.clear();
 
@@ -23,7 +23,7 @@ class GeometryFactory {
 
         this.#createNodeGeometries(json.node);
 
-        this.#createEdgeGeometries(json.edge, pangenomeGraph);
+        this.#createEdgeGeometries(json.edge);
 
         const result = {
             splines: this.splines,
@@ -76,18 +76,18 @@ class GeometryFactory {
     /**
      * Create edge line geometries without materials
      */
-    #createEdgeGeometries(edges, pangenomeGraph) {
+    #createEdgeGeometries(edges) {
 
         for (const { starting_node, ending_node } of Object.values(edges)) {
 
-            const startNodeName = pangenomeGraph.getActualSignedNodeName(starting_node);
-            const startParam = pangenomeGraph.getSplineParameter(starting_node, 'starting');
+            const startNodeName = this.getActualSignedNodeName(starting_node);
+            const startParam = this.getSplineParameter(starting_node, 'starting');
             const startSpline = this.splines.get(startNodeName);
             const xyzStart = startSpline.getPoint(startParam);
             xyzStart.z = GeometryFactory.EDGE_LINE_Z_OFFSET;
 
-            const endNodeName = pangenomeGraph.getActualSignedNodeName(ending_node);
-            const endParam = pangenomeGraph.getSplineParameter(ending_node, 'ending');
+            const endNodeName = this.getActualSignedNodeName(ending_node);
+            const endParam = this.getSplineParameter(ending_node, 'ending');
             const endSpline = this.splines.get(endNodeName);
             const xyzEnd = endSpline.getPoint(endParam);
             xyzEnd.z = GeometryFactory.EDGE_LINE_Z_OFFSET;
@@ -107,6 +107,82 @@ class GeometryFactory {
             // direct retrieval of the associated nodes.
             const edgeKey = `edge:${startNodeName}:${endNodeName}`;
             this.geometryCache.set(edgeKey, payload);
+        }
+    }
+
+    /**
+     * Get the actual signed node name that exists in the graph
+     * This method finds the correct signed node name for spline lookup
+     * @param {string} signedNodeRef - The signed node reference (e.g., "2918+" or "2918-")
+     * @returns {string} The actual signed node name that exists in the graph
+     * @throws {Error} If no matching node is found
+     */
+    getActualSignedNodeName(signedNodeRef) {
+        const { nodeName } = this.#parseSignedNode(signedNodeRef);
+
+        // Look for the node with this base name in our graph
+        for (const key of this.geometryCache.keys()) {
+
+            if (key.startsWith('node:')){
+                const [ prefix, signedNode ] = key.split(':')
+                const { nodeName: existingNodeName } = this.#parseSignedNode(signedNode);
+                if (existingNodeName === nodeName) {
+                    return signedNode; // Return the actual signed node name from the graph
+                }
+            }
+        }
+
+        throw new Error(`No node found with base name ${nodeName} for reference ${signedNodeRef}`);
+    }
+
+    #parseSignedNode(signedNode) {
+        const match = signedNode.match(/^(.+?)([+-])$/);
+        if (!match) {
+            throw new Error(`Invalid signed node format: ${signedNode}`);
+        }
+        return { nodeName: match[1], sign: match[2] };
+    }
+
+    /**
+     * Get the actual sign of a node from its signed name
+     * @param {string} signedNodeName - The signed node name (e.g., "1234+", "5678-")
+     * @returns {string} The node's actual sign ('+' or '-')
+     */
+    getNodeSign(signedNodeName) {
+        const { sign } = this.#parseSignedNode(signedNodeName);
+        return sign;
+    }
+
+    /**
+     * Get the spline parameter (0 or 1) for a signed node reference
+     * This implements the sign interpretation rule for geometry creation
+     * @param {string} signedNodeRef - The signed node reference (e.g., "2918+" or "2918-")
+     * @param {string} nodeType - Either "starting" or "ending" to determine the rule
+     * @returns {number} 0 or 1 for spline.getPoint() parameter
+     */
+    getSplineParameter(signedNodeRef, nodeType) {
+        const { nodeName, sign: edgeSign } = this.#parseSignedNode(signedNodeRef);
+        // Get the actual signed node name and then its sign
+        const actualSignedNodeName = this.getActualSignedNodeName(signedNodeRef);
+        const nodeSign = this.getNodeSign(actualSignedNodeName);
+
+        if (!nodeSign) {
+            throw new Error(`Node sign not found for ${actualSignedNodeName}`);
+        }
+
+        // Determine if signs are opposite (edge sign ≠ node sign)
+        const signsOpposite = edgeSign !== nodeSign;
+
+        if (nodeType === 'starting') {
+            // This is a starting_node. If the sign is opposite to the node sign
+            // use node.start xyz (0). If the sign is the same, use node.end xyz (1)
+            return signsOpposite ? 0 : 1;
+        } else if (nodeType === 'ending') {
+            // This is an ending_node. If the sign is opposite to the node sign
+            // use node.end xyz (1). If the sign is the same, use node.start xyz (0)
+            return signsOpposite ? 1 : 0;
+        } else {
+            throw new Error(`Invalid nodeType: ${nodeType}. Must be 'starting' or 'ending'`);
         }
     }
 
@@ -134,6 +210,16 @@ class GeometryFactory {
             }
         }
         return edgeGeometries;
+    }
+
+    // return a set of all nodeGeometry keys
+    getNodeNameSet(){
+        return new Set([ ...this.getNodeGeometries().keys() ])
+    }
+
+    // return a set of all edge keys
+    getEdgeNameSet(){
+        return new Set([ ...this.getEdgeGeometries().keys() ])
     }
 
     /**

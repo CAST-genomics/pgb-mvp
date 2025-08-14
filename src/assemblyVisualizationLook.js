@@ -128,22 +128,27 @@ class AssemblyVisualizationLook extends Look {
         return colorRampArrowMaterialFactory(startColor, endColor, materialService.getTexture('arrow-white'), 1);
     }
 
-    setNodeAndEdgeEmphasis(emphasisAssembly) {
+    setNodeAndEdgeEmphasis(emphasisAssembly, emphasisNodeSet, emphasisEdgeSet) {
 
         this.emphasisStates.clear()
 
-        const emphasisNodeSet = this.genomicService.getNodeNameSetWithAssembly(emphasisAssembly);
-        const deemphasisNodeNameSet = this.genomicService.getNodeNameSet().difference(emphasisNodeSet);
+        const deemphasisNodeSet = this.geometryManager.geometryFactory.getNodeNameSet().difference(emphasisNodeSet);
 
-        for (const nodeName of deemphasisNodeNameSet) {
+        for (const nodeName of deemphasisNodeSet) {
             this.setEmphasisState(nodeName, 'deemphasized');
         }
 
-        this.#updateNodeEmphasis(deemphasisNodeNameSet, 'deemphasized', undefined);
-        this.#updateEdgeEmphasis(deemphasisNodeNameSet, 'deemphasized', undefined);
-
+        this.#updateNodeEmphasis(deemphasisNodeSet, 'deemphasized', undefined);
         this.#updateNodeEmphasis(emphasisNodeSet, 'emphasized', emphasisAssembly);
-        this.#updateEdgeEmphasis(emphasisNodeSet, 'emphasized', emphasisAssembly);
+
+        const deemphasisEdgeSet = this.geometryManager.geometryFactory.getEdgeNameSet().difference(emphasisEdgeSet);
+
+        for (const edgeKey of deemphasisEdgeSet) {
+            this.setEmphasisState(edgeKey, 'deemphasized');
+        }
+
+        this.#updateEdgeEmphasis(deemphasisEdgeSet, 'deemphasized', undefined);
+        this.#updateEdgeEmphasis(emphasisEdgeSet, 'emphasized', emphasisAssembly);
 
         this.#updateGeometryPositions();
     }
@@ -283,29 +288,16 @@ class AssemblyVisualizationLook extends Look {
 
     }
 
-    #updateEdgeEmphasis(nodeNameSet, emphasisState, assembly) {
+    #updateEdgeEmphasis(edgeSet, emphasisState, assembly) {
 
-        // Find edges connected to the specified nodes and update their emphasis state
         this.geometryManager.edgesGroup.traverse((object) => {
             if (object.userData?.type === 'edge') {
-
-                const edgeKey = object.userData.geometryKey;
-                this.setEmphasisState(edgeKey, emphasisState);
-
-                const [ unused, startNodeName, endNodeName ] = edgeKey.split(':')
-
-                if ('deemphasized' === emphasisState) {
-                    if (nodeNameSet.has(startNodeName) || nodeNameSet.has(endNodeName)) {
-                        this.applyEmphasisState(object, emphasisState, assembly);
-                    }
-                } else {
-                    if (nodeNameSet.has(startNodeName) && nodeNameSet.has(endNodeName)) {
-                        this.applyEmphasisState(object, emphasisState, assembly);
-                    }
+                if (edgeSet.has(object.userData.geometryKey)) {
+                    this.applyEmphasisState(object, emphasisState, assembly);
                 }
-
             }
         })
+
     }
 
     #updateNodeEmphasis(nodeNameSet, emphasisState, assembly) {
@@ -363,8 +355,8 @@ class AssemblyVisualizationLook extends Look {
 
         // Subscribe to assembly interaction events
         this.deemphasizeUnsub = eventBus.subscribe('assembly:deemphasizeNodes', (data) => {
-            const { assembly } = data
-            this.setNodeAndEdgeEmphasis(assembly);
+            const { assembly, emphasisNodeSet, emphasisEdgeSet } = data
+            this.setNodeAndEdgeEmphasis(assembly, emphasisNodeSet, emphasisEdgeSet);
         });
 
         this.restoreUnsub = eventBus.subscribe('assembly:restoreEmphasis', (data) => {
