@@ -93,8 +93,8 @@ class LocusInput {
         const result = value.match(LOCUS_PATTERN.REGION);
         if (result) {
             let [_, chr, startBP, endBP] = result;
-            startBP = this.parsePosition(startBP);
-            endBP = this.parsePosition(endBP);
+            startBP = LocusInput.parsePosition(startBP);
+            endBP = LocusInput.parsePosition(endBP);
 
             if (startBP === null || endBP === null) {
                 this.showError(`Invalid base pair position format ${value}`);
@@ -113,7 +113,7 @@ class LocusInput {
         }
     }
 
-    parsePosition(pos) {
+    static parsePosition(pos) {
         try {
             // Remove commas and convert to number
             return parseInt(pos.replace(/,/g, ''), 10);
@@ -123,15 +123,15 @@ class LocusInput {
         }
     }
 
-    parseLocusString(locusString) {
+    static parseLocusString(locusString) {
         const match = locusString.match(LOCUS_PATTERN.REGION);
         if (match) {
-            return { chr: match[1], startBP: this.parsePosition(match[2]), endBP: this.parsePosition(match[3]) };
+            return { chr: match[1], startBP: LocusInput.parsePosition(match[2]), endBP: LocusInput.parsePosition(match[3]) };
         }
         return null;
     }
 
-    prettyPrintLocus(locus) {
+    static prettyPrintLocus(locus) {
         const { chr, startBP, endBP } = locus;
         return `${chr}:${prettyPrint(startBP)}-${prettyPrint(endBP)}`;
     }

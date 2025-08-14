@@ -6,6 +6,7 @@ import eventBus from './utils/eventBus.js';
 import { loadPath } from './utils/utils.js'
 import {createGraph} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createGraph.js"
 import {createAssemblyWalks} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createAssemblyWalk.js"
+import {linearize} from "./utils/chatGraphAssemblyWalkLinearizeGraph/linearizeGraph.js"
 
 class App {
 
@@ -266,6 +267,20 @@ class App {
 
         const graph = createGraph(json)
         const walks = createAssemblyWalks(graph)
+
+
+        const walk = walks.find(walk => 'GRCh38#0#chr1' === walk.key)
+
+        const config =
+            {
+                locusStartBp: 0,    // if your JSON tracks it
+                pxPerBp: 0.002,
+                laneGapPx: 20,
+                pillWidthPx: 8
+            };
+
+        const { spineSegments, loops } = linearize(graph, walk, config);
+
         this.assemblyWidget.configure(walks)
 
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)

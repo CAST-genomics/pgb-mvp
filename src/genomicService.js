@@ -1,5 +1,6 @@
 import AnnotationRenderService from "./annotationRenderService.js"
 import { locusInput } from "./main.js"
+import LocusInput from "./locusInput.js"
 import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
 import {colors32Distinct, colors64Distinct} from "./utils/color.js"
 import {prettyPrint, uniqueRandomGenerator} from "./utils/utils.js"
@@ -20,7 +21,7 @@ class GenomicService {
 
         // TODO: For now we will use a single graph spanning locus in conjunction
         //       with the annotation renderer
-        this.locus = locusInput.parseLocusString(locusString)
+        this.locus = LocusInput.parseLocusString(locusString)
 
         // Internal to the app we use 0-indexed
         this.locus.startBP -= 1
