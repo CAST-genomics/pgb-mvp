@@ -9,7 +9,7 @@ import {createAssemblyWalks} from "./utils/chatGraphAssemblyWalkLinearizeGraph/c
 
 class App {
 
-    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager, pangenomeGraph) {
+    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager) {
         this.container = container
 
         this.renderer = RendererFactory.createRenderer(container)
@@ -21,7 +21,6 @@ class App {
         this.genomeLibrary = genomeLibrary
         this.sceneManager = sceneManager
         this.lookManager = lookManager
-        this.pangenomeGraph = pangenomeGraph
 
         // Initialize time tracking
         this.clock = new THREE.Clock()
@@ -255,9 +254,6 @@ class App {
             return
         }
 
-        const graph = createGraph(json)
-
-        const walks = createAssemblyWalks(graph)
 
         this.genomicService.clear()
         await this.genomicService.createMetadata(json, this.genomeLibrary, this.raycastService)
@@ -265,12 +261,12 @@ class App {
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         const scene = this.sceneManager.getActiveScene()
 
-        this.pangenomeGraph.buildFromJSON(json)
-
-        this.geometryManager.createGeometry(json, look, this.pangenomeGraph)
+        this.geometryManager.createGeometry(json, look)
         this.geometryManager.addToScene(scene)
 
-        this.assemblyWidget.populateList()
+        const graph = createGraph(json)
+        const walks = createAssemblyWalks(graph)
+        this.assemblyWidget.configure(walks)
 
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)
 

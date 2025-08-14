@@ -1,4 +1,4 @@
-import {edgeKeyOf, parseSignedId, portForStartingNode, portForEndingNode} from "./assemblyWalkUtils.js"
+import {edgeKeyOf, parseSignedId, portForStartingNode, portForEndingNode, tripleKey} from "./assemblyWalkUtils.js"
 
 function createGraph(json) {
   if (!json || typeof json !== "object") throw new Error("Bad JSON");
@@ -20,9 +20,7 @@ function createGraph(json) {
       : [];
     // also add full contig keys
     const contigKeys = Array.isArray(n.assembly)
-      ? n.assembly.map(a => `${a.assembly_name}|${a.haplotype}|${a.sequence_id}`)
-                   .filter(k => !k.includes("undefined"))
-      : [];
+      ? n.assembly.map(a => `${ tripleKey(a)}`).filter(k => !k.includes("undefined")) : [];
 
     const seqLen = typeof seqObj[id] === "string" ? seqObj[id].length : undefined;
     const lengthBp = Number.isFinite(n.length) ? Number(n.length)

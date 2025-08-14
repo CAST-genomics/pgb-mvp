@@ -43,32 +43,35 @@ When loading new data files, proper cleanup is essential:
 
 ```javascript
 // In your App class
-async handleSearch(url) {
+async
+handleSearch(url)
+{
     this.stopAnimation()
-    
+
     // Clear existing data and geometry
     this.clearCurrentData()
-    
+
     // Load new data...
     const json = await loadPath(url)
-    
+
     // Create new geometry...
     this.geometryManager.createGeometry(json, look)
     this.geometryManager.addToScene(scene)
-    
+
     this.startAnimation()
 }
 
-clearCurrentData() {
+clearCurrentData()
+{
     // Clear genomic service data
     this.genomicService.clear()
-    
+
     // Clear geometry manager
     this.geometryManager.clear()
-    
+
     // Clear the current scene (but keep the scene itself)
     this.sceneManager.clearScene(this.currentSceneName)
-    
+
     // Re-add visual feedback to the cleared scene
     const scene = this.sceneManager.getScene(this.currentSceneName)
     scene.add(this.raycastService.setupVisualFeedback())

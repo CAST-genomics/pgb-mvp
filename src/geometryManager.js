@@ -14,8 +14,8 @@ class GeometryManager {
         this.geometryData = null;
     }
 
-    createGeometry(json, look, pangenomeGraph) {
-        this.geometryData = this.geometryFactory.createGeometryData(json, pangenomeGraph);
+    createGeometry(json, look) {
+        this.geometryData = this.geometryFactory.createGeometryData(json);
 
         this.linesGroup.clear();
         this.edgesGroup.clear();

@@ -102,7 +102,12 @@ class AssemblyWidget {
             event.target.style.border = '2px solid #000';
             event.target.style.transform = 'scale(1.5)'
 
-            eventBus.publish('assembly:deemphasizeNodes', { assembly  });
+            const { paths } = this.walks.find(walk => assembly === walk.key)
+            const { nodes, edges } = paths[ 0 ]
+            const emphasisNodeSet = new Set([ ...nodes ])
+            const emphasisEdgeSet = new Set([ ...edges ])
+
+            eventBus.publish('assembly:deemphasizeNodes', { assembly, emphasisNodeSet, emphasisEdgeSet });
         }
     }
 
@@ -165,6 +170,11 @@ class AssemblyWidget {
             delete genomeFlowSwitchInput.onFlowSwitch;
         }
 
+    }
+
+    configure(walks) {
+        this.walks = walks
+        this.populateList()
     }
 
     populateList() {

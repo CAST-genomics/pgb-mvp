@@ -12,6 +12,7 @@ function num(id){ return Number(parseSignedId(id).bare); }
 function portForStartingNode(startingNode, nodeId) {
     return parseSignedId(startingNode).sign === parseSignedId(nodeId).sign ? "END" : "START";
 }
+
 function portForEndingNode(endingNode, nodeId) {
     return parseSignedId(endingNode).sign === parseSignedId(nodeId).sign ? "END" : "START";
 }
