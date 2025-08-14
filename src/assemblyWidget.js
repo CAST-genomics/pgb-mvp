@@ -103,9 +103,9 @@ class AssemblyWidget {
             event.target.style.transform = 'scale(1.5)'
 
             const { paths } = this.walks.find(walk => assembly === walk.key)
-            const { nodes, edges } = paths[ 0 ]
-            const emphasisNodeSet = new Set([ ...nodes ])
-            const emphasisEdgeSet = new Set([ ...edges ])
+            // const { nodes, edges } = paths[ 0 ]
+            const emphasisNodeSet = new Set([ ...(paths.map(({ nodes }) => nodes).flat())])
+            const emphasisEdgeSet = new Set([ ...(paths.map(({ edges }) => edges).flat())])
 
             eventBus.publish('assembly:deemphasizeNodes', { assembly, emphasisNodeSet, emphasisEdgeSet });
         }
