@@ -6,7 +6,8 @@ import {linearize} from "./linearizeGraph.js"
 const graph = createGraph(json);
 
 // 2) Build all walks (or pick specific keys)
-const walks = createAssemblyWalks(graph);  // Array<{key, paths:[...]}>
+const walks = createAssemblyWalks(graph);
+
 // convenience: find the GRCh38 walk
 const grch = walks.find(w => w.key === "GRCh38") || walks.find(w => w.key.startsWith("GRCh38|"));
 

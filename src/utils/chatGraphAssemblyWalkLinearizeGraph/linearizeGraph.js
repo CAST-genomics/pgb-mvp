@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 function linearize(graph, spineWalk, {
   locusStartBp = 0,
   pxPerBp = 0.002,
