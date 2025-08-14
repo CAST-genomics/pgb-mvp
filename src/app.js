@@ -206,7 +206,7 @@ class App {
         }
 
         // const boundingSphereHelper = this.#createBoundingSphereHelper(boundingSphere)
-        // this.scene.add(boundingSphereHelper)
+        // scene.add(boundingSphereHelper)
 
         // Multiplier used to add padding around scene bounding sphere when framing the view
         const SCENE_VIEW_PADDING = 1.5

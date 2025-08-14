@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import LineFactory from './lineFactory.js';
+import {prettyPrint} from "./utils/utils.js"
 
 class GeometryFactory {
 
@@ -31,6 +32,8 @@ class GeometryFactory {
             edgeGeometries: this.getEdgeGeometries(),
             bbox
         };
+
+        console.log(`created ${ prettyPrint(this.getNodeNameSet().size + this.getEdgeNameSet().size)} primitives`)
 
         return result;
     }
