@@ -7,6 +7,7 @@ import { loadPath } from './utils/utils.js'
 import {createGraph} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createGraph.js"
 import {createAssemblyWalks} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createAssemblyWalk.js"
 import {linearize} from "./utils/chatGraphAssemblyWalkLinearizeGraph/linearizeGraph.js"
+import LocusInput from "./LocusInput.js"
 
 class App {
 
@@ -271,10 +272,13 @@ class App {
 
         const walk = walks.find(walk => 'GRCh38#0#chr1' === walk.key)
 
+        const { chr, startBP, endBP} = LocusInput.parseLocusString(json.locus)
+        const { width } = this.renderer.domElement.getBoundingClientRect()
+        const pxPerBp = width / (endBP - startBP)
         const config =
             {
-                locusStartBp: 0,    // if your JSON tracks it
-                pxPerBp: 0.002,
+                locusStartBp: startBP,
+                pxPerBp,
                 laneGapPx: 20,
                 pillWidthPx: 8
             };
