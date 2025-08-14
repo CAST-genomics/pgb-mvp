@@ -3,7 +3,7 @@ import { locusInput } from "./main.js"
 import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
 import {colors32Distinct, colors64Distinct} from "./utils/color.js"
 import {prettyPrint, uniqueRandomGenerator} from "./utils/utils.js"
-import {tripleKey} from "./utils/pgb-orieinted-assembly-walk.js"
+import {tripleKey} from "./utils/chatGraphAssemblyWalkLinearizeGraph/assemblyWalkUtils.js"
 
 class GenomicService {
 
@@ -14,9 +14,7 @@ class GenomicService {
         this.assemblySet = new Set()
     }
 
-    async createMetadata(json, walksByTriple, genomeLibrary, raycastService) {
-
-        this.walksByTriple = walksByTriple
+    async createMetadata(json, genomeLibrary, raycastService) {
 
         const { locus:locusString, node:nodes, edge:edges, sequence:sequences } = json
 

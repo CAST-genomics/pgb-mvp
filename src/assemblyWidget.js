@@ -1,7 +1,6 @@
 import { Draggable } from './utils/draggable.js';
 import { colorToRGBString } from './utils/color.js';
 import eventBus from './utils/eventBus.js';
-import {prettyPrintAssemblyWalks} from "./utils/pgb-orieinted-assembly-walk.js"
 
 class AssemblyWidget {
     constructor(gear, assemblyWidgetContainer, genomicService, raycastService) {
@@ -98,8 +97,6 @@ class AssemblyWidget {
 
             // Select new genome
             console.log(`selected ${ assembly }`)
-            const walks = this.genomicService.walksByTriple.get(assembly)
-            prettyPrintAssemblyWalks(walks, assembly)
 
             this.selectedAssemblies.add(assembly);
             event.target.style.border = '2px solid #000';
