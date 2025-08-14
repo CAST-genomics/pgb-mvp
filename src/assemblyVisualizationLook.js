@@ -128,40 +128,43 @@ class AssemblyVisualizationLook extends Look {
         return colorRampArrowMaterialFactory(startColor, endColor, materialService.getTexture('arrow-white'), 1);
     }
 
-    setNodeAndEdgeEmphasis(emphasisAssembly, emphasisNodeSet, emphasisEdgeSet) {
+    setNodeAndEdgeEmphasis(assembly, nodeSet, edgeSet) {
 
         this.emphasisStates.clear()
 
-        const deemphasisNodeSet = this.geometryManager.geometryFactory.getNodeNameSet().difference(emphasisNodeSet);
+        const deemphasisNodeSet = this.geometryManager.geometryFactory.getNodeNameSet().difference(nodeSet);
 
         for (const nodeName of deemphasisNodeSet) {
             this.setEmphasisState(nodeName, 'deemphasized');
         }
 
         this.#updateNodeEmphasis(deemphasisNodeSet, 'deemphasized', undefined);
-        this.#updateNodeEmphasis(emphasisNodeSet, 'emphasized', emphasisAssembly);
+        this.#updateNodeEmphasis(nodeSet, 'emphasized', assembly);
 
-        const deemphasisEdgeSet = this.geometryManager.geometryFactory.getEdgeNameSet().difference(emphasisEdgeSet);
+        const deemphasisEdgeSet = this.geometryManager.geometryFactory.getEdgeNameSet().difference(edgeSet);
 
         for (const edgeKey of deemphasisEdgeSet) {
             this.setEmphasisState(edgeKey, 'deemphasized');
         }
 
         this.#updateEdgeEmphasis(deemphasisEdgeSet, 'deemphasized', undefined);
-        this.#updateEdgeEmphasis(emphasisEdgeSet, 'emphasized', emphasisAssembly);
+        this.#updateEdgeEmphasis(edgeSet, 'emphasized', assembly);
 
         this.#updateGeometryPositions();
     }
 
-    restoreLinesandEdgesViaZOffset(nodeNameSet) {
+    restoreLinesandEdgesViaZOffset(nodeSet, edgeSet) {
 
-        for (const nodeName of nodeNameSet) {
+        for (const nodeName of nodeSet) {
             this.setEmphasisState(nodeName, 'normal');
         }
 
-        this.#updateNodeEmphasis(nodeNameSet, 'normal', undefined);
+        for (const key of edgeSet) {
+            this.setEmphasisState(key, 'normal');
+        }
 
-        this.#updateEdgeEmphasis(nodeNameSet, 'normal', undefined);
+        this.#updateNodeEmphasis(nodeSet, 'normal', undefined);
+        this.#updateEdgeEmphasis(edgeSet, 'normal', undefined);
 
         this.#updateGeometryPositions();
     }
@@ -354,13 +357,14 @@ class AssemblyVisualizationLook extends Look {
         super.activate();
 
         // Subscribe to assembly interaction events
-        this.deemphasizeUnsub = eventBus.subscribe('assembly:deemphasizeNodes', (data) => {
-            const { assembly, emphasisNodeSet, emphasisEdgeSet } = data
-            this.setNodeAndEdgeEmphasis(assembly, emphasisNodeSet, emphasisEdgeSet);
+        this.deemphasizeUnsub = eventBus.subscribe('assembly:emphasis', data => {
+            const { assembly, nodeSet, edgeSet } = data
+            this.setNodeAndEdgeEmphasis(assembly, nodeSet, edgeSet);
         });
 
-        this.restoreUnsub = eventBus.subscribe('assembly:restoreEmphasis', (data) => {
-            this.restoreLinesandEdgesViaZOffset(data.nodeNames);
+        this.restoreUnsub = eventBus.subscribe('assembly:normal', data => {
+            const { nodeSet, edgeSet } = data
+            this.restoreLinesandEdgesViaZOffset(nodeSet, edgeSet)
         });
     }
 

@@ -37,7 +37,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
     const gear = document.getElementById('pgb-gear-btn-container')
     const assemblyWidgetContainer = document.getElementById('pgb-gear-card')
-    const assemblyWidget = new AssemblyWidget(gear, assemblyWidgetContainer, genomicService, raycastService);
+    const assemblyWidget = new AssemblyWidget(gear, assemblyWidgetContainer, genomicService, geometryManager, raycastService);
 
 
     // Scene and Look managers
