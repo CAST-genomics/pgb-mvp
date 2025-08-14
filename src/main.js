@@ -10,7 +10,6 @@ import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
 import materialService from './materialService.js'
 import LookManager from './lookManager.js'
 import AssemblyVisualizationLook from './assemblyVisualizationLook.js'
-import GenomeFrequencyLook from './genomeFrequencyLook.js'
 import SceneManager from './sceneManager.js'
 import './styles/app.scss'
 
@@ -53,12 +52,9 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     })
     assemblyVisualizationLook.setAnimationEnabled(false)
 
-    const genomeFrequencyLook = GenomeFrequencyLook.createGenomeFrequencyLook('genomeFrequencyLook', { genomicService, geometryManager })
-
     // Look Manager
     const lookManager = new LookManager()
     lookManager.setLook('assemblyVisualizationScene', assemblyVisualizationLook);
-    lookManager.setLook('genomeFrequencyScene', genomeFrequencyLook);
 
     sceneManager.setActiveScene('assemblyVisualizationScene')
     lookManager.activateLook('assemblyVisualizationScene')

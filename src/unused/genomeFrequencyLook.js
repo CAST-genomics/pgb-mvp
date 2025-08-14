@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import Look from './look.js';
-import { colorRampArrowMaterialFactory } from './materialService.js';
-import materialService from './materialService.js';
-import GeometryFactory from "./geometryFactory.js"
-import { getRandomVibrantAppleCrayonColor, getAppleCrayonColorByName, getHeatmapColorViaColorInterpolation, getHeatmapColorHSLLightnessVariation } from './utils/color.js'
+import Look from '../look.js';
+import { colorRampArrowMaterialFactory } from '../materialService.js';
+import materialService from '../materialService.js';
+import GeometryFactory from "../geometryFactory.js"
+import { getRandomVibrantAppleCrayonColor, getAppleCrayonColorByName, getHeatmapColorViaColorInterpolation, getHeatmapColorHSLLightnessVariation } from '../utils/color.js'
 
 /**
  * GenomeFrequencyLook - specific implementation for genome frequency visualization
@@ -190,10 +190,10 @@ class GenomeFrequencyLook extends Look {
         const percentage = nodeStats.percentage;
         const normalizedPercentage = nodeStats.normalizedPercentage;
         const allAssemblies = Array.from(nodeStats.allAssemblies).sort();
-        
+
         // Get the node's native assembly
         const nativeAssembly = this.genomicService.getAssemblyForNodeName(nodeName);
-        
+
         // Get connected assemblies (all assemblies minus the native one)
         const connectedAssemblies = allAssemblies.filter(assembly => assembly !== nativeAssembly);
 

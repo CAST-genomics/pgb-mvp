@@ -6,6 +6,7 @@ import textureService from './utils/textureService.js';
 import { textures } from './utils/textureLibrary.js';
 import {getAppleCrayonColorByName} from "./utils/color.js"
 import {LineMaterial} from "three/addons/lines/LineMaterial.js"
+import Look from "./look.js"
 
 // Material type constants
 const MATERIAL_TYPES =
@@ -44,7 +45,7 @@ class MaterialService {
 
         const material = new LineMaterial({
             color: getAppleCrayonColorByName('mercury'),
-            linewidth: 16,
+            linewidth: Look.NODE_LINE_DEEMPHASIS_WIDTH,
             worldUnits: true,
             opacity: 1,
             transparent: true,
