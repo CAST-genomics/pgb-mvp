@@ -7,6 +7,17 @@ function parseSignedId(id) {
 
 function edgeKeyOf(a, b) { return `edge:${a}:${b}`; }
 
+function edgesForPath(graph, nodes){
+    const out=[];
+    for(let i=0;i<nodes.length-1;i++){
+        const a=nodes[i], b=nodes[i+1];
+        const ekF=edgeKeyOf(a,b), ekR=edgeKeyOf(b,a);
+        if (graph.edges.has(ekF)) out.push(ekF);
+        else if (graph.edges.has(ekR)) out.push(ekR);
+    }
+    return out;
+}
+
 function num(id){ return Number(parseSignedId(id).bare); }
 
 function portForStartingNode(startingNode, nodeId) {
@@ -97,8 +108,58 @@ function tripleKey(a) {
     return `${a.assembly_name}#${a.haplotype}#${a.sequence_id}`
 }
 
+function inducedAdjFull(adj, allow){ // Map<id,id[]> restricted to allow:Set
+    const out = new Map();
+    for (const v of allow) out.set(v, []);
+    for (const v of allow) {
+        for (const w of (adj.get(v)||[])) if (allow.has(w)) out.get(v).push(w);
+    }
+    return out;
+}
+
+// Dijkstra on node-weighted graph (cost = sum lengthBp of visited nodes; excludes s)
+function dijkstraNodeWeighted(graph, subAdj, s, t){
+    const w = id => (graph.nodes.get(id)?.lengthBp || 0);
+    const allow = new Set(subAdj.keys());
+    if(!allow.has(s) || !allow.has(t)) return null;
+
+    const dist=new Map(), prev=new Map(), done=new Set();
+    for (const v of allow) dist.set(v, Infinity);
+    dist.set(s, 0);
+
+    while(true){
+        // O(V) min-search (fine for local regions)
+        let u=null, best=Infinity;
+        for(const [v,d] of dist) if(!done.has(v) && d<best){ best=d; u=v; }
+        if (u===null) break;
+        done.add(u);
+        if (u===t) break;
+
+        for (const nb of (subAdj.get(u)||[])){
+            if (!allow.has(nb) || done.has(nb)) continue;
+            const alt = dist.get(u) + (nb===t ? 0 : w(nb)); // do not pay for sink
+            if (alt < dist.get(nb)) { dist.set(nb, alt); prev.set(nb,u); }
+        }
+    }
+    if (!prev.has(t)) return null;
+    const path=[t]; let cur=prev.get(t);
+    while(cur){ path.push(cur); cur=prev.get(cur); }
+    path.reverse();
+    return path;
+}
+
+// interval helpers
+function contains(A,B){ return A.start<=B.start && A.end>=B.end; }
+
+function overlaps(A,B){ return !(A.end<=B.start || B.end<=A.start); }
+
 export {
+    contains,
+    overlaps,
     edgeKeyOf,
+    edgesForPath,
+    dijkstraNodeWeighted,
+    inducedAdjFull,
     tripleKey,
     parseSignedId,
     num,

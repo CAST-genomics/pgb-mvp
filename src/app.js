@@ -6,7 +6,7 @@ import eventBus from './utils/eventBus.js';
 import { loadPath } from './utils/utils.js'
 import {createGraph} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createGraph.js"
 import {createAssemblyWalks} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createAssemblyWalk.js"
-import {linearize} from "./utils/chatGraphAssemblyWalkLinearizeGraph/linearizeGraph.js"
+import { assessGraphFeatures } from "./utils/chatGraphAssemblyWalkLinearizeGraph/assessGraph.js"
 import LocusInput from "./LocusInput.js"
 
 class App {
@@ -273,17 +273,27 @@ class App {
         const walk = walks.find(walk => 'GRCh38#0#chr1' === walk.key)
 
         const { chr, startBP, endBP} = LocusInput.parseLocusString(json.locus)
-        const { width } = this.renderer.domElement.getBoundingClientRect()
-        const pxPerBp = width / (endBP - startBP)
+
         const config =
             {
                 locusStartBp: startBP,
-                pxPerBp,
-                laneGapPx: 20,
-                pillWidthPx: 8
+                epsilonBp: 5,
+
+                // kitchen sink toggles
+                includeAdjacent:true,          // allow R = spine[i+1]
+                includeUpstream:true,          // allow R upstream of L (i > j)
+                allowMidSpineReentry:true,     // permit paths that touch intermediate spine nodes
+                includeDangling:true,          // emit branches that never rejoin inside window
+                includeOffSpineComponents:true,// report components that never touch spine (context only)
+
+                // path sampling
+                maxPathsPerEvent:8,            // edge-disjoint k
+                maxRegionNodes:2500,           // safety caps per event
+                maxRegionEdges:4000
+
             };
 
-        const { spineSegments, loops } = linearize(graph, walk, config);
+        const features = assessGraphFeatures(graph, walk, config)
 
         this.assemblyWidget.configure(walks)
 
