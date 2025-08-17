@@ -11,7 +11,9 @@ import materialService from './materialService.js'
 import LookManager from './lookManager.js'
 import AssemblyVisualizationLook from './assemblyVisualizationLook.js'
 import SceneManager from './sceneManager.js'
+import PangenomeService from "./pangenomeService.js"
 import './styles/app.scss'
+import pangenomeService from "./pangenomeService.js"
 
 let app
 let locusInput
@@ -59,9 +61,10 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     sceneManager.setActiveScene('assemblyVisualizationScene')
     lookManager.activateLook('assemblyVisualizationScene')
 
+    const pangenomeService = new PangenomeService()
 
     const frustumSize = 5
-    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager)
+    app = new App(container, frustumSize, pangenomeService, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager)
 
     app.startAnimation()
 

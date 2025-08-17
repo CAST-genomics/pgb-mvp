@@ -110,7 +110,7 @@ class AssemblyWidget {
             event.target.style.border = '2px solid #000';
             event.target.style.transform = 'scale(1.5)'
 
-            const { paths } = this.walks.find(walk => assembly === walk.key)
+            const { paths } = this.assemblyWalks.find(walk => assembly === walk.key)
             const nodeSet = new Set([ ...(paths.map(({ nodes }) => nodes).flat())])
             const edgeSet = new Set([ ...(paths.map(({ edges }) => edges).flat())])
 
@@ -179,8 +179,8 @@ class AssemblyWidget {
 
     }
 
-    configure(walks) {
-        this.walks = walks
+    configure(assemblyWalks) {
+        this.assemblyWalks = assemblyWalks
         this.populateList()
     }
 

@@ -4,18 +4,20 @@ import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
 import { loadPath } from './utils/utils.js'
-import {createGraph} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createGraph.js"
-import {createAssemblyWalks} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createAssemblyWalk.js"
-import { assessGraphFeatures } from "./utils/chatGraphAssemblyWalkLinearizeGraph/assessGraph.js"
+import {createGraph} from "./unused/chatGraphAssemblyWalkLinearizeGraph/createGraph.js"
+import {createAssemblyWalks} from "./unused/chatGraphAssemblyWalkLinearizeGraph/createAssemblyWalk.js"
+import { assessGraphFeatures } from "./unused/chatGraphAssemblyWalkLinearizeGraph/assessGraph.js"
 import LocusInput from "./LocusInput.js"
+import pangenomeService from "./pangenomeService.js"
 
 class App {
 
-    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager) {
+    constructor(container, frustumSize, pangenomeService, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager) {
         this.container = container
 
         this.renderer = RendererFactory.createRenderer(container)
 
+        this.pangenomeService = pangenomeService
         this.sequenceService = sequenceService
         this.genomicService = genomicService
         this.geometryManager = geometryManager
@@ -256,6 +258,7 @@ class App {
             return
         }
 
+        this.pangenomeService.createGraph(json)
 
         this.genomicService.clear()
         await this.genomicService.createMetadata(json, this.genomeLibrary, this.raycastService)
@@ -266,36 +269,8 @@ class App {
         this.geometryManager.createGeometry(json, look)
         this.geometryManager.addToScene(scene)
 
-        const graph = createGraph(json)
-
-        const walks = createAssemblyWalks(graph)
-
-        const walk = walks.find(walk => 'GRCh38#0#chr1' === walk.key)
-
-        const { chr, startBP, endBP} = LocusInput.parseLocusString(json.locus)
-
-        const config =
-            {
-                locusStartBp: startBP,
-                epsilonBp: 5,
-
-                // kitchen sink toggles
-                includeAdjacent:true,          // allow R = spine[i+1]
-                includeUpstream:true,          // allow R upstream of L (i > j)
-                allowMidSpineReentry:true,     // permit paths that touch intermediate spine nodes
-                includeDangling:true,          // emit branches that never rejoin inside window
-                includeOffSpineComponents:true,// report components that never touch spine (context only)
-
-                // path sampling
-                maxPathsPerEvent:8,            // edge-disjoint k
-                maxRegionNodes:2500,           // safety caps per event
-                maxRegionEdges:4000
-
-            };
-
-        const features = assessGraphFeatures(graph, walk, config)
-
-        this.assemblyWidget.configure(walks)
+        const assemblyWalks = this.pangenomeService.createAssemblyWalks({ mode:'auto' })
+        this.assemblyWidget.configure(assemblyWalks)
 
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)
 

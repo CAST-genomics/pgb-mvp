@@ -4,7 +4,7 @@ import LocusInput from "./locusInput.js"
 import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
 import {colors32Distinct, colors64Distinct} from "./utils/color.js"
 import {prettyPrint, uniqueRandomGenerator} from "./utils/utils.js"
-import {tripleKey} from "./utils/chatGraphAssemblyWalkLinearizeGraph/assemblyWalkUtils.js"
+import {tripleKey} from "./unused/chatGraphAssemblyWalkLinearizeGraph/assemblyWalkUtils.js"
 
 class GenomicService {
 

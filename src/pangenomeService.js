@@ -39,7 +39,7 @@ class PangenomeService {
 
             const contigKeys = Array.isArray(n.assembly)
                 ? n.assembly
-                    .map(a => `${a.assembly_name}|${a.haplotype}|${a.sequence_id}`)
+                    .map(a => `${a.assembly_name}#${a.haplotype}#${a.sequence_id}`)
                     .filter(k => !k.includes("undefined"))
                 : [];
 
