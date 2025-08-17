@@ -267,8 +267,8 @@ class App {
         this.geometryManager.addToScene(scene)
 
         const graph = createGraph(json)
-        const walks = createAssemblyWalks(graph)
 
+        const walks = createAssemblyWalks(graph)
 
         const walk = walks.find(walk => 'GRCh38#0#chr1' === walk.key)
 
