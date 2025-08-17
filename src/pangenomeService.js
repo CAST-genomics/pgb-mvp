@@ -119,23 +119,36 @@ class PangenomeService {
             const subAdj = new Map(comp.map(id => [id, indAdj.get(id)]));
             const actualMode = mode === "auto" ? this.#decideMode(subAdj, comp) : mode;
 
-            let nodes = [];
-            if (actualMode === "endpoint") nodes = this.#extractPathEndpointWalk(subAdj, comp);
-            else if (actualMode === "blockcut") nodes = this.#extractPathBlockCut(subAdj, comp);
-            else nodes = this.#extractPathEndpointWalk(subAdj, comp);
+            // --- Patch C: robust path selection with fallbacks ---
+            let nodes = (actualMode === "endpoint")
+                ? this.#extractPathEndpointWalk(subAdj, comp)
+                : this.#extractPathBlockCut(subAdj, comp);
 
-            if (!nodes.length) continue;
+            // If block-cut (or odd cases) produced nothing, fall back to endpoint
+            if (!nodes || nodes.length === 0) {
+                nodes = this.#extractPathEndpointWalk(subAdj, comp);
+            }
+            // Absolute last resort: singleton component
+            if ((!nodes || nodes.length === 0) && comp.length === 1) {
+                nodes = [comp[0]];
+            }
+            if (!nodes || nodes.length === 0) {
+                warnings.push(`empty walk for component of ${key} (size=${comp.length})`);
+                continue;
+            }
+            // --- end Patch C ---
 
+            // Build edge list along the walk
             const edgesOnPath = [];
             for (let i = 0; i < nodes.length - 1; i++) {
                 const a = nodes[i], b = nodes[i + 1];
                 const ekF = this.#edgeKeyOf(a, b), ekR = this.#edgeKeyOf(b, a);
-                if (g.edges.has(ekF)) edgesOnPath.push(ekF);
-                else if (g.edges.has(ekR)) edgesOnPath.push(ekR);
+                if (this.graph.edges.has(ekF)) edgesOnPath.push(ekF);
+                else if (this.graph.edges.has(ekR)) edgesOnPath.push(ekR);
                 else warnings.push(`No edge found between ${a} and ${b} for ${key}`);
             }
 
-            const bpLen = nodes.reduce((s, id) => s + (g.nodes.get(id)?.lengthBp || 0), 0);
+            const bpLen = nodes.reduce((s, id) => s + (this.graph.nodes.get(id)?.lengthBp || 0), 0);
             paths.push({
                 nodes,
                 edges: edgesOnPath,
@@ -145,6 +158,7 @@ class PangenomeService {
                 modeUsed: actualMode
             });
         }
+
 
         return {
             key,
@@ -338,49 +352,106 @@ class PangenomeService {
         return null;
     }
 
+    // --- Patch B: robust block–cut extractor ---
     #extractPathBlockCut(indAdj, comp) {
-        if (!comp.length) return [];
-        const allow = new Set(comp);
-        const subAdj = new Map(comp.map(id => [id, (indAdj.get(id) || []).filter(x => allow.has(x))]));
-        const { blocks, articulation } = this.#biconnectedDecomposition(subAdj);
-        if (blocks.length === 0) return [];
+        // 1) Trivial component
+        if (!comp || comp.length === 0) return [];
+        if (comp.length === 1) return [comp[0]];
 
-        const [s, t] = this.#chooseEndpoints(subAdj, comp);
+        // 2) Decompose the component
+        const { blocks, articulation } = this.#biconnectedDecomposition(indAdj);
+
+        // If decomposition failed or there are no blocks (degenerate/pure cycle),
+        // produce a reasonable simple path.
+        if (!blocks || blocks.length === 0) {
+            return this.#extractPathEndpointWalk(indAdj, comp);
+        }
+
+        // 3) Choose endpoints and locate their blocks
+        const [s, t] = this.#chooseEndpoints(indAdj, comp);
         const bs = this.#blockOfVertex(blocks, s);
         const bt = this.#blockOfVertex(blocks, t);
-        if (bs === -1 || bt === -1) return this.#bfsPath(subAdj, s, t) || [];
 
+        // If we can't place endpoints in blocks, fall back to a plain BFS or endpoint walk.
+        if (bs === -1 || bt === -1) {
+            const p = this.#bfsPath(indAdj, s, t);
+            return (p && p.length) ? p : this.#extractPathEndpointWalk(indAdj, comp);
+        }
+
+        // 4) Build the Block–Cut Tree (BCT) and find a route from s's block to t's block
         const { adj: bctAdj } = this.#buildBlockCutTree(blocks, articulation);
         const start = `B#${bs}`, goal = `B#${bt}`;
+
+        // BFS on the BCT
         const Q = [start], prev = new Map([[start, null]]);
         while (Q.length) {
             const x = Q.shift();
             if (x === goal) break;
-            for (const y of (bctAdj.get(x) || [])) if (!prev.has(y)) { prev.set(y, x); Q.push(y); }
+            for (const y of (bctAdj.get(x) || [])) {
+                if (!prev.has(y)) { prev.set(y, x); Q.push(y); }
+            }
         }
-        if (!prev.has(goal)) return this.#bfsPath(subAdj, s, t) || [];
+        // If no BCT path, fall back
+        if (!prev.has(goal)) {
+            const p = this.#bfsPath(indAdj, s, t);
+            return (p && p.length) ? p : this.#extractPathEndpointWalk(indAdj, comp);
+        }
 
-        const bctPath = []; for (let cur = goal; cur; cur = prev.get(cur)) bctPath.push(cur); bctPath.reverse();
+        // Recover BCT path: alternates B#i, A#v, B#j, A#u, ...
+        const bctPath = [];
+        for (let cur = goal; cur; cur = prev.get(cur)) bctPath.push(cur);
+        bctPath.reverse();
 
+        // 5) Stitch a final node path by walking block segments
         const finalPath = [];
         let entry = s;
+
         for (let i = 0; i < bctPath.length; i++) {
             const label = bctPath[i];
-            if (!label.startsWith("B#")) continue;
-            const bi = Number(label.slice(2));
-            let exit = t;
-            if (i + 2 < bctPath.length) {
-                const nextA = bctPath[i + 1];
-                exit = nextA.startsWith("A#") ? nextA.slice(2) : exit;
+            if (!label.startsWith("B#")) continue;                // skip articulation labels here
+
+            const bi = Number(label.slice(2));                    // block index
+            const allowSet = new Set(blocks[bi]);                 // vertices allowed inside this block
+
+            // Determine entry/exit vertices for this block segment
+            const inEntry = (i === 0)
+                ? entry
+                : (bctPath[i - 1].startsWith("A#") ? bctPath[i - 1].slice(2) : entry);
+
+            let inExit;
+            if (i === bctPath.length - 1) {
+                inExit = t;                                         // last block goes to t
+            } else {
+                const nextLabel = bctPath[i + 1];
+                inExit = (nextLabel && nextLabel.startsWith("A#"))
+                    ? nextLabel.slice(2)                              // next articulation in BCT path
+                    : t;
             }
-            const allowSet = blocks[bi];
-            const path = this.#bfsPath(subAdj, entry, exit, new Set(allowSet)) || [];
-            if (!path.length) break;
 
-            if (finalPath.length && finalPath[finalPath.length - 1] === path[0]) finalPath.push(...path.slice(1));
-            else finalPath.push(...path);
+            // BFS inside this block from inEntry to inExit
+            const seg = this.#bfsPath(indAdj, inEntry, inExit, allowSet) || [];
 
-            entry = exit;
+            // If we failed to find a segment inside a block, fall back to a global simple path
+            if (!seg.length) {
+                const p = this.#bfsPath(indAdj, s, t) || this.#extractPathEndpointWalk(indAdj, comp);
+                return p;
+            }
+
+            // Append, avoiding duplicate join node
+            if (finalPath.length && finalPath[finalPath.length - 1] === seg[0]) {
+                finalPath.push(...seg.slice(1));
+            } else {
+                finalPath.push(...seg);
+            }
+
+            // Next block will enter from the articulation we just exited
+            entry = inExit;
+        }
+
+        // 6) Safety fallback
+        if (!finalPath.length) {
+            const p = this.#bfsPath(indAdj, s, t) || this.#extractPathEndpointWalk(indAdj, comp);
+            return p || [];
         }
         return finalPath;
     }
@@ -390,7 +461,11 @@ class PangenomeService {
         const n = comp.length;
         const e = comp.reduce((s, id) => s + (subAdj.get(id) || []).length, 0) / 2;
         const endpoints = comp.filter(id => (deg.get(id) || 0) === 1).length;
-        const maxDeg = Math.max(...comp.map(id => deg.get(id) || 0));
+        const maxDeg = Math.max(0, ...comp.map(id => deg.get(id) || 0));
+
+        // Small/degenerate → endpoint extraction
+        if (n <= 2 || e <= 1) return "endpoint";
+
         const looksChainy = (endpoints === 2) && (maxDeg <= 2) && (e <= n);
         return looksChainy ? "endpoint" : "blockcut";
     }
