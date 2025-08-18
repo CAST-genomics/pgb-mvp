@@ -13,11 +13,11 @@ import AssemblyVisualizationLook from './assemblyVisualizationLook.js'
 import SceneManager from './sceneManager.js'
 import PangenomeService from "./pangenomeService.js"
 import './styles/app.scss'
-import pangenomeService from "./pangenomeService.js"
 
 let app
 let locusInput
 let defaultGenome
+let sequenceService
 document.addEventListener("DOMContentLoaded", async (event) => {
 
     await materialService.initialize()
@@ -26,16 +26,16 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const { genome } = await genomeLibrary.getGenomePayload('hg38')
     defaultGenome = genome
 
-    const container = document.getElementById('pgb-three-container')
+    const threeJSContainer = document.getElementById('pgb-three-container')
 
     const threshold = 8
-    const raycastService = new RayCastService(container, threshold)
+    const raycastService = new RayCastService(threeJSContainer, threshold)
 
     const genomicService = new GenomicService()
 
     const geometryManager = new GeometryManager(genomicService)
 
-    const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), raycastService, genomicService, geometryManager)
+    sequenceService = new SequenceService(threeJSContainer, raycastService, genomicService)
 
     const gear = document.getElementById('pgb-gear-btn-container')
     const assemblyWidgetContainer = document.getElementById('pgb-gear-card')
@@ -64,7 +64,7 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const pangenomeService = new PangenomeService()
 
     const frustumSize = 5
-    app = new App(container, frustumSize, pangenomeService, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager)
+    app = new App(threeJSContainer, frustumSize, pangenomeService, raycastService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager)
 
     app.startAnimation()
 
@@ -88,5 +88,5 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
 })
 
-export { locusInput, defaultGenome }
+export { app, locusInput, defaultGenome }
 

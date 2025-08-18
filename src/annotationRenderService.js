@@ -95,7 +95,7 @@ class AnnotationRenderService {
         this.featureRenderer = null;
     }
 
-    async raycastClickHandler(intersection) {
+    async raycastClickHandler(intersection, event) {
         if (intersection) {
             const {nodeName} = intersection
             const { locus, assembly } = this.genomicService.metadata.get(nodeName)

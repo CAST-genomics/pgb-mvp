@@ -4,21 +4,15 @@ import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
 import { loadPath } from './utils/utils.js'
-import {createGraph} from "./unused/chatGraphAssemblyWalkLinearizeGraph/createGraph.js"
-import {createAssemblyWalks} from "./unused/chatGraphAssemblyWalkLinearizeGraph/createAssemblyWalk.js"
-import { assessGraphFeatures } from "./unused/chatGraphAssemblyWalkLinearizeGraph/assessGraph.js"
-import LocusInput from "./LocusInput.js"
-import pangenomeService from "./pangenomeService.js"
 
 class App {
 
-    constructor(container, frustumSize, pangenomeService, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager) {
+    constructor(container, frustumSize, pangenomeService, raycastService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager) {
         this.container = container
 
         this.renderer = RendererFactory.createRenderer(container)
 
         this.pangenomeService = pangenomeService
-        this.sequenceService = sequenceService
         this.genomicService = genomicService
         this.geometryManager = geometryManager
         this.assemblyWidget = assemblyWidget
@@ -37,6 +31,8 @@ class App {
         sceneManager.getActiveScene().add(this.raycastService.setupVisualFeedback());
 
         // Initialize tooltip
+        this.isTooltipEnabled = undefined
+
         this.tooltip = this.createTooltip();
 
         // Setup resize handler
@@ -76,15 +72,31 @@ class App {
         this.showTooltip(edgeObject, point, 'edge');
     }
 
+    enableTooltip(){
+        this.isTooltipEnabled = true
+    }
+
+    disableTooltip(){
+        this.isTooltipEnabled = false
+    }
+
     createTooltip() {
         const tooltip = document.createElement('div');
         tooltip.className = 'graph-tooltip';
 
         this.container.appendChild(tooltip);
+
+        this.enableTooltip()
+
         return tooltip;
     }
 
     showTooltip(object, point, type) {
+
+        if (false === this.isTooltipEnabled) {
+            return
+        }
+
         // Convert 3D world coordinates to screen coordinates
         const screenPoint = point.clone().project(this.cameraManager.camera);
 
@@ -153,8 +165,6 @@ class App {
             const intersections = this.raycastService.intersectObjects(this.cameraManager.camera, allObjects)
             this.handleIntersection(intersections)
         }
-
-        this.sequenceService.update();
 
         this.mapControl.update()
 

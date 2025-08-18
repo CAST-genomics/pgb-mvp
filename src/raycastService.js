@@ -31,6 +31,7 @@ class RayCastService {
         container.addEventListener('mousedown', this.onMouseDown.bind(this));
         container.addEventListener('mousemove', this.onMouseMove.bind(this));
         container.addEventListener('mouseup', this.onMouseUp.bind(this));
+        container.addEventListener('contextmenu', this.onContextMenu.bind(this));
     }
 
     cleanup() {
@@ -40,6 +41,7 @@ class RayCastService {
             this.container.removeEventListener('mousedown', this.onMouseDown.bind(this));
             this.container.removeEventListener('mousemove', this.onMouseMove.bind(this));
             this.container.removeEventListener('mouseup', this.onMouseUp.bind(this));
+            this.container.removeEventListener('contextmenu', this.onContextMenu.bind(this));
         }
         this.clickCallbacks.clear();
     }
@@ -72,12 +74,27 @@ class RayCastService {
             return
         }
 
-        for (const callback of this.clickCallbacks) {
-            callback(this.currentIntersection);
+        // Only fire events if there's an intersection with a node
+        if (this.currentIntersection) {
+            for (const callback of this.clickCallbacks) {
+                callback(this.currentIntersection, event);
+            }
         }
 
         this.isMouseDown = false;
         this.hasMouseMoved = false;
+    }
+
+    onContextMenu(event) {
+        // Prevent default context menu
+        event.preventDefault();
+
+        // Only fire events if there's an intersection with a node
+        if (this.currentIntersection) {
+            for (const callback of this.clickCallbacks) {
+                callback(this.currentIntersection, event);
+            }
+        }
     }
 
     registerClickHandler(callback) {

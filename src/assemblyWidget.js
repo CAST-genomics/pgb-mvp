@@ -30,7 +30,7 @@ class AssemblyWidget {
 
     }
 
-    raycastClickHandler(intersection) {
+    raycastClickHandler(intersection, event) {
 
         if (intersection) {
         } else {
