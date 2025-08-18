@@ -6,12 +6,10 @@ class LineFactory {
     /**
      * Create node line geometry without material
      */
-    static createNodeLineGeometry(spline, divisionsMultiplier, zOffset = 0) {
-        // Calculate number of divisions
-        const divisions = Math.round(divisionsMultiplier * spline.points.length);
+    static createNodeLineGeometry(spline, divisions, zOffset = 0) {
 
         // Sample the spline with getPoints (returns an array of Vector3)
-        const points = spline.getPoints(divisions);
+        const points = spline.getPoints(divisions)
 
         // Set z for each point to zOffset (like the original createNodeLine method)
         for (const point of points) {
@@ -25,9 +23,15 @@ class LineFactory {
         const lineGeometry = new LineGeometry();
         lineGeometry.setPositions(xyzList);
 
+        // Diagnostics
+        // const expectPoints = `Expected points: ${ points.length }`
+        // const number = lineGeometry.attributes.instanceStart.count
+        // const lineSegments = `Line segments: ${ number }`
+        // const inferredPoints = `Points inferred from line segments: ${ 1 + number }`
+        // console.log(`${expectPoints} ${lineSegments} ${inferredPoints}`)
+
         return lineGeometry;
     }
-
     /**
      * Create edge rectangle geometry without material (for texture mapping)
      */
@@ -76,4 +80,13 @@ class LineFactory {
     }
 }
 
+function fixedSplineDivisions(spline, divisions) {
+    return divisions
+}
+
+function adaptiveSplineDivisions(spline, multiplier) {
+    return Math.round(multiplier * spline.points.length)
+}
+
+export { fixedSplineDivisions, adaptiveSplineDivisions }
 export default LineFactory;

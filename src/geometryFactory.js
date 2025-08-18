@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import LineFactory from './lineFactory.js';
+import LineFactory, {adaptiveSplineDivisions, fixedSplineDivisions} from './lineFactory.js';
 import {prettyPrint} from "./utils/utils.js"
 
 class GeometryFactory {
@@ -33,7 +33,11 @@ class GeometryFactory {
             bbox
         };
 
-        console.log(`created ${ prettyPrint(this.getNodeNameSet().size + this.getEdgeNameSet().size)} primitives`)
+        const nodeCount = `${ prettyPrint(this.getNodeNameSet().size) }`
+        const edgeCount = `${ prettyPrint(this.getEdgeNameSet().size) }`
+        const nodeXYZCount = `${ prettyPrint(GeometryFactory.getTotalLine2Points(this.geometryCache)) }`
+
+        console.log(`created: nodes ${ nodeCount } nodeXYZ ${ nodeXYZCount } edges ${ edgeCount }`)
 
         return result;
     }
@@ -66,7 +70,8 @@ class GeometryFactory {
             const payload =
                 {
                     type: 'node',
-                    geometry: LineFactory.createNodeLineGeometry(spline, 4, GeometryFactory.NODE_LINE_Z_OFFSET),
+                    // geometry: LineFactory.createNodeLineGeometry(spline, adaptiveSplineDivisions(spline, 4), GeometryFactory.NODE_LINE_Z_OFFSET),
+                    geometry: LineFactory.createNodeLineGeometry(spline, fixedSplineDivisions(spline, 32), GeometryFactory.NODE_LINE_Z_OFFSET),
                     spline,
                     nodeName,
                     assembly: this.genomicService.metadata.get(nodeName)?.assembly
@@ -257,6 +262,23 @@ class GeometryFactory {
             x: { min: minX, max: maxX, centroid: (minX + maxX) / 2 },
             y: { min: minY, max: maxY, centroid: (minY + maxY) / 2 }
         };
+    }
+
+    /**
+     * Static method to count total xyz points in Line2 objects from geometryCache
+     * @param {Map} geometryCache - The geometry cache containing node and edge data
+     * @returns {number} Total number of xyz points in Line2 objects (LineGeometry)
+     */
+    static getTotalLine2Points(geometryCache) {
+        let totalPoints = 0;
+
+        for (const [key, data] of geometryCache.entries()) {
+            if (data.type === 'node' && data.geometry) {
+                totalPoints += (1 + data.geometry.attributes.instanceStart.count)
+            }
+        }
+
+        return totalPoints;
     }
 
     /**
