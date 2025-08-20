@@ -60,7 +60,8 @@
         const bowAxis = (opts.bowAxis || new THREE.Vector3(0,0,1)).clone().normalize();
         const side = (opts.side ?? +1) >= 0 ? +1 : -1;
 
-        const A = endA, B = endB;
+        const A = endA;
+        const B = endB;
         const L = Math.max(1e-6, length);
         const out = new Float32Array(count * 3);
 
@@ -88,10 +89,12 @@
         for (let i=0;i<count;i++){
             const t = i/(count-1);
             const alpha = -phi + t*(2*phi);
-            const p = new THREE.Vector3().copy(O)
-                .addScaledVector(u, R*Math.sin(alpha))
-                .addScaledVector(v, R*Math.cos(alpha));
-            const j=3*i; out[j]=p.x; out[j+1]=p.y; out[j+2]=p.z;
+            const p = new THREE.Vector3().copy(O).addScaledVector(u, R*Math.sin(alpha)).addScaledVector(v, R*Math.cos(alpha));
+            const j=3*i;
+
+            out[j  ]=p.x;
+            out[j+1]=p.y;
+            out[j+2]=p.z;
         }
         return out;
     }
@@ -116,8 +119,13 @@
             const f = i/(count-1);
             const u = THREE.MathUtils.lerp(t0, t1, f);
             const p = curve.getPointAt(u);
-            const j=3*i; out[j]=p.x; out[j+1]=p.y; out[j+2]=p.z;
+            const j=3*i;
+
+            out[j  ]=p.x;
+            out[j+1]=p.y;
+            out[j+2]=p.z;
         }
+
         return out;
     }
 
@@ -146,7 +154,10 @@
     grid.rotation.x = Math.PI/2; scene.add(grid);
 
     // ---------- three horizontal lines along the bottom ----------
-    const segA = 96, segB = 128, segC = 96;
+    const segA = 96;
+    const segB = 128;
+    const segC = 96;
+
     const yBottom = -4.0;
 
     const startA = buildStraightXYZ(new THREE.Vector3(-8, yBottom, 0), new THREE.Vector3(-2.5, yBottom, 0), segA);
@@ -156,9 +167,16 @@
     const lineA = new Line2(new LineGeometry(), new LineMaterial({ color: 0x6ee7ff, worldUnits: true, linewidth: 0.08 }));
     const lineB = new Line2(new LineGeometry(), new LineMaterial({ color: 0x8fff9a, worldUnits: true, linewidth: 0.08 }));
     const lineC = new Line2(new LineGeometry(), new LineMaterial({ color: 0xff86ff, worldUnits: true, linewidth: 0.08 }));
-    lineA.geometry.setPositions(startA); lineB.geometry.setPositions(startB); lineC.geometry.setPositions(startC);
+
+    lineA.geometry.setPositions(startA);
+    lineB.geometry.setPositions(startB);
+    lineC.geometry.setPositions(startC);
+
     const size = new THREE.Vector2(); renderer.getDrawingBufferSize(size);
-    lineA.material.resolution.copy(size); lineB.material.resolution.copy(size); lineC.material.resolution.copy(size);
+    lineA.material.resolution.copy(size);
+    lineB.material.resolution.copy(size);
+    lineC.material.resolution.copy(size);
+
     scene.add(lineA, lineB, lineC);
 
     // ---------- target endpoints (top) ----------
@@ -218,6 +236,7 @@
 
         // 1) Seed with your fixed-length arc -> use as Catmull-Rom knots
         const knotXYZ = createdFlexedXYZList(A, B, Math.max(sep, params.length), params.knots, { bowAxis: new THREE.Vector3(0,0,1), side });
+
         const knots = [];
         for (let i=0;i<params.knots;i++){
             const j=3*i; knots.push(new THREE.Vector3(knotXYZ[j], knotXYZ[j+1], knotXYZ[j+2]));
