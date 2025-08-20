@@ -11,7 +11,7 @@
 //    getAnyBpExtent / indexWalkBpExtents helpers
 //  - Key indexing accepts both "#" and "|" delimiters for assembly keys
 
-export default class PangenomeService {
+class PangenomeService {
     constructor(json = null) {
         this.graph = null;
         // active spine bp lookups for tooltips
@@ -181,10 +181,11 @@ export default class PangenomeService {
     assessGraphFeatures(spineWalk, {
         locusStartBp = 0,
         includeAdjacent = true,
-        includeUpstream = true,
+        includeUpstream = false, // default is to ignore mirror (R,L) events
         allowMidSpineReentry = true,
         includeDangling = true,
         includeOffSpineComponents = true,
+        nestRegions = "none",               // NEW: "none" | "shallow"
         maxPathsPerEvent = 8,
         maxRegionNodes = 5000,
         maxRegionEdges = 8000
@@ -485,7 +486,7 @@ export default class PangenomeService {
             if (!R) type = "dangling";
             else if (L === R || refLenBp === 0) type = "pill";
 
-            events.push({
+            const evt = {
                 id: R ? `${L}~${R}` : `${L}~null`,
                 type,
                 anchors: {
@@ -508,7 +509,25 @@ export default class PangenomeService {
                     removedSpineLeg
                 },
                 relations: { parentId: null, childrenIds: [], overlapGroup: null, sameAnchorGroup: null }
-            });
+            };
+
+            // NEW: optional shallow nesting of region events
+            if (nestRegions === "shallow") {
+                evt.innerEvents = this._assessInnerForEvent(evt, {
+                    locusStartBp,
+                    includeAdjacent,
+                    includeUpstream: false,          // avoid mirror duplicates inside
+                    allowMidSpineReentry,
+                    includeDangling: false,          // keep inner tight to L..R
+                    includeOffSpineComponents: false,
+                    nestRegions: "none",            // prevent infinite recursion
+                    maxPathsPerEvent,
+                    maxRegionNodes,
+                    maxRegionEdges
+                });
+            }
+
+            events.push(evt);
         }
 
         // ---- relations (same anchors, nesting, overlaps)
@@ -648,6 +667,79 @@ export default class PangenomeService {
             for (const ev of features.events) {
                 const hit = this.getProjectedBpInEvent(nodeId, ev);
                 if (hit) return hit;
+            }
+        }
+        return null;
+    }
+
+    // ========================= Region nesting (shallow) =========================
+    _assessInnerForEvent(event, opts) {
+        const L = event.anchors.leftId, R = event.anchors.rightId;
+        // 1) choose a local spine chain inside the region
+        let localChain = null;
+        if (R && event.paths && event.paths[0] && Array.isArray(event.paths[0].nodesDetailed)) {
+            localChain = event.paths[0].nodesDetailed.map(d => d.id);
+        } else if (!R) {
+            const loop = this.#findLocalLoopThrough(event.region.nodes, L);
+            if (loop && loop.length >= 3) localChain = loop; // L ... L
+        }
+        if (!localChain || localChain.length < 2) return [];
+
+        // 2) build subgraph restricted to region + anchors
+        const regionSet = new Set(event.region.nodes.concat([L, R].filter(Boolean)));
+        const sub = this.#makeSubgraph(regionSet);
+
+        // 3) run detector on the subgraph with the local spine
+        const subSvc = new PangenomeService();
+        subSvc.graph = sub;
+        const localWalk = { key: "local", paths: [{ nodes: localChain, edges: [], bpLen: 0 }] };
+        const inner = subSvc.assessGraphFeatures(localWalk, { ...opts, nestRegions: "none", includeOffSpineComponents: false });
+        return inner.events || [];
+    }
+
+    #makeSubgraph(nodeSet) {
+        const g = this.graph;
+        const nodes = new Map();
+        const edges = new Map();
+        const adj = new Map();
+        const index = { byAssembly: new Map() };
+
+        for (const id of nodeSet) {
+            const n = g.nodes.get(id);
+            if (!n) continue;
+            nodes.set(id, { ...n });
+            adj.set(id, []);
+        }
+        for (const id of nodeSet) {
+            const nbrs = g.adj.get(id) || [];
+            for (const nb of nbrs) {
+                if (!nodeSet.has(nb)) continue;
+                const ekF = `edge:${id}:${nb}`;
+                const ekR = `edge:${nb}:${id}`;
+                if (g.edges.has(ekF)) edges.set(ekF, g.edges.get(ekF));
+                if (g.edges.has(ekR)) edges.set(ekR, g.edges.get(ekR));
+                adj.get(id).push(nb);
+            }
+        }
+        return { nodes, edges, adj, index };
+    }
+
+    #findLocalLoopThrough(regionNodes, L) {
+        const region = new Set(regionNodes.concat([L]));
+        const adj = new Map();
+        for (const id of region) {
+            const nbrs = (this.graph.adj.get(id) || []).filter(n => region.has(n));
+            adj.set(id, nbrs);
+        }
+        const stack = [[L, null, []]];
+        const seen = new Set([L]);
+        while (stack.length) {
+            const [u, p, path] = stack.pop();
+            const newPath = path.concat(u);
+            for (const v of (adj.get(u) || [])) {
+                if (v === p) continue;
+                if (v === L && newPath.length > 1) return newPath.concat(L);
+                if (!seen.has(v)) { seen.add(v); stack.push([v, u, newPath]); }
             }
         }
         return null;
@@ -856,3 +948,5 @@ export default class PangenomeService {
         return looksChainy ? "endpoint" : "blockcut";
     }
 }
+
+export default PangenomeService
