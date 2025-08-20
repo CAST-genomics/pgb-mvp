@@ -1,6 +1,7 @@
 import { Draggable } from './utils/draggable.js';
 import { colorToRGBString } from './utils/color.js';
 import eventBus from './utils/eventBus.js';
+import { app } from "./main.js";
 
 class AssemblyWidget {
     constructor(gear, assemblyWidgetContainer, genomicService, geometryManager, raycastService) {
@@ -110,9 +111,38 @@ class AssemblyWidget {
             event.target.style.border = '2px solid #000';
             event.target.style.transform = 'scale(1.5)'
 
-            const { paths } = this.genomicService.assemblyWalkMap.get(assembly)
-            const nodeSet = new Set([ ...(paths.map(({ nodes }) => nodes).flat())])
-            const edgeSet = new Set([ ...(paths.map(({ edges }) => edges).flat())])
+
+            const walk = this.genomicService.assemblyWalkMap.get(assembly)
+            const longestWalk = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
+
+
+            const spineWalk = { key: walk.key, paths: [ longestWalk ]}
+
+            const config =
+                {
+                    // discovery toggles
+                    includeAdjacent: true,           // show pills (adjacent-anchor insertions)
+                    includeUpstream: false,           // ignore mirror (R,L) events
+                    allowMidSpineReentry: true,      // allow detours to touch mid-spine nodes → richer braids
+                    includeDangling: true,           // show branches that don’t rejoin in-window
+                    includeOffSpineComponents: true, // report islands that never touch the spine (context)
+
+                    // path sampling & safety rails
+                    maxPathsPerEvent: 5,             // 3–5 for UI; up to 8+ for analysis
+                    maxRegionNodes: 5000,
+                    maxRegionEdges: 8000,
+
+                    // optional x-origin in bp (default 0)
+                    locusStartBp: 0
+                };
+
+            const result = app.pangenomeService.assessGraphFeatures(spineWalk, config);
+
+            const { nodes, edges } = longestWalk
+            const nodeSet = new Set([ ...nodes ])
+            const edgeSet = new Set([ ...edges ])
+
+
 
             eventBus.publish('assembly:emphasis', { assembly, nodeSet, edgeSet });
         }

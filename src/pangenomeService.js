@@ -1,89 +1,100 @@
-// PangenomeService.js  — plain JS, no deps
+// PangenomeService.js — refreshed build (2025‑08‑20)
+// Plain JavaScript (ES Module). No external deps. Drop‑in replacement.
+//
+// Highlights in this refresh:
+//  - Patch A: more defensive #decideMode for tiny/degenerate components
+//  - Patch B: robust #extractPathBlockCut (singleton/cycle fallbacks)
+//  - Patch C: call‑site fallback in createAssemblyWalk (never drop comps)
+//  - Path sampling bugfix in assessGraphFeatures: Dijkstra runs on MUTABLE
+//    adjacency; edges consumed between iterations; duplicate guard
+//  - Convenience: setActiveSpine / getBpExtent / getProjectedBpInEvent /
+//    getAnyBpExtent / indexWalkBpExtents helpers
+//  - Key indexing accepts both "#" and "|" delimiters for assembly keys
 
-class PangenomeService {
-    constructor() {
-
-        // active spine index for quick lookups
-        this._spineKey = null
-        this._bpStart = null
-        this._bpEnd   = null
-
+export default class PangenomeService {
+    constructor(json = null) {
+        this.graph = null;
+        // active spine bp lookups for tooltips
+        this._spineKey = null;
+        this._bpStart = null; // Map<nodeId, number>
+        this._bpEnd = null;   // Map<nodeId, number>
+        if (json) this.createGraph(json);
     }
 
-    // ------------------------- public API -------------------------
+    // ========================= Public API =========================
 
+    /**
+     * Parse input JSON to internal graph.
+     * - nodes: Map<id, { id, sign, bareId, lengthBp, assemblies[], seq? }>
+     * - edges: Map<edgeKey, { a, b, variants[] }>, where edgeKey = `edge:${a}:${b}`
+     * - adj:   Map<id, string[]> (undirected neighbor list for traversal)
+     * - index: { byAssembly: Map<assemblyKey, Set<nodeId>> }
+     */
     createGraph(json) {
+        if (!json || typeof json !== "object") throw new Error("createGraph: bad JSON");
 
-        this.graph = null;
-
-        const nodes = new Map();     // id -> { id, sign, bareId, lengthBp, assemblies[], seq? }
-        const edges = new Map();     // "edge:a:b" -> { a, b, variants: [...] }
-        const adjSet = new Map();    // id -> Set(neighbor ids)
+        const nodes = new Map();
+        const edges = new Map();
+        const adjSet = new Map();
         const index = { byAssembly: new Map() };
 
-        const seqObj  = json.sequence || {};         // { "id": "ACGT..." } (if present)
-        const nodeObj = json.node     || {};         // { "id": { length?, assembly?[] } }
+        const seqObj  = json.sequence || {};   // { id: "ACGT..." }
+        const nodeObj = json.node     || {};   // { id: { length?, assembly?[] } }
         const rawEdges = Array.isArray(json.edge) ? json.edge : [];
 
-        // --- helpers
         const parseSignedId = (id) => {
             const m = String(id).match(/^(.+?)([+-])$/);
             if (!m) throw new Error(`Node id "${id}" must end with + or -`);
             return { bare: m[1], sign: m[2] };
         };
-        const edgeKeyOf = (a, b) => `edge:${a}:${b}`;
 
-        // --- nodes
+        // ---- nodes
         for (const id in nodeObj) {
             const n = nodeObj[id] || {};
             const { bare, sign } = parseSignedId(id);
 
-            const assemblies = Array.isArray(n.assembly)
-                ? n.assembly.map(a => a && a.assembly_name).filter(Boolean)
-                : [];
-
-            const contigKeys = Array.isArray(n.assembly)
-                ? n.assembly
-                    .map(a => `${a.assembly_name}#${a.haplotype}#${a.sequence_id}`)
-                    .filter(k => !k.includes("undefined"))
-                : [];
+            // Accept both | and # forms; index both so either works
+            const assemblies = [];
+            const assemblyArr = Array.isArray(n.assembly) ? n.assembly : [];
+            for (const a of assemblyArr) {
+                if (!a) continue;
+                const name = a.assembly_name;
+                const hap  = a.haplotype;
+                const seq  = a.sequence_id;
+                if (name) assemblies.push(name);
+                if (name && hap != null && seq != null) {
+                    const parts = [name, hap, seq];
+                    const kHash = parts.join("#");
+                    const kPipe = parts.join("|");
+                    assemblies.push(kHash, kPipe);
+                }
+            }
 
             const seqLen = typeof seqObj[id] === "string" ? seqObj[id].length : undefined;
             const lengthBp = Number.isFinite(n.length) ? Number(n.length)
                 : Number.isFinite(seqLen)    ? seqLen
                     : 0;
 
-            const rec = {
-                id,
-                sign,
-                bareId: bare,
-                lengthBp,
-                assemblies: [...assemblies, ...contigKeys],
-                seq: typeof seqObj[id] === "string" ? seqObj[id] : undefined
-            };
-
+            const rec = { id, sign, bareId: bare, lengthBp, assemblies, seq: seqObj[id] };
             nodes.set(id, rec);
             adjSet.set(id, new Set());
 
-            for (const key of rec.assemblies) {
+            for (const key of assemblies) {
                 if (!index.byAssembly.has(key)) index.byAssembly.set(key, new Set());
                 index.byAssembly.get(key).add(id);
             }
         }
 
-        // --- edges
+        // ---- edges
+        const edgeKeyOf = (a, b) => `edge:${a}:${b}`;
         rawEdges.forEach((e, i) => {
             const from = e.starting_node;
             const to   = e.ending_node;
-            if (!nodes.has(from) || !nodes.has(to)) {
-                // skip edges that point outside parsed node set
-                return;
-            }
+            if (!nodes.has(from) || !nodes.has(to)) return; // ignore out-of-scope
             const ek = edgeKeyOf(from, to);
             if (!edges.has(ek)) edges.set(ek, { a: from, b: to, variants: [] });
             edges.get(ek).variants.push({ rawIndex: i, from, to });
-
-            // undirected traversal view
+            // undirected view for traversal
             adjSet.get(from).add(to);
             adjSet.get(to).add(from);
         });
@@ -100,76 +111,64 @@ class PangenomeService {
         return Array.from(this.graph.index.byAssembly.keys()).sort();
     }
 
-    // mode: "auto" | "endpoint" | "blockcut"
+    /**
+     * Extract a walk (simple chain) per keyed connected component.
+     * mode: "auto" | "endpoint" | "blockcut"
+     */
     createAssemblyWalk(key, { mode = "auto" } = {}) {
         this.#requireGraph();
         const g = this.graph;
-
         const nodeSet = g.index.byAssembly.get(key);
+
+        const diagnostics = { inducedNodes: 0, inducedEdges: 0, modeUsed: mode, warnings: [] };
         if (!nodeSet || nodeSet.size === 0) {
-            return { key, paths: [], diagnostics: { inducedNodes: 0, inducedEdges: 0, modeUsed: null, warnings: ["no nodes"] } };
+            return { key, paths: [], diagnostics };
         }
 
         const indAdj = this.#inducedAdj(g.adj, nodeSet);
 
         let inducedEdges = 0;
-        for (const [, nbrs] of indAdj) inducedEdges += nbrs.length;
-        inducedEdges = Math.floor(inducedEdges / 2);
+        for (const [, nbrs] of indAdj) inducedEdges += (nbrs?.length || 0);
+        diagnostics.inducedNodes = nodeSet.size;
+        diagnostics.inducedEdges = Math.floor(inducedEdges / 2);
 
         const comps = this.#connectedComponents(indAdj);
         const paths = [];
-        const warnings = [];
 
         for (const comp of comps) {
             const subAdj = new Map(comp.map(id => [id, indAdj.get(id)]));
-            const actualMode = mode === "auto" ? this.#decideMode(subAdj, comp) : mode;
+            const actualMode = (mode === "auto") ? this.#decideMode(subAdj, comp) : mode;
 
-            // --- Patch C: robust path selection with fallbacks ---
+            // ---- Patch C: robust selection + fallbacks
             let nodes = (actualMode === "endpoint")
                 ? this.#extractPathEndpointWalk(subAdj, comp)
                 : this.#extractPathBlockCut(subAdj, comp);
 
-            // If block-cut (or odd cases) produced nothing, fall back to endpoint
             if (!nodes || nodes.length === 0) {
                 nodes = this.#extractPathEndpointWalk(subAdj, comp);
             }
-            // Absolute last resort: singleton component
             if ((!nodes || nodes.length === 0) && comp.length === 1) {
                 nodes = [comp[0]];
             }
             if (!nodes || nodes.length === 0) {
-                warnings.push(`empty walk for component of ${key} (size=${comp.length})`);
+                diagnostics.warnings.push(`empty walk for component of ${key} (size=${comp.length})`);
                 continue;
             }
-            // --- end Patch C ---
 
-            // Build edge list along the walk
             const edgesOnPath = [];
             for (let i = 0; i < nodes.length - 1; i++) {
                 const a = nodes[i], b = nodes[i + 1];
                 const ekF = this.#edgeKeyOf(a, b), ekR = this.#edgeKeyOf(b, a);
-                if (this.graph.edges.has(ekF)) edgesOnPath.push(ekF);
-                else if (this.graph.edges.has(ekR)) edgesOnPath.push(ekR);
-                else warnings.push(`No edge found between ${a} and ${b} for ${key}`);
+                if (g.edges.has(ekF)) edgesOnPath.push(ekF);
+                else if (g.edges.has(ekR)) edgesOnPath.push(ekR);
+                else diagnostics.warnings.push(`No edge found between ${a} and ${b} for ${key}`);
             }
 
-            const bpLen = nodes.reduce((s, id) => s + (this.graph.nodes.get(id)?.lengthBp || 0), 0);
-            paths.push({
-                nodes,
-                edges: edgesOnPath,
-                leftEndpoint: nodes[0],
-                rightEndpoint: nodes[nodes.length - 1],
-                bpLen,
-                modeUsed: actualMode
-            });
+            const bpLen = nodes.reduce((s, id) => s + (g.nodes.get(id)?.lengthBp || 0), 0);
+            paths.push({ nodes, edges: edgesOnPath, leftEndpoint: nodes[0], rightEndpoint: nodes[nodes.length - 1], bpLen, modeUsed: actualMode });
         }
 
-
-        return {
-            key,
-            paths,
-            diagnostics: { inducedNodes: nodeSet.size, inducedEdges, modeUsed: mode, warnings }
-        };
+        return { key, paths, diagnostics };
     }
 
     createAssemblyWalks({ keys = null, mode = "auto" } = {}) {
@@ -178,391 +177,8 @@ class PangenomeService {
         return all.map(k => this.createAssemblyWalk(k, { mode }));
     }
 
-    // Kitchen-sink analyzer (latest version) — returns { spine, events, offSpine }
-    assessGraphFeatures(spineWalk, opts = {}) {
-        this.#requireGraph();
-        const features = this.#assessGraphFeaturesImpl(spineWalk, opts);
-        const activeSpine = this.setActiveSpine(features.spine)
-
-        return { features, activeSpine }
-    }
-
-    setActiveSpine(spine) {
-        // spine is features.spine
-        this._spineKey = spine?.assemblyKey || null;
-        this._bpStart = new Map();
-        this._bpEnd   = new Map();
-        if (spine && Array.isArray(spine.nodes)) {
-            for (const n of spine.nodes) {
-                this._bpStart.set(n.id, n.bpStart);
-                this._bpEnd.set(n.id, n.bpEnd);
-            }
-        }
-        return this._spineKey;
-    }
-
-    // 1) Node-local (always defined if length known)
-    getNodeLocalExtent(nodeId) {
-        const n = this.graph?.nodes.get(nodeId);
-        if (!n) return null;
-        return { start: 0, end: n.lengthBp || 0, system: "node-local" };
-    }
-
-    // 2) On a particular walk (true coords if node appears in that walk)
-    indexWalkBpExtents(walk) {
-        const map = new Map();
-        let acc = 0;
-        const nodes = walk?.paths?.[0]?.nodes || [];
-        for (const id of nodes) {
-            const len = this.graph.nodes.get(id)?.lengthBp || 0;
-            map.set(id, { bpStart: acc, bpEnd: acc + len });
-            acc += len;
-        }
-        return map;
-    }
-
-    getBpExtentOnWalk(nodeId, walk, precomputedMap = null) {
-        const m = precomputedMap || this.indexWalkBpExtents(walk);
-        const hit = m.get(nodeId);
-        return hit ? { ...hit, system: "walk" } : null;
-    }
-
-    // 3) Projected within a specific event (for rendering in linear view)
-    // event: one item from features.events
-    // Returns { bpStart, bpEnd, onSpine?, projected:true } or null if node not present.
-    getProjectedBpInEvent(nodeId, event) {
-        if (!event || !Array.isArray(event.paths)) return null;
-
-        // anchors map (in case hover is exactly the left/right anchor)
-        if (nodeId === event.anchors.leftId) {
-            return { bpStart: event.anchors.spanStart, bpEnd: event.anchors.spanStart, onSpine: true, projected: false };
-        }
-        if (event.anchors.rightId && nodeId === event.anchors.rightId) {
-            return { bpStart: event.anchors.spanEnd, bpEnd: event.anchors.spanEnd, onSpine: true, projected: false };
-        }
-
-        for (const p of event.paths) {
-            if (!Array.isArray(p.nodesDetailed)) continue;
-            for (const d of p.nodesDetailed) {
-                if (d.id === nodeId) {
-                    return {
-                        bpStart: d.refBpStart, bpEnd: d.refBpEnd,
-                        onSpine: !!d.isSpine, projected: !d.isSpine
-                    };
-                }
-            }
-        }
-        return null;
-    }
-
-    // features is the full output of assessGraphFeatures
-    getAnyBpExtent(nodeId, features) {
-        const onSpine = this.getBpExtent(nodeId);
-        if (onSpine) return onSpine;
-
-        if (features && Array.isArray(features.events)) {
-            for (const ev of features.events) {
-                const hit = this.getProjectedBpInEvent(nodeId, ev);
-                if (hit) return hit;
-            }
-        }
-        return null;
-    }
-
-    // ------------------------- private helpers -------------------------
-
-    #requireGraph() {
-        if (!this.graph) throw new Error("PangenomeService: graph not created. Call createGraph(json) first.");
-    }
-
-    #edgeKeyOf(a, b) { return `edge:${a}:${b}`; }
-
-    #parseSignedId(id) {
-        const m = String(id).match(/^(.+?)([+-])$/);
-        if (!m) throw new Error(`Node id "${id}" must end with + or -`);
-        return { bare: m[1], sign: m[2] };
-    }
-
-    #num(id) { return Number(this.#parseSignedId(id).bare); }
-
-    #inducedAdj(adj, allowSet) {
-        const out = new Map();
-        for (const id of allowSet) out.set(id, []);
-        for (const id of allowSet) {
-            const nbrs = adj.get(id) || [];
-            for (const nb of nbrs) if (allowSet.has(nb)) out.get(id).push(nb);
-        }
-        return out;
-    }
-
-    #connectedComponents(indAdj) {
-        const vis = new Set(), comps = [];
-        for (const id of indAdj.keys()) {
-            if (vis.has(id)) continue;
-            const q = [id], comp = [];
-            vis.add(id);
-            while (q.length) {
-                const v = q.shift(); comp.push(v);
-                for (const w of (indAdj.get(v) || [])) if (!vis.has(w)) { vis.add(w); q.push(w); }
-            }
-            comps.push(comp);
-        }
-        return comps;
-    }
-
-    #degreeMap(indAdj) {
-        const d = new Map();
-        for (const [id, list] of indAdj) d.set(id, (list || []).length);
-        return d;
-    }
-
-    #chooseEndpoints(indAdj, comp) {
-        const deg = this.#degreeMap(indAdj);
-        const endpoints = comp.filter(id => (deg.get(id) || 0) === 1);
-        if (endpoints.length >= 2) return [endpoints[0], endpoints[1]];
-
-        const farthest = (start) => {
-            const q = [start], dist = new Map([[start, 0]]); let last = start;
-            while (q.length) {
-                const v = q.shift(); last = v;
-                for (const w of (indAdj.get(v) || [])) if (!dist.has(w)) { dist.set(w, dist.get(v) + 1); q.push(w); }
-            }
-            return last;
-        };
-        const a = comp[0];
-        const u = farthest(a);
-        const v = farthest(u);
-        return [u, v];
-    }
-
-    #extractPathEndpointWalk(indAdj, comp) {
-        if (!comp.length) return [];
-        const deg = this.#degreeMap(indAdj);
-        const [start] = this.#chooseEndpoints(indAdj, comp);
-        const walk = [];
-        const vis = new Set();
-        let prev = null, cur = start;
-        while (cur && !vis.has(cur)) {
-            walk.push(cur); vis.add(cur);
-            const cand = (indAdj.get(cur) || []).filter(n => n !== prev && !vis.has(n));
-            if (cand.length === 0) break;
-            if (cand.length === 1) { prev = cur; cur = cand[0]; continue; }
-            cand.sort((a, b) => (deg.get(a) || 0) - (deg.get(b) || 0) || (this.#num(a) - this.#num(b)));
-            prev = cur; cur = cand[0];
-        }
-        return walk;
-    }
-
-    // ---- Block–cut decomposition (Tarjan) to extract canonical path in complex components
-    #biconnectedDecomposition(indAdj) {
-        const disc = new Map(), low = new Map(), parent = new Map();
-        let time = 0;
-        const edgeStack = [];
-        const blocks = [];
-        const articulation = new Set();
-
-        const push = (u, v) => edgeStack.push([u, v]);
-        const popUntil = (u, v) => {
-            const set = new Set();
-            while (edgeStack.length) {
-                const [x, y] = edgeStack.pop();
-                set.add(x); set.add(y);
-                if ((x === u && y === v) || (x === v && y === u)) break;
-            }
-            if (set.size) blocks.push(set);
-        };
-
-        const dfs = (u) => {
-            disc.set(u, ++time); low.set(u, time);
-            let childCount = 0;
-            for (const v of (indAdj.get(u) || [])) {
-                if (!disc.has(v)) {
-                    parent.set(v, u); childCount++; push(u, v);
-                    dfs(v);
-                    low.set(u, Math.min(low.get(u), low.get(v)));
-                    if ((parent.get(u) !== undefined && low.get(v) >= disc.get(u)) ||
-                        (parent.get(u) === undefined && childCount > 1)) {
-                        articulation.add(u);
-                        popUntil(u, v);
-                    }
-                } else if (v !== parent.get(u) && disc.get(v) < disc.get(u)) {
-                    push(u, v);
-                    low.set(u, Math.min(low.get(u), disc.get(v)));
-                }
-            }
-        };
-
-        for (const u of indAdj.keys()) if (!disc.has(u)) { dfs(u); if (edgeStack.length) popUntil(...edgeStack[edgeStack.length - 1]); }
-        return { blocks, articulation };
-    }
-
-    #buildBlockCutTree(blocks, articulation) {
-        const bctAdj = new Map();
-        const blockNodes = [];
-        const add = (n) => { if (!bctAdj.has(n)) bctAdj.set(n, new Set()); };
-
-        for (let i = 0; i < blocks.length; i++) {
-            const B = `B#${i}`; add(B);
-            blockNodes[i] = blocks[i];
-            for (const v of blocks[i]) {
-                if (!articulation.has(v)) continue;
-                const A = `A#${v}`; add(A);
-                bctAdj.get(B).add(A);
-                bctAdj.get(A).add(B);
-            }
-        }
-        const adj = new Map();
-        for (const [k, set] of bctAdj) adj.set(k, Array.from(set));
-        return { adj, blockNodes };
-    }
-
-    #blockOfVertex(blocks, v) {
-        for (let i = 0; i < blocks.length; i++) if (blocks[i].has(v)) return i;
-        return -1;
-    }
-
-    #bfsPath(indAdj, start, goal, allowSet = null) {
-        if (start === goal) return [start];
-        const A = allowSet || new Set(indAdj.keys());
-        if (!A.has(start) || !A.has(goal)) return null;
-        const q = [start], prev = new Map([[start, null]]);
-        while (q.length) {
-            const v = q.shift();
-            for (const w of (indAdj.get(v) || [])) {
-                if (!A.has(w) || prev.has(w)) continue;
-                prev.set(w, v);
-                if (w === goal) {
-                    const path = [w]; let cur = v;
-                    while (cur) { path.push(cur); cur = prev.get(cur); }
-                    path.reverse(); return path;
-                }
-                q.push(w);
-            }
-        }
-        return null;
-    }
-
-    // --- Patch B: robust block–cut extractor ---
-    #extractPathBlockCut(indAdj, comp) {
-        // 1) Trivial component
-        if (!comp || comp.length === 0) return [];
-        if (comp.length === 1) return [comp[0]];
-
-        // 2) Decompose the component
-        const { blocks, articulation } = this.#biconnectedDecomposition(indAdj);
-
-        // If decomposition failed or there are no blocks (degenerate/pure cycle),
-        // produce a reasonable simple path.
-        if (!blocks || blocks.length === 0) {
-            return this.#extractPathEndpointWalk(indAdj, comp);
-        }
-
-        // 3) Choose endpoints and locate their blocks
-        const [s, t] = this.#chooseEndpoints(indAdj, comp);
-        const bs = this.#blockOfVertex(blocks, s);
-        const bt = this.#blockOfVertex(blocks, t);
-
-        // If we can't place endpoints in blocks, fall back to a plain BFS or endpoint walk.
-        if (bs === -1 || bt === -1) {
-            const p = this.#bfsPath(indAdj, s, t);
-            return (p && p.length) ? p : this.#extractPathEndpointWalk(indAdj, comp);
-        }
-
-        // 4) Build the Block–Cut Tree (BCT) and find a route from s's block to t's block
-        const { adj: bctAdj } = this.#buildBlockCutTree(blocks, articulation);
-        const start = `B#${bs}`, goal = `B#${bt}`;
-
-        // BFS on the BCT
-        const Q = [start], prev = new Map([[start, null]]);
-        while (Q.length) {
-            const x = Q.shift();
-            if (x === goal) break;
-            for (const y of (bctAdj.get(x) || [])) {
-                if (!prev.has(y)) { prev.set(y, x); Q.push(y); }
-            }
-        }
-        // If no BCT path, fall back
-        if (!prev.has(goal)) {
-            const p = this.#bfsPath(indAdj, s, t);
-            return (p && p.length) ? p : this.#extractPathEndpointWalk(indAdj, comp);
-        }
-
-        // Recover BCT path: alternates B#i, A#v, B#j, A#u, ...
-        const bctPath = [];
-        for (let cur = goal; cur; cur = prev.get(cur)) bctPath.push(cur);
-        bctPath.reverse();
-
-        // 5) Stitch a final node path by walking block segments
-        const finalPath = [];
-        let entry = s;
-
-        for (let i = 0; i < bctPath.length; i++) {
-            const label = bctPath[i];
-            if (!label.startsWith("B#")) continue;                // skip articulation labels here
-
-            const bi = Number(label.slice(2));                    // block index
-            const allowSet = new Set(blocks[bi]);                 // vertices allowed inside this block
-
-            // Determine entry/exit vertices for this block segment
-            const inEntry = (i === 0)
-                ? entry
-                : (bctPath[i - 1].startsWith("A#") ? bctPath[i - 1].slice(2) : entry);
-
-            let inExit;
-            if (i === bctPath.length - 1) {
-                inExit = t;                                         // last block goes to t
-            } else {
-                const nextLabel = bctPath[i + 1];
-                inExit = (nextLabel && nextLabel.startsWith("A#"))
-                    ? nextLabel.slice(2)                              // next articulation in BCT path
-                    : t;
-            }
-
-            // BFS inside this block from inEntry to inExit
-            const seg = this.#bfsPath(indAdj, inEntry, inExit, allowSet) || [];
-
-            // If we failed to find a segment inside a block, fall back to a global simple path
-            if (!seg.length) {
-                const p = this.#bfsPath(indAdj, s, t) || this.#extractPathEndpointWalk(indAdj, comp);
-                return p;
-            }
-
-            // Append, avoiding duplicate join node
-            if (finalPath.length && finalPath[finalPath.length - 1] === seg[0]) {
-                finalPath.push(...seg.slice(1));
-            } else {
-                finalPath.push(...seg);
-            }
-
-            // Next block will enter from the articulation we just exited
-            entry = inExit;
-        }
-
-        // 6) Safety fallback
-        if (!finalPath.length) {
-            const p = this.#bfsPath(indAdj, s, t) || this.#extractPathEndpointWalk(indAdj, comp);
-            return p || [];
-        }
-        return finalPath;
-    }
-
-    #decideMode(subAdj, comp) {
-        const deg = this.#degreeMap(subAdj);
-        const n = comp.length;
-        const e = comp.reduce((s, id) => s + (subAdj.get(id) || []).length, 0) / 2;
-        const endpoints = comp.filter(id => (deg.get(id) || 0) === 1).length;
-        const maxDeg = Math.max(0, ...comp.map(id => deg.get(id) || 0));
-
-        // Small/degenerate → endpoint extraction
-        if (n <= 2 || e <= 1) return "endpoint";
-
-        const looksChainy = (endpoints === 2) && (maxDeg <= 2) && (e <= n);
-        return looksChainy ? "endpoint" : "blockcut";
-    }
-
-    // --------------------- assessGraphFeatures (full) ---------------------
-
-    #assessGraphFeaturesImpl(spineWalk, {
+    /** Analyze features relative to the provided spine walk. */
+    assessGraphFeatures(spineWalk, {
         locusStartBp = 0,
         includeAdjacent = true,
         includeUpstream = true,
@@ -573,19 +189,22 @@ class PangenomeService {
         maxRegionNodes = 5000,
         maxRegionEdges = 8000
     } = {}) {
+        this.#requireGraph();
         const g = this.graph;
         const edgeKeyOf = (a, b) => `edge:${a}:${b}`;
-        const num = (id) => this.#num(id);
 
-        // ---- spine map
+        // ---- spine chain & maps
         const chain = (spineWalk?.paths?.[0]?.nodes || []).slice();
-        const adj = g.adj;
         const spineSet = new Set(chain);
         const indexOnSpine = new Map(chain.map((id, i) => [id, i]));
 
         const bpStart = new Map(), bpEnd = new Map();
         let acc = locusStartBp;
-        for (const id of chain) { bpStart.set(id, acc); acc += (g.nodes.get(id)?.lengthBp || 0); bpEnd.set(id, acc); }
+        for (const id of chain) {
+            bpStart.set(id, acc);
+            acc += (g.nodes.get(id)?.lengthBp || 0);
+            bpEnd.set(id, acc);
+        }
 
         const edgesForPath = (nodes) => {
             const out = [];
@@ -600,23 +219,24 @@ class PangenomeService {
 
         const spine = {
             assemblyKey: spineWalk?.key || "spine",
-            nodes: chain.map(id => ({
-                id, bpStart: bpStart.get(id), bpEnd: bpEnd.get(id), lenBp: g.nodes.get(id)?.lengthBp || 0
-            })),
+            nodes: chain.map(id => ({ id, bpStart: bpStart.get(id), bpEnd: bpEnd.get(id), lenBp: g.nodes.get(id)?.lengthBp || 0 })),
             edges: edgesForPath(chain),
             lengthBp: (bpEnd.get(chain.at(-1)) || locusStartBp) - locusStartBp
         };
 
+        // ---- neighbor discovery
         const offNbrs = new Map();
-        for (const v of chain) offNbrs.set(v, (adj.get(v) || []).filter(u => !spineSet.has(u)));
+        for (const v of chain) offNbrs.set(v, (g.adj.get(v) || []).filter(u => !spineSet.has(u)));
+
         const spineWindow = (i, j) => new Set(chain.slice(Math.min(i, j), Math.max(i, j) + 1));
 
-        // ---- discover candidate anchors
-        const candidatePairs = new Map(); // "${L}|${R}" or "${L}|null:sig" -> { L, R, kind }
+        // ---- candidate anchor pairs
+        const candidatePairs = new Map(); // key -> { L, R, kind }
         const visitedDanglingSets = new Set();
 
         const addPair = (L, R, kind) => {
-            const i = indexOnSpine.get(L), j = indexOnSpine.get(R);
+            const i = indexOnSpine.get(L);
+            const j = (R != null) ? indexOnSpine.get(R) : null;
             if (R != null) {
                 if (!includeAdjacent && j === i + 1) return;
                 if (!includeUpstream && j <= i) return;
@@ -625,13 +245,14 @@ class PangenomeService {
             if (!candidatePairs.has(key)) candidatePairs.set(key, { L, R, kind });
         };
 
+        // BFS from each spine node through off‑spine, collecting any spine re‑entry
         for (const L of chain) {
             const q = [...offNbrs.get(L)];
             const seen = new Set([L, ...offNbrs.get(L)]);
             let hitAny = false;
             while (q.length) {
                 const v = q.shift();
-                for (const w of (adj.get(v) || [])) {
+                for (const w of (g.adj.get(v) || [])) {
                     if (seen.has(w)) continue;
                     seen.add(w);
                     if (spineSet.has(w)) {
@@ -647,55 +268,56 @@ class PangenomeService {
             if (includeDangling && !hitAny) {
                 const regionNodes = Array.from(seen).filter(x => !spineSet.has(x));
                 if (regionNodes.length) {
-                    const sig = regionNodes.slice().sort((a, b) => num(a) - num(b)).join(",");
-                    const key = `${L}|null:${sig}`;
+                    const sig = regionNodes.slice().sort((a, b) => this.#num(a) - this.#num(b)).join(",");
                     if (!visitedDanglingSets.has(sig)) {
                         visitedDanglingSets.add(sig);
-                        candidatePairs.set(key, { L, R: null, kind: "dangling" });
+                        candidatePairs.set(`${L}|null:${sig}`, { L, R: null, kind: "dangling" });
                     }
                 }
             }
         }
 
-        // ---- region & path utilities
-        const growOff = (seed) => {
-            const S = new Set([seed]);
-            const q = (adj.get(seed) || []).filter(x => !spineSet.has(x));
-            for (const x of q) S.add(x);
-            while (q.length) {
-                const v = q.shift();
-                for (const w of (adj.get(v) || [])) {
-                    if (S.has(w)) continue;
-                    if (spineSet.has(w)) continue;
-                    S.add(w); q.push(w);
+        // ---- utilities
+        const buildRegion = (L, R) => {
+            const growOff = (seed) => {
+                const S = new Set([seed]);
+                const q = (g.adj.get(seed) || []).filter(x => !spineSet.has(x));
+                for (const x of q) S.add(x);
+                while (q.length) {
+                    const v = q.shift();
+                    for (const w of (g.adj.get(v) || [])) {
+                        if (S.has(w) || spineSet.has(w)) continue;
+                        S.add(w); q.push(w);
+                    }
                 }
-            }
-            return S;
-        };
+                return S;
+            };
 
-        const makeRegion = (L, R) => {
+            const region = new Set([L]);
             const Lset = growOff(L);
             let Rset = null;
-            if (R) Rset = growOff(R);
-            const region = new Set([L]); if (R) region.add(R);
-            if (R) { for (const v of Lset) if (Rset.has(v)) region.add(v); }
-            else   { for (const v of Lset) if (!spineSet.has(v)) region.add(v); }
-            if (allowMidSpineReentry && R) {
-                const i = indexOnSpine.get(L), j = indexOnSpine.get(R);
-                for (const s of spineWindow(i, j)) region.add(s);
+            if (R) { Rset = growOff(R); region.add(R); }
+
+            if (R) {
+                for (const v of Lset) if (Rset.has(v)) region.add(v);
+            } else {
+                for (const v of Lset) if (!spineSet.has(v)) region.add(v);
             }
             return region;
         };
 
-        const buildRegionAdj = (region) => {
+        const buildRegionAdj = (region, allowMid) => {
             const allow = new Set(region);
+            if (allowMid) {
+                // Already contains L/R; optionally include mid‑spine window later
+            }
             const subAdj = new Map(); let edgeCount = 0;
             for (const v of allow) subAdj.set(v, []);
             for (const v of allow) {
-                for (const w of (adj.get(v) || [])) {
+                for (const w of (g.adj.get(v) || [])) {
                     if (!allow.has(w)) continue;
                     subAdj.get(v).push(w);
-                    if (num(v) < num(w)) edgeCount++;
+                    if (this.#num(v) < this.#num(w)) edgeCount++;
                 }
             }
             return { subAdj, edgeCount };
@@ -729,8 +351,8 @@ class PangenomeService {
 
         const decoratePath = (pathNodes, spanStart, spanEnd) => {
             const len = id => (g.nodes.get(id)?.lengthBp || 0);
-            const interiorLens = pathNodes.map((id, idx) => (idx > 0 && idx < pathNodes.length - 1) ? len(id) : 0);
-            const totalAlt = interiorLens.reduce((a, b) => a + b, 0);
+            const interior = pathNodes.slice(1, -1);
+            const totalAlt = interior.reduce((s, id) => s + len(id), 0);
             const spanLen = Math.max(0, spanEnd - spanStart);
             const details = [];
             let cum = 0;
@@ -738,9 +360,8 @@ class PangenomeService {
                 const id = pathNodes[i];
                 const isSpine = spineSet.has(id);
                 const nLen = len(id);
-                const altStartBp = cum;
                 const addLen = (i > 0 && i < pathNodes.length - 1) ? nLen : 0;
-                const altEndBp = cum + addLen;
+                const altStartBp = cum, altEndBp = cum + addLen;
 
                 let refBpStart, refBpEnd;
                 if (isSpine && bpStart.has(id)) {
@@ -750,23 +371,41 @@ class PangenomeService {
                     const t0 = totalAlt > 0 ? (altStartBp / totalAlt) : 0;
                     const t1 = totalAlt > 0 ? (altEndBp / totalAlt) : t0;
                     refBpStart = spanStart + t0 * spanLen;
-                    refBpEnd = spanStart + t1 * spanLen;
+                    refBpEnd   = spanStart + t1 * spanLen;
                 }
-
                 details.push({ id, isSpine, lenBp: nLen, altStartBp, altEndBp, refBpStart, refBpEnd });
                 if (addLen > 0) cum += nLen;
             }
             return { nodesDetailed: details, altPathLenBp: totalAlt };
         };
 
-        // ---- build all events
+        // ---- Build events
         const events = [];
+
+        const removePathEdges = (adj, nodePath) => {
+            // Remove consecutive pairs from adj (both directions); return count
+            let removed = 0;
+            for (let i = 0; i < nodePath.length - 1; i++) {
+                const a = nodePath[i], b = nodePath[i + 1];
+                const la = adj.get(a) || [], lb = adj.get(b) || [];
+                const ia = la.indexOf(b); if (ia >= 0) { la.splice(ia, 1); removed++; }
+                const ib = lb.indexOf(a); if (ib >= 0) { lb.splice(ib, 1); removed++; }
+            }
+            return removed;
+        };
+        const pathSignature = (path) => (path || []).join(">");
+
         for (const [, cand] of candidatePairs) {
             const { L, R, kind } = cand;
 
-            const region = makeRegion(L, R);
+            // region discovery
+            let region = buildRegion(L, R);
+            if (allowMidSpineReentry && R) {
+                const i = indexOnSpine.get(L), j = indexOnSpine.get(R);
+                for (const s of spineWindow(i, j)) region.add(s);
+            }
             const regionTooBig = region.size > maxRegionNodes;
-            const { subAdj: regionAdj, edgeCount } = buildRegionAdj(region);
+            const { subAdj: regionAdj, edgeCount } = buildRegionAdj(region, allowMidSpineReentry);
             const adjTooBig = edgeCount > maxRegionEdges;
 
             const regionNodes = Array.from(region).filter(x => !spineSet.has(x));
@@ -775,10 +414,10 @@ class PangenomeService {
             const regionEdges = [];
             const offOffSeen = new Set();
             for (const v of regionNodes) {
-                for (const nb of (adj.get(v) || [])) {
+                for (const nb of (g.adj.get(v) || [])) {
                     if (!region.has(nb) || spineSet.has(nb)) continue;
-                    const a = num(v) < num(nb) ? v : nb;
-                    const b = a === v ? nb : v;
+                    const a = this.#num(v) < this.#num(nb) ? v : nb;
+                    const b = (a === v) ? nb : v;
                     const key = `${a}|${b}`;
                     if (offOffSeen.has(key)) continue;
                     offOffSeen.add(key);
@@ -787,12 +426,12 @@ class PangenomeService {
                 }
             }
 
-            // off<->spine edges inside region
+            // off<->spine anchor edges inside region
             const regionSpineNodes = Array.from(region).filter(id => spineSet.has(id));
             const regionSpineSet = new Set(regionSpineNodes);
             const anchorEdgesSet = new Set();
             for (const v of regionNodes) {
-                for (const nb of (adj.get(v) || [])) {
+                for (const nb of (g.adj.get(v) || [])) {
                     if (!regionSpineSet.has(nb)) continue;
                     const ek = g.edges.has(edgeKeyOf(v, nb)) ? edgeKeyOf(v, nb) : edgeKeyOf(nb, v);
                     anchorEdgesSet.add(ek);
@@ -800,56 +439,44 @@ class PangenomeService {
             }
             const anchorEdges = Array.from(anchorEdgesSet);
 
-            // anchors on reference
+            // anchors in bp space
             const spanStart = bpEnd.get(L);
-            const spanEnd = R ? bpStart.get(R) : bpEnd.get(L);
-            const refLenBp = R ? Math.max(0, spanEnd - spanStart) : 0;
+            const spanEnd   = R ? bpStart.get(R) : bpEnd.get(L);
+            const refLenBp  = R ? Math.max(0, spanEnd - spanStart) : 0;
 
-            // paths (edge-disjoint, filter spine hop; remove L<->R if encountered)
+            // path sampling (edge‑disjoint Dijkstra on MUTABLE adjacency)
             const paths = [];
             const mutableAdj = new Map();
             for (const [v, ns] of regionAdj) mutableAdj.set(v, ns ? ns.slice() : []);
             let truncatedPaths = false;
             let removedSpineLeg = false;
-
-            const removeInteriorEdges = (nodePath) => {
-                for (let i = 0; i < nodePath.length - 1; i++) {
-                    const a = nodePath[i], b = nodePath[i + 1];
-                    const la = mutableAdj.get(a) || [], lb = mutableAdj.get(b) || [];
-                    const ia = la.indexOf(b); if (ia >= 0) la.splice(ia, 1);
-                    const ib = lb.indexOf(a); if (ib >= 0) lb.splice(ib, 1);
-                }
-            };
+            const seenSigs = new Set();
 
             if (R) {
                 for (let k = 0; k < maxPathsPerEvent; k++) {
                     const allowSet = new Set(mutableAdj.keys());
-                    const path = dijkstraNodeWeighted(regionAdj, L, R, allowSet);
+                    // ✅ bugfix: run on mutableAdj, not the original regionAdj
+                    const path = dijkstraNodeWeighted(mutableAdj, L, R, allowSet);
                     if (!path) break;
 
                     const interior = path.slice(1, -1);
                     const hasOffSpineInterior = interior.some(id => !spineSet.has(id));
                     if (!hasOffSpineInterior) {
                         removedSpineLeg = true;
-                        const la = mutableAdj.get(L) || [];
-                        const lb = mutableAdj.get(R) || [];
-                        if (la.includes(R)) mutableAdj.set(L, la.filter(x => x !== R));
-                        if (lb.includes(L)) mutableAdj.set(R, lb.filter(x => x !== L));
+                        // actively remove the direct L—R edge so it cannot recur
+                        removePathEdges(mutableAdj, [L, R]);
                         continue;
                     }
 
+                    const sig = pathSignature(path);
+                    if (seenSigs.has(sig)) break; // duplicate guard
+                    seenSigs.add(sig);
+
                     const { nodesDetailed, altPathLenBp } = decoratePath(path, spanStart, spanEnd);
-                    const altLenBp = altPathLenBp;
+                    paths.push({ nodes: path, edges: edgesForPath(path), altLenBp: altPathLenBp, altPathLenBp, nodesDetailed });
 
-                    paths.push({
-                        nodes: path,
-                        edges: edgesForPath(path),
-                        altLenBp,
-                        altPathLenBp,
-                        nodesDetailed
-                    });
-
-                    removeInteriorEdges(path);
+                    const removed = removePathEdges(mutableAdj, path);
+                    if (removed === 0) break; // no progress → stop
                 }
                 truncatedPaths = (maxPathsPerEvent > 0) && (paths.length === maxPathsPerEvent);
             }
@@ -868,17 +495,10 @@ class PangenomeService {
                     spanEnd,
                     refLenBp,
                     orientation: kind,
-                    leftBpStart: bpStart.get(L),
-                    leftBpEnd: bpEnd.get(L),
-                    rightBpStart: R ? bpStart.get(R) : null,
-                    rightBpEnd: R ? bpEnd.get(R) : null
+                    leftBpStart: bpStart.get(L), leftBpEnd: bpEnd.get(L),
+                    rightBpStart: R ? bpStart.get(R) : null, rightBpEnd: R ? bpEnd.get(R) : null
                 },
-                region: {
-                    nodes: regionNodes,
-                    edges: regionEdges,
-                    anchorEdges,
-                    truncated: !!(regionTooBig || adjTooBig)
-                },
+                region: { nodes: regionNodes, edges: regionEdges, anchorEdges, truncated: !!(regionTooBig || adjTooBig) },
                 paths,
                 stats: {
                     nPaths: paths.length,
@@ -891,13 +511,8 @@ class PangenomeService {
             });
         }
 
-        // ---- interval relations & coarse classes
-        const contains = (A, B) => A.start <= B.start && A.end >= B.end;
-        const overlaps = (A, B) => !(A.end <= B.start || B.end <= A.start);
-
+        // ---- relations (same anchors, nesting, overlaps)
         const proper = events.filter(e => e.anchors.rightId);
-
-        // group by same anchors (parallel detours)
         const sameKeyToGroup = new Map(); let sg = 1;
         for (const e of proper) {
             const k = `${e.anchors.leftId}|${e.anchors.rightId}`;
@@ -908,10 +523,13 @@ class PangenomeService {
         const intervals = proper.map(e => ({
             id: e.id,
             start: Math.min(e.anchors.spanStart, e.anchors.spanEnd),
-            end: Math.max(e.anchors.spanStart, e.anchors.spanEnd)
+            end:   Math.max(e.anchors.spanStart, e.anchors.spanEnd)
         })).sort((a, b) => a.start - b.start || a.end - b.end);
 
         const byId = new Map(proper.map(e => [e.id, e]));
+        const contains = (A, B) => A.start <= B.start && A.end >= B.end;
+        const overlaps = (A, B) => !(A.end <= B.start || B.end <= A.start);
+
         for (let i = 0; i < intervals.length; i++) {
             for (let j = i + 1; j < intervals.length; j++) {
                 const A = intervals[i], B = intervals[j];
@@ -941,8 +559,8 @@ class PangenomeService {
             e.type = "simple_bubble";
         }
 
-        // ---- off-spine components (context only)
-        let offSpine = [];
+        // ---- off‑spine components (context)
+        const offSpine = [];
         if (includeOffSpineComponents) {
             const off = new Set(g.nodes.keys());
             for (const s of chain) off.delete(s);
@@ -952,41 +570,289 @@ class PangenomeService {
                 const comp = []; const q = [v]; seen.add(v);
                 while (q.length) {
                     const x = q.shift(); comp.push(x);
-                    for (const nb of (adj.get(x) || [])) {
+                    for (const nb of (g.adj.get(x) || [])) {
                         if (spineSet.has(nb) || seen.has(nb)) continue;
                         seen.add(nb); q.push(nb);
                     }
                 }
-                const edges = [];
+                const eds = [];
                 for (const x of comp) {
-                    for (const nb of (adj.get(x) || [])) {
+                    for (const nb of (g.adj.get(x) || [])) {
                         if (spineSet.has(nb)) continue;
                         if (comp.indexOf(nb) < 0) continue;
-                        if (num(nb) < num(x)) continue;
+                        if (this.#num(nb) < this.#num(x)) continue;
                         const ek = g.edges.has(edgeKeyOf(x, nb)) ? edgeKeyOf(x, nb) : edgeKeyOf(nb, x);
-                        edges.push(ek);
+                        eds.push(ek);
                     }
                 }
-                offSpine.push({ nodes: comp, edges, size: comp.length });
+                offSpine.push({ nodes: comp, edges: eds, size: comp.length });
             }
         }
 
         return { spine, events, offSpine };
     }
+
+    // ========================= Tooltip helpers =========================
+    setActiveSpine(spine) {
+        this._spineKey = spine?.assemblyKey || null;
+        this._bpStart = new Map();
+        this._bpEnd   = new Map();
+        if (spine && Array.isArray(spine.nodes)) {
+            for (const n of spine.nodes) {
+                this._bpStart.set(n.id, n.bpStart);
+                this._bpEnd.set(n.id, n.bpEnd);
+            }
+        }
+        return this._spineKey;
+    }
+
+    /** True bp on current spine (or null). */
+    getBpExtent(nodeId) {
+        if (!this._bpStart || !this._bpEnd) return null;
+        if (!this._bpStart.has(nodeId)) return null;
+        return { bpStart: this._bpStart.get(nodeId), bpEnd: this._bpEnd.get(nodeId), onSpine: true, projected: false };
+    }
+
+    /** True bp mapping for any given walk (returns Map<nodeId,{bpStart,bpEnd}>). */
+    indexWalkBpExtents(walk) {
+        const m = new Map();
+        const nodes = walk?.paths?.[0]?.nodes || [];
+        let acc = 0;
+        for (const id of nodes) {
+            const len = this.graph?.nodes.get(id)?.lengthBp || 0;
+            m.set(id, { bpStart: acc, bpEnd: acc + len });
+            acc += len;
+        }
+        return m;
+    }
+
+    /** Projected bp for off‑spine nodes within a specific event (or true for mid‑spine). */
+    getProjectedBpInEvent(nodeId, event) {
+        if (!event || !Array.isArray(event.paths)) return null;
+        if (nodeId === event.anchors.leftId)  return { bpStart: event.anchors.spanStart, bpEnd: event.anchors.spanStart, onSpine: true, projected: false };
+        if (event.anchors.rightId && nodeId === event.anchors.rightId) return { bpStart: event.anchors.spanEnd, bpEnd: event.anchors.spanEnd, onSpine: true, projected: false };
+        for (const p of event.paths) {
+            if (!Array.isArray(p.nodesDetailed)) continue;
+            for (const d of p.nodesDetailed) {
+                if (d.id === nodeId) return { bpStart: d.refBpStart, bpEnd: d.refBpEnd, onSpine: !!d.isSpine, projected: !d.isSpine };
+            }
+        }
+        return null;
+    }
+
+    /** Prefer true spine bp, else projected in any event, else null. */
+    getAnyBpExtent(nodeId, features) {
+        const s = this.getBpExtent(nodeId);
+        if (s) return s;
+        if (features && Array.isArray(features.events)) {
+            for (const ev of features.events) {
+                const hit = this.getProjectedBpInEvent(nodeId, ev);
+                if (hit) return hit;
+            }
+        }
+        return null;
+    }
+
+    // ========================= Private helpers =========================
+
+    #requireGraph() { if (!this.graph) throw new Error("PangenomeService: graph not created. Call createGraph(json) first."); }
+    #edgeKeyOf(a, b) { return `edge:${a}:${b}`; }
+    #parseSignedId(id) { const m = String(id).match(/^(.+?)([+-])$/); if (!m) throw new Error(`Node id "${id}" must end with + or -`); return { bare: m[1], sign: m[2] }; }
+    #num(id) { return Number(this.#parseSignedId(id).bare); }
+
+    #inducedAdj(adj, allowSet) {
+        const out = new Map();
+        for (const id of allowSet) out.set(id, []);
+        for (const id of allowSet) {
+            const nbrs = adj.get(id) || [];
+            for (const nb of nbrs) if (allowSet.has(nb)) out.get(id).push(nb);
+        }
+        return out;
+    }
+
+    #connectedComponents(indAdj) {
+        const vis = new Set(), comps = [];
+        for (const id of indAdj.keys()) {
+            if (vis.has(id)) continue;
+            const q = [id], comp = []; vis.add(id);
+            while (q.length) {
+                const v = q.shift(); comp.push(v);
+                for (const w of (indAdj.get(v) || [])) if (!vis.has(w)) { vis.add(w); q.push(w); }
+            }
+            comps.push(comp);
+        }
+        return comps;
+    }
+
+    #degreeMap(indAdj) { const d = new Map(); for (const [id, list] of indAdj) d.set(id, (list || []).length); return d; }
+
+    #chooseEndpoints(indAdj, comp) {
+        const deg = this.#degreeMap(indAdj);
+        const endpoints = comp.filter(id => (deg.get(id) || 0) === 1);
+        if (endpoints.length >= 2) return [endpoints[0], endpoints[1]];
+        const farthest = (start) => {
+            const q = [start], dist = new Map([[start, 0]]); let last = start;
+            while (q.length) { const v = q.shift(); last = v; for (const w of (indAdj.get(v) || [])) if (!dist.has(w)) { dist.set(w, dist.get(v) + 1); q.push(w); } }
+            return last;
+        };
+        const a = comp[0]; const u = farthest(a); const v = farthest(u); return [u, v];
+    }
+
+    #extractPathEndpointWalk(indAdj, comp) {
+        if (!comp.length) return [];
+        const deg = this.#degreeMap(indAdj);
+        const [start] = this.#chooseEndpoints(indAdj, comp);
+        const walk = []; const vis = new Set(); let prev = null, cur = start;
+        while (cur && !vis.has(cur)) {
+            walk.push(cur); vis.add(cur);
+            const cand = (indAdj.get(cur) || []).filter(n => n !== prev && !vis.has(n));
+            if (cand.length === 0) break;
+            if (cand.length === 1) { prev = cur; cur = cand[0]; continue; }
+            cand.sort((a, b) => (deg.get(a) || 0) - (deg.get(b) || 0) || (this.#num(a) - this.#num(b)));
+            prev = cur; cur = cand[0];
+        }
+        return walk;
+    }
+
+    // -------- Patch B: robust block–cut extractor --------
+    #biconnectedDecomposition(indAdj) {
+        const disc = new Map(), low = new Map(), parent = new Map();
+        let time = 0; const edgeStack = []; const blocks = []; const articulation = new Set();
+
+        const push = (u, v) => edgeStack.push([u, v]);
+        const popUntil = (u, v) => {
+            const set = new Set();
+            while (edgeStack.length) {
+                const [x, y] = edgeStack.pop();
+                set.add(x); set.add(y);
+                if ((x === u && y === v) || (x === v && y === u)) break;
+            }
+            if (set.size) blocks.push(set);
+        };
+
+        const dfs = (u) => {
+            disc.set(u, ++time); low.set(u, time);
+            let childCount = 0;
+            for (const v of (indAdj.get(u) || [])) {
+                if (!disc.has(v)) {
+                    parent.set(v, u); childCount++; push(u, v);
+                    dfs(v);
+                    low.set(u, Math.min(low.get(u), low.get(v)));
+                    if ((parent.get(u) !== undefined && low.get(v) >= disc.get(u)) || (parent.get(u) === undefined && childCount > 1)) {
+                        articulation.add(u); popUntil(u, v);
+                    }
+                } else if (v !== parent.get(u) && disc.get(v) < disc.get(u)) {
+                    push(u, v); low.set(u, Math.min(low.get(u), disc.get(v)));
+                }
+            }
+        };
+
+        for (const u of indAdj.keys()) if (!disc.has(u)) { dfs(u); if (edgeStack.length) popUntil(...edgeStack[edgeStack.length - 1]); }
+        return { blocks, articulation };
+    }
+
+    #buildBlockCutTree(blocks, articulation) {
+        const bctAdj = new Map(); const blockNodes = [];
+        const add = (n) => { if (!bctAdj.has(n)) bctAdj.set(n, new Set()); };
+        for (let i = 0; i < blocks.length; i++) {
+            const B = `B#${i}`; add(B); blockNodes[i] = blocks[i];
+            for (const v of blocks[i]) {
+                if (!articulation.has(v)) continue; const A = `A#${v}`; add(A);
+                bctAdj.get(B).add(A); bctAdj.get(A).add(B);
+            }
+        }
+        const adj = new Map(); for (const [k, set] of bctAdj) adj.set(k, Array.from(set));
+        return { adj, blockNodes };
+    }
+
+    #blockOfVertex(blocks, v) { for (let i = 0; i < blocks.length; i++) if (blocks[i].has(v)) return i; return -1; }
+
+    #bfsPath(indAdj, start, goal, allowSet = null) {
+        if (start === goal) return [start];
+        const A = allowSet || new Set(indAdj.keys());
+        if (!A.has(start) || !A.has(goal)) return null;
+        const q = [start], prev = new Map([[start, null]]);
+        while (q.length) {
+            const v = q.shift();
+            for (const w of (indAdj.get(v) || [])) {
+                if (!A.has(w) || prev.has(w)) continue;
+                prev.set(w, v);
+                if (w === goal) {
+                    const path = [w]; let cur = v; while (cur) { path.push(cur); cur = prev.get(cur); }
+                    path.reverse(); return path;
+                }
+                q.push(w);
+            }
+        }
+        return null;
+    }
+
+    #extractPathBlockCut(indAdj, comp) {
+        if (!comp || comp.length === 0) return [];
+        if (comp.length === 1) return [comp[0]]; // singleton
+
+        const { blocks, articulation } = this.#biconnectedDecomposition(indAdj);
+        if (!blocks || blocks.length === 0) {
+            return this.#extractPathEndpointWalk(indAdj, comp);
+        }
+
+        const [s, t] = this.#chooseEndpoints(indAdj, comp);
+        const bs = this.#blockOfVertex(blocks, s);
+        const bt = this.#blockOfVertex(blocks, t);
+        if (bs === -1 || bt === -1) {
+            const p = this.#bfsPath(indAdj, s, t);
+            return (p && p.length) ? p : this.#extractPathEndpointWalk(indAdj, comp);
+        }
+
+        const { adj: bctAdj } = this.#buildBlockCutTree(blocks, articulation);
+        const start = `B#${bs}`, goal = `B#${bt}`;
+
+        const Q = [start], prev = new Map([[start, null]]);
+        while (Q.length) {
+            const x = Q.shift(); if (x === goal) break;
+            for (const y of (bctAdj.get(x) || [])) if (!prev.has(y)) { prev.set(y, x); Q.push(y); }
+        }
+        if (!prev.has(goal)) {
+            const p = this.#bfsPath(indAdj, s, t) || this.#extractPathEndpointWalk(indAdj, comp);
+            return p || [];
+        }
+
+        const bctPath = []; for (let cur = goal; cur; cur = prev.get(cur)) bctPath.push(cur); bctPath.reverse();
+
+        const finalPath = []; let entry = s;
+        for (let i = 0; i < bctPath.length; i++) {
+            const label = bctPath[i]; if (!label.startsWith("B#")) continue;
+            const bi = Number(label.slice(2));
+            const allowSet = blocks[bi];
+            const inEntry = (i === 0) ? entry : (bctPath[i - 1].startsWith("A#") ? bctPath[i - 1].slice(2) : entry);
+            const nextLabel = (i === bctPath.length - 1) ? null : bctPath[i + 1];
+            const inExit = nextLabel && nextLabel.startsWith("A#") ? nextLabel.slice(2) : t;
+
+            const seg = this.#bfsPath(indAdj, inEntry, inExit, new Set(allowSet)) || [];
+            if (!seg.length) { const p = this.#bfsPath(indAdj, s, t) || this.#extractPathEndpointWalk(indAdj, comp); return p || []; }
+
+            if (finalPath.length && finalPath[finalPath.length - 1] === seg[0]) finalPath.push(...seg.slice(1));
+            else finalPath.push(...seg);
+
+            entry = inExit;
+        }
+
+        if (!finalPath.length) {
+            const p = this.#bfsPath(indAdj, s, t) || this.#extractPathEndpointWalk(indAdj, comp);
+            return p || [];
+        }
+        return finalPath;
+    }
+
+    // -------- Patch A: defensive mode chooser --------
+    #decideMode(subAdj, comp) {
+        const deg = this.#degreeMap(subAdj);
+        const n = comp.length;
+        const e = comp.reduce((s, id) => s + (subAdj.get(id) || []).length, 0) / 2;
+        const endpoints = comp.filter(id => (deg.get(id) || 0) === 1).length;
+        const maxDeg = Math.max(0, ...comp.map(id => deg.get(id) || 0));
+        if (n <= 2 || e <= 1) return "endpoint"; // tiny/degenerate
+        const looksChainy = (endpoints === 2) && (maxDeg <= 2) && (e <= n);
+        return looksChainy ? "endpoint" : "blockcut";
+    }
 }
-
-// ------------------------- usage example -------------------------
-// const svc = new PangenomeService(json);
-// // or: svc.createGraph(json);
-// const grch = svc.createAssemblyWalk("GRCh38", { mode: "auto" });
-// const features = svc.assessGraphFeatures(grch, {
-//   includeAdjacent: true,
-//   includeUpstream: true,
-//   allowMidSpineReentry: true,
-//   includeDangling: true,
-//   includeOffSpineComponents: true,
-//   maxPathsPerEvent: 8
-// });
-// // features.spine, features.events, features.offSpine → feed to your renderer.
-
-export default PangenomeService;
