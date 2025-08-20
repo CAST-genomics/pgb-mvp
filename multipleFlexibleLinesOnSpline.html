@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Three lines sampling one flexible spline</title>
+    <style>
+        html, body { height: 100%; margin: 0; overflow: hidden; background: #0b0e13; color: #eaeaea; font-family: system-ui, sans-serif; }
+        #ui { position: absolute; left: 12px; top: 12px; z-index: 10; display: grid; gap: 6px; }
+        #slider { width: 320px; }
+        canvas { display:block; }
+    </style>
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.161.0/examples/jsm/"
+          }
+        }
+    </script>
+</head>
+<body>
+<div id="ui">
+    <div>Lerp t: <span id="tval">0.00</span></div>
+    <input id="slider" type="range" min="0" max="1" step="0.01" value="0">
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { Line2 } from 'three/addons/lines/Line2.js';
+    import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+    import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+    import GUI from 'three/addons/libs/lil-gui.module.min.js';
+
+    // ---------- math helpers ----------
+    function solveThetaFromRatio(r) {
+        r = THREE.MathUtils.clamp(r, 0, 1);
+        if (r === 1) return 1e-6;
+        if (r === 0) return 2 * Math.PI - 1e-6;
+        let lo = 1e-6, hi = 2 * Math.PI - 1e-6;
+        for (let i = 0; i < 64; i++) {
+            const mid = 0.5 * (lo + hi);
+            const f = 2 * Math.sin(0.5 * mid) / mid - r;
+            if (f > 0) lo = mid; else hi = mid;
+        }
+        return 0.5 * (lo + hi);
+    }
+    function safeNormalFromBowAxis(dir, bowAxis) {
+        let p = new THREE.Vector3().copy(dir).cross(bowAxis);
+        if (p.lengthSq() < 1e-8) {
+            p = new THREE.Vector3().copy(dir).cross(new THREE.Vector3(0,0,1));
+            if (p.lengthSq() < 1e-8) p = new THREE.Vector3().copy(dir).cross(new THREE.Vector3(1,0,0));
+        }
+        return new THREE.Vector3().copy(p).normalize().cross(dir).normalize();
+    }
+
+    // ---------- core helper: fixed-length circular arc points ----------
+    // returns Float32Array(count*3) along the unique circular arc of arc-length L joining A..B
+    function createdFlexedXYZList(endA, endB, length, count, opts = {}) {
+        const bowAxis = (opts.bowAxis || new THREE.Vector3(0,0,1)).clone().normalize();
+        const side = (opts.side ?? +1) >= 0 ? +1 : -1;
+
+        const A = endA, B = endB;
+        const L = Math.max(1e-6, length);
+        const out = new Float32Array(count * 3);
+
+        const chord = new THREE.Vector3().subVectors(B, A);
+        const d = chord.length();
+
+        if (d >= L - 1e-7) {
+            for (let i = 0; i < count; i++) {
+                const t = i/(count-1);
+                const p = new THREE.Vector3().lerpVectors(A, B, t);
+                const j = 3*i; out[j]=p.x; out[j+1]=p.y; out[j+2]=p.z;
+            }
+            return out;
+        }
+
+        const u = chord.clone().normalize();
+        const v = safeNormalFromBowAxis(u, bowAxis).multiplyScalar(side);
+        const theta = solveThetaFromRatio(d / L);
+        const R = L / theta;
+        const phi = 0.5 * theta;
+        const a = R * Math.cos(phi);
+        const M = new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5);
+        const O = new THREE.Vector3().copy(M).addScaledVector(v, -a);
+
+        for (let i=0;i<count;i++){
+            const t = i/(count-1);
+            const alpha = -phi + t*(2*phi);
+            const p = new THREE.Vector3().copy(O)
+                .addScaledVector(u, R*Math.sin(alpha))
+                .addScaledVector(v, R*Math.cos(alpha));
+            const j=3*i; out[j]=p.x; out[j+1]=p.y; out[j+2]=p.z;
+        }
+        return out;
+    }
+
+    // ---------- build straight lines ----------
+    function buildStraightXYZ(A, B, count){
+        const arr = new Float32Array(count*3);
+        for (let i=0;i<count;i++){
+            const t = i/(count-1);
+            const p = new THREE.Vector3().lerpVectors(A,B,t);
+            const j=3*i; arr[j]=p.x; arr[j+1]=p.y; arr[j+2]=p.z;
+        }
+        return arr;
+    }
+
+    // ---------- sample a sub-range of a curve by arc length ----------
+    function sampleCurveSection(curve, t0, t1, count){
+        // Curve.getPointAt uses arc-length reparam; make it dense for accuracy.
+        curve.arcLengthDivisions = Math.max(curve.arcLengthDivisions ?? 200, 1024);
+        const out = new Float32Array(count*3);
+        for (let i=0;i<count;i++){
+            const f = i/(count-1);
+            const u = THREE.MathUtils.lerp(t0, t1, f);
+            const p = curve.getPointAt(u);
+            const j=3*i; out[j]=p.x; out[j+1]=p.y; out[j+2]=p.z;
+        }
+        return out;
+    }
+
+    // ---------- scene ----------
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0e13);
+
+    const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.01, 1000);
+    camera.position.set(0, -9, 7);
+    camera.up.set(0,0,1);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0,-1,0);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 0.7));
+    const dl = new THREE.DirectionalLight(0xffffff, 0.7);
+    dl.position.set(5,-5,7); scene.add(dl);
+
+    const grid = new THREE.GridHelper(24, 24, 0x233046, 0x141a22);
+    grid.rotation.x = Math.PI/2; scene.add(grid);
+
+    // ---------- three horizontal lines along the bottom ----------
+    const segA = 96, segB = 128, segC = 96;
+    const yBottom = -4.0;
+
+    const startA = buildStraightXYZ(new THREE.Vector3(-8, yBottom, 0), new THREE.Vector3(-2.5, yBottom, 0), segA);
+    const startB = buildStraightXYZ(new THREE.Vector3(-1.5, yBottom, 0), new THREE.Vector3( 1.5, yBottom, 0), segB);
+    const startC = buildStraightXYZ(new THREE.Vector3( 2.5, yBottom, 0), new THREE.Vector3( 8,   yBottom, 0), segC);
+
+    const lineA = new Line2(new LineGeometry(), new LineMaterial({ color: 0x6ee7ff, worldUnits: true, linewidth: 0.08 }));
+    const lineB = new Line2(new LineGeometry(), new LineMaterial({ color: 0x8fff9a, worldUnits: true, linewidth: 0.08 }));
+    const lineC = new Line2(new LineGeometry(), new LineMaterial({ color: 0xff86ff, worldUnits: true, linewidth: 0.08 }));
+    lineA.geometry.setPositions(startA); lineB.geometry.setPositions(startB); lineC.geometry.setPositions(startC);
+    const size = new THREE.Vector2(); renderer.getDrawingBufferSize(size);
+    lineA.material.resolution.copy(size); lineB.material.resolution.copy(size); lineC.material.resolution.copy(size);
+    scene.add(lineA, lineB, lineC);
+
+    // ---------- target endpoints (top) ----------
+    const sphereG = new THREE.SphereGeometry(0.14, 32, 16);
+    const sphereM = new THREE.MeshStandardMaterial({ color: 0xbfbfbf, metalness: 0.2, roughness: 0.6 });
+    const endAVis = new THREE.Mesh(sphereG, sphereM);
+    const endBVis = new THREE.Mesh(sphereG, sphereM);
+    scene.add(endAVis, endBVis);
+
+    // (optional) show the spline itself for reference
+    let debugCurveLine = null;
+    function drawDebugCurve(points){
+        if (debugCurveLine) scene.remove(debugCurveLine);
+        const g = new LineGeometry();
+        const mat = new LineMaterial({ color: 0x3355ff, worldUnits: true, linewidth: 0.03, transparent: true, opacity: 0.6 });
+        const arr = new Float32Array(points.length*3);
+        for (let i=0;i<points.length;i++){ const p=points[i]; const j=3*i; arr[j]=p.x; arr[j+1]=p.y; arr[j+2]=p.z; }
+        g.setPositions(arr);
+        debugCurveLine = new Line2(g, mat);
+        debugCurveLine.material.resolution.copy(size);
+        scene.add(debugCurveLine);
+    }
+
+    // ---------- GUI to shape the master spline ----------
+    const gui = new GUI({ title: 'Master spline (flex source)' });
+    const params = {
+        separation: 8.0,     // horizontal distance between the two top endpoints
+        destY: 2.5,          // y of those endpoints (upper portion)
+        length: 10.0,        // arc length used to generate the 8 knots (>= chord to bow)
+        side: '+1 (up)',
+        knots: 8,            // number of knots used to seed the Catmull-Rom
+        showSpline: true
+    };
+
+    // initialize length ~= chord so it starts nearly straight
+    params.length = Math.max(params.separation, params.length);
+
+    gui.add(params, 'separation', 2.0, 16.0, 0.01).name('Endpoint separation').onChange(rebuildSpline);
+    gui.add(params, 'destY',      0.5,  6.0, 0.01).name('Endpoint Y').onChange(rebuildSpline);
+    gui.add(params, 'length',     2.0, 24.0, 0.01).name('Arc length (L)').onChange(rebuildSpline);
+    gui.add(params, 'knots', { 6:6, 8:8, 10:10, 12:12 }).name('Knot count').onChange(rebuildSpline);
+    gui.add(params, 'side', { '+1 (up)':'up', '-1 (down)':'down' }).name('Bow side').onChange(rebuildSpline);
+    gui.add(params, 'showSpline').name('Show spline').onChange(()=>{ if (!params.showSpline && debugCurveLine) { scene.remove(debugCurveLine); debugCurveLine=null; } else rebuildSpline(); });
+
+    // ---------- master spline + per-line target arrays ----------
+    let curve = null;
+    let targetA = startA.slice(0), targetB = startB.slice(0), targetC = startC.slice(0);
+
+    function rebuildSpline(){
+        const sep = params.separation;
+        const y   = params.destY;
+        const A   = new THREE.Vector3(-sep*0.5, y, 0);
+        const B   = new THREE.Vector3( sep*0.5, y, 0);
+        endAVis.position.copy(A); endBVis.position.copy(B);
+
+        const side = params.side === 'up' ? +1 : -1;
+
+        // 1) Seed with your fixed-length arc -> use as Catmull-Rom knots
+        const knotXYZ = createdFlexedXYZList(A, B, Math.max(sep, params.length), params.knots, { bowAxis: new THREE.Vector3(0,0,1), side });
+        const knots = [];
+        for (let i=0;i<params.knots;i++){
+            const j=3*i; knots.push(new THREE.Vector3(knotXYZ[j], knotXYZ[j+1], knotXYZ[j+2]));
+        }
+
+        // 2) Build the master spline
+        curve = new THREE.CatmullRomCurve3(knots, false, 'centripetal', 0.5);
+        curve.arcLengthDivisions = 2048; // improve arc-length mapping accuracy
+
+        // optional debug draw
+        if (params.showSpline){
+            const dbg = curve.getPoints(400);
+            drawDebugCurve(dbg);
+        }
+
+        // 3) Sample equal arc-length subranges for A/B/C
+        targetA = sampleCurveSection(curve, 0.00, 1/3, segA);
+        targetB = sampleCurveSection(curve, 1/3, 2/3, segB);
+        targetC = sampleCurveSection(curve, 2/3, 1.00, segC);
+
+        // apply with current t so GUI changes are live
+        applyLerp(parseFloat(slider.value));
+    }
+
+    // ---------- lerp all three lines ----------
+    const slider = document.getElementById('slider');
+    const tval = document.getElementById('tval');
+
+    const outA = new Float32Array(startA.length);
+    const outB = new Float32Array(startB.length);
+    const outC = new Float32Array(startC.length);
+
+    function applyLerp(t){
+        tval.textContent = t.toFixed(2);
+        for (let i=0;i<outA.length;i++) outA[i] = THREE.MathUtils.lerp(startA[i], targetA[i], t);
+        for (let i=0;i<outB.length;i++) outB[i] = THREE.MathUtils.lerp(startB[i], targetB[i], t);
+        for (let i=0;i<outC.length;i++) outC[i] = THREE.MathUtils.lerp(startC[i], targetC[i], t);
+        lineA.geometry.setPositions(outA);
+        lineB.geometry.setPositions(outB);
+        lineC.geometry.setPositions(outC);
+    }
+    slider.addEventListener('input', ()=> applyLerp(parseFloat(slider.value)));
+
+    // ---------- init ----------
+    rebuildSpline();
+    applyLerp(0);
+
+    // ---------- resize ----------
+    window.addEventListener('resize', ()=>{
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.getDrawingBufferSize(size);
+        lineA.material.resolution.copy(size);
+        lineB.material.resolution.copy(size);
+        lineC.material.resolution.copy(size);
+        camera.aspect = innerWidth/innerHeight;
+        camera.updateProjectionMatrix();
+    });
+
+    // ---------- loop ----------
+    renderer.setAnimationLoop(()=>{
+        controls.update();
+        renderer.render(scene, camera);
+    });
+</script>
+</body>
+</html>
