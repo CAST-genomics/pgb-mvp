@@ -14,22 +14,18 @@ class GenomicService {
         this.nodeAssemblyStats = new Map()
         this.assemblySet = new Set()
         this.assemblyWalkMap = new Map()
+        this.annotationRenderServiceMap = new Map()
     }
 
     async createMetadata(json, pangenomeService, genomeLibrary, raycastService) {
 
         const { locus:locusString, node:nodes, edge:edges, sequence:sequences } = json
 
-        // TODO: For now we will use a single graph spanning locus in conjunction
-        //       with the annotation renderer
         this.locus = LocusInput.parseLocusString(locusString)
 
         // Internal to the app we use 0-indexed
         this.locus.startBP -= 1
         console.log(`locus length ${ prettyPrint(this.locus.endBP - this.locus.startBP) }`)
-
-        const renderLibrary = new Map()
-        const locusExtentMap = new Map()
 
         for (const [nodeName, { assembly, length }] of Object.entries(nodes)) {
 
@@ -43,6 +39,7 @@ class GenomicService {
 
         }
 
+        // Build assembly set
         this.assemblySet = new Set()
         for (const [ key, { assemblySet }] of this.metadata) {
             for (const item of assemblySet){
@@ -50,6 +47,16 @@ class GenomicService {
             }
         }
 
+        for (const assemblyKey of this.assemblySet){
+            if (assemblyKey.includes('GRCh38')) {
+                const {geneFeatureSource, geneRenderer} = await genomeLibrary.getGenomePayload('GRCh38')
+                const container = document.querySelector('#pgb-gene-render-container')
+                const annotationRenderService = new AnnotationRenderService(container, geneFeatureSource, geneRenderer, this, raycastService)
+                this.annotationRenderServiceMap.set(assemblyKey, annotationRenderService)
+            }
+        }
+
+        // Build assembly walk map
         const assemblyWalks = pangenomeService.createAssemblyWalks({ mode:'auto' })
         for (const key of this.assemblySet){
             const walks = assemblyWalks.find(walk => key === walk.key)
@@ -60,10 +67,8 @@ class GenomicService {
         const uniqueColorsRandomized = Array.from(uniqueRandomGenerator(uniqueColors, uniqueColors.length - 1));
 
         let i = 0;
-        for (const tripleKey of this.assemblySet) {
-            // const annotationRenderService = renderLibrary.get(assembly);
-            // const locus = locusExtentMap.get(assembly);
-            this.assemblyPayload.set(tripleKey, { color:uniqueColorsRandomized[ i ], /*annotationRenderService, locus*/ });
+        for (const assemblyKey of this.assemblySet) {
+            this.assemblyPayload.set(assemblyKey, { color:uniqueColorsRandomized[ i ] });
             i++;
         }
 
@@ -127,6 +132,8 @@ class GenomicService {
         this.assemblySet.clear()
 
         this.assemblyWalkMap.clear()
+
+        this.annotationRenderServiceMap.clear()
     }
 }
 

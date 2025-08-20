@@ -2,6 +2,7 @@ import { Draggable } from './utils/draggable.js';
 import { colorToRGBString } from './utils/color.js';
 import eventBus from './utils/eventBus.js';
 import { app } from "./main.js";
+import genomicService from "./genomicService.js"
 
 class AssemblyWidget {
     constructor(gear, assemblyWidgetContainer, genomicService, geometryManager, raycastService) {
@@ -81,7 +82,7 @@ class AssemblyWidget {
         return container;
     }
 
-    onAssemblySelectorClick(assembly, event) {
+    async onAssemblySelectorClick(assembly, event) {
         event.stopPropagation();
 
         if (this.selectedAssemblies.has(assembly)) {
@@ -116,6 +117,8 @@ class AssemblyWidget {
             const longestWalk = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
 
 
+
+
             const spineWalk = { key: walk.key, paths: [ longestWalk ]}
 
             const config =
@@ -133,10 +136,22 @@ class AssemblyWidget {
                     maxRegionEdges: 8000,
 
                     // optional x-origin in bp (default 0)
-                    locusStartBp: 0
+                    locusStartBp: this.genomicService.locus.startBP
                 };
 
-            const result = app.pangenomeService.assessGraphFeatures(spineWalk, config);
+            const result = app.pangenomeService.assessGraphFeatures(spineWalk, config)
+
+            const ars = this.genomicService.annotationRenderServiceMap.get(result.spine.assemblyKey)
+            if (ars) {
+                const { nodes } = result.spine
+                const { chr } = this.genomicService.locus
+                const bpStart = nodes[0].bpStart
+                const bpEnd = nodes[ nodes.length - 1].bpEnd
+
+                const features = await ars.getFeatures(chr, bpStart, bpEnd)
+                ars.render({ container: ars.container, bpStart, bpEnd, features })
+            }
+
 
             const { nodes, edges } = longestWalk
             const nodeSet = new Set([ ...nodes ])
