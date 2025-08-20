@@ -13,9 +13,10 @@ class GenomicService {
         this.assemblyPayload = new Map()
         this.nodeAssemblyStats = new Map()
         this.assemblySet = new Set()
+        this.assemblyWalkMap = new Map()
     }
 
-    async createMetadata(json, genomeLibrary, raycastService) {
+    async createMetadata(json, pangenomeService, genomeLibrary, raycastService) {
 
         const { locus:locusString, node:nodes, edge:edges, sequence:sequences } = json
 
@@ -27,7 +28,6 @@ class GenomicService {
         this.locus.startBP -= 1
         console.log(`locus length ${ prettyPrint(this.locus.endBP - this.locus.startBP) }`)
 
-        this.assemblySet.clear()
         const renderLibrary = new Map()
         const locusExtentMap = new Map()
 
@@ -48,6 +48,12 @@ class GenomicService {
             for (const item of assemblySet){
                 this.assemblySet.add(item)
             }
+        }
+
+        const assemblyWalks = pangenomeService.createAssemblyWalks({ mode:'auto' })
+        for (const key of this.assemblySet){
+            const walks = assemblyWalks.find(walk => key === walk.key)
+            this.assemblyWalkMap.set(key, walks)
         }
 
         const uniqueColors = getPerceptuallyDistinctColors(1 + this.assemblySet.size)
@@ -105,7 +111,7 @@ class GenomicService {
     }
 
     clear() {
-        this.metadata.clear();
+        this.metadata.clear()
 
         for (const {annotationRenderService} of this.assemblyPayload.values()) {
 
@@ -115,7 +121,12 @@ class GenomicService {
         }
 
         this.assemblyPayload.clear()
+
         this.nodeAssemblyStats.clear()
+
+        this.assemblySet.clear()
+
+        this.assemblyWalkMap.clear()
     }
 }
 

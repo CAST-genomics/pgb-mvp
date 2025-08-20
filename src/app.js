@@ -271,7 +271,7 @@ class App {
         this.pangenomeService.createGraph(json)
 
         this.genomicService.clear()
-        await this.genomicService.createMetadata(json, this.genomeLibrary, this.raycastService)
+        await this.genomicService.createMetadata(json, this.pangenomeService, this.genomeLibrary, this.raycastService)
 
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         const scene = this.sceneManager.getActiveScene()
@@ -279,8 +279,7 @@ class App {
         this.geometryManager.createGeometry(json, look)
         this.geometryManager.addToScene(scene)
 
-        const assemblyWalks = this.pangenomeService.createAssemblyWalks({ mode:'auto' })
-        this.assemblyWidget.configure(assemblyWalks)
+        this.assemblyWidget.configure()
 
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)
 
