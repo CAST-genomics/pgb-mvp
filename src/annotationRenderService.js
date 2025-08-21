@@ -1,14 +1,18 @@
-import {locusInput} from "./main.js"
+import {app} from "./main.js"
 import LocusInput from "./locusInput.js"
+import eventBus from "./utils/eventBus.js"
 
 class AnnotationRenderService {
 
-    constructor(container, featureSource, featureRenderer, genomicService, raycastService) {
+    constructor(container, assemblyKey, featureSource, featureRenderer, genomicService, raycastService) {
 
         this.container = container;
-        this.genomicService = genomicService;
+        this.assemblyKey = assemblyKey
         this.featureSource = featureSource;
         this.featureRenderer = featureRenderer;
+        this.genomicService = genomicService;
+
+        raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
 
         // Initial resize
         this.resizeCanvas(container);
@@ -16,9 +20,82 @@ class AnnotationRenderService {
         this.boundResizeHandler = this.resizeCanvas.bind(this, container);
         window.addEventListener('resize', this.boundResizeHandler);
 
-        // Register Raycast click handler
-        raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
+        this.deemphasizeUnsub = eventBus.subscribe('assembly:emphasis', async (data) => {
 
+            const { assembly, nodeSet, edgeSet } = data
+
+            if (this.assemblyKey !== assembly) {
+                return
+            }
+
+            console.log(`AnnotationRenderService - assembly:emphasis handler for ${ assembly }`)
+
+            const walk = this.genomicService.assemblyWalkMap.get(assembly)
+            const longestPath = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
+
+            const spineWalk = { key: walk.key, paths: [ longestPath ]}
+
+            const config =
+                {
+                    // discovery toggles
+                    includeAdjacent: true,           // show pills (adjacent-anchor insertions)
+                    includeUpstream: false,           // ignore mirror (R,L) events
+                    allowMidSpineReentry: true,      // allow detours to touch mid-spine nodes → richer braids
+                    includeDangling: true,           // show branches that don’t rejoin in-window
+                    includeOffSpineComponents: true, // report islands that never touch the spine (context)
+
+                    // path sampling & safety rails
+                    maxPathsPerEvent: 5,             // 3–5 for UI; up to 8+ for analysis
+                    maxRegionNodes: 5000,
+                    maxRegionEdges: 8000,
+
+                    // optional x-origin in bp (default 0)
+                    locusStartBp: this.genomicService.locus.startBP
+                };
+
+            const result = app.pangenomeService.assessGraphFeatures(spineWalk, config)
+
+            const { nodes } = result.spine
+            const { chr } = this.genomicService.locus
+            const bpStart = nodes[0].bpStart
+            const bpEnd = nodes[ nodes.length - 1].bpEnd
+
+            const features = await this.getFeatures(chr, bpStart, bpEnd)
+            this.render({ container: this.container, bpStart, bpEnd, features })
+
+
+        });
+
+        this.restoreUnsub = eventBus.subscribe('assembly:normal', data => {
+
+            const { assembly } = data
+
+            console.log(`AnnotationRenderService - assembly:normal handler for ${ assembly }`)
+
+            this.clear()
+        });
+
+    }
+
+    render(renderConfig) {
+
+        if (renderConfig) {
+            const {container, bpStart, bpEnd} = renderConfig
+
+            const canvas = container.querySelector('canvas')
+            const {width: pixelWidth, height: pixelHeight} = canvas.getBoundingClientRect()
+
+            const bpPerPixel = (bpEnd - bpStart) / pixelWidth
+            const viewportWidth = pixelWidth
+
+            const context = canvas.getContext('2d')
+            this.drawConfig = {...renderConfig, context, bpPerPixel, viewportWidth, pixelWidth, pixelHeight}
+            this.featureRenderer.draw(this.drawConfig)
+        }
+    }
+
+    async getFeatures(chr, start, end) {
+        return await this.featureSource.getFeatures({chr, start, end})
     }
 
     resizeCanvas(container) {
@@ -49,37 +126,15 @@ class AnnotationRenderService {
 
     clear() {
         const { width, height } = this.container.getBoundingClientRect();
-        this.ctx.clearRect(0, 0, width, height);
-    }
-
-    async getFeatures(chr, start, end) {
-        return await this.featureSource.getFeatures({chr, start, end})
-    }
-
-    render(renderConfig) {
-
-        if (renderConfig) {
-            const {container, bpStart, bpEnd} = renderConfig
-
-            const canvas = container.querySelector('canvas')
-            const {width: pixelWidth, height: pixelHeight} = canvas.getBoundingClientRect()
-
-            const bpPerPixel = (bpEnd - bpStart) / pixelWidth
-            const viewportWidth = pixelWidth
-
-            const context = canvas.getContext('2d')
-            this.drawConfig = {...renderConfig, context, bpPerPixel, viewportWidth, pixelWidth, pixelHeight}
-            this.featureRenderer.draw(this.drawConfig)
-        }
+        const canvas = this.container.querySelector('canvas')
+        const ctx = canvas.getContext('2d')
+        ctx.clearRect(0, 0, width, height);
     }
 
     clearCanvas(canvas) {
-
         const { width, height } = canvas.getBoundingClientRect();
-
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, width, height);
-
         this.drawConfig = null;
     }
 

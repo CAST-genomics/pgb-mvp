@@ -112,46 +112,10 @@ class AssemblyWidget {
             event.target.style.border = '2px solid #000';
             event.target.style.transform = 'scale(1.5)'
 
-
             const walk = this.genomicService.assemblyWalkMap.get(assembly)
             const longestPath = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
-
-
-            const spineWalk = { key: walk.key, paths: [ longestPath ]}
-
-            const config =
-                {
-                    // discovery toggles
-                    includeAdjacent: true,           // show pills (adjacent-anchor insertions)
-                    includeUpstream: false,           // ignore mirror (R,L) events
-                    allowMidSpineReentry: true,      // allow detours to touch mid-spine nodes → richer braids
-                    includeDangling: true,           // show branches that don’t rejoin in-window
-                    includeOffSpineComponents: true, // report islands that never touch the spine (context)
-
-                    // path sampling & safety rails
-                    maxPathsPerEvent: 5,             // 3–5 for UI; up to 8+ for analysis
-                    maxRegionNodes: 5000,
-                    maxRegionEdges: 8000,
-
-                    // optional x-origin in bp (default 0)
-                    locusStartBp: this.genomicService.locus.startBP
-                };
-
-            const result = app.pangenomeService.assessGraphFeatures(spineWalk, config)
-
-            const ars = this.genomicService.annotationRenderServiceMap.get(result.spine.assemblyKey)
-            if (ars) {
-                const { nodes } = result.spine
-                const { chr } = this.genomicService.locus
-                const bpStart = nodes[0].bpStart
-                const bpEnd = nodes[ nodes.length - 1].bpEnd
-
-                const features = await ars.getFeatures(chr, bpStart, bpEnd)
-                ars.render({ container: ars.container, bpStart, bpEnd, features })
-            }
-
-
             const { nodes, edges } = longestPath
+
             const nodeSet = new Set([ ...nodes ])
             const edgeSet = new Set([ ...edges ])
 
