@@ -114,12 +114,10 @@ class AssemblyWidget {
 
 
             const walk = this.genomicService.assemblyWalkMap.get(assembly)
-            const longestWalk = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
+            const longestPath = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
 
 
-
-
-            const spineWalk = { key: walk.key, paths: [ longestWalk ]}
+            const spineWalk = { key: walk.key, paths: [ longestPath ]}
 
             const config =
                 {
@@ -153,11 +151,9 @@ class AssemblyWidget {
             }
 
 
-            const { nodes, edges } = longestWalk
+            const { nodes, edges } = longestPath
             const nodeSet = new Set([ ...nodes ])
             const edgeSet = new Set([ ...edges ])
-
-
 
             eventBus.publish('assembly:emphasis', { assembly, nodeSet, edgeSet });
         }
