@@ -15,24 +15,21 @@ class AnnotationRenderService {
         this.geometryManager = geometryManager;
         this.raycastService = raycastService;
 
-        raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
+        this.createVisualFeedbackElement();
 
-        // Initial resize
         this.resizeCanvas(container);
 
         this.setupEventHandlers()
 
         this.splineParameterMap = new Map()
 
-        this.deemphasizeUnsub = eventBus.subscribe('assembly:emphasis', async (data) => {
+        this.emphasizeUnsub = eventBus.subscribe('assembly:emphasis', async (data) => {
 
             const { assembly } = data
 
             if (this.assemblyKey !== assembly) {
                 return
             }
-
-            console.log(`AnnotationRenderService - assembly:emphasis handler for ${ assembly }`)
 
             const walk = this.genomicService.assemblyWalkMap.get(assembly)
             const longestPath = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
@@ -76,16 +73,49 @@ class AnnotationRenderService {
             const features = await this.getFeatures(chr, bpStart, bpEnd)
             this.render({ container: this.container, bpStart, bpEnd, features })
 
-        });
+        })
 
-        this.restoreUnsub = eventBus.subscribe('assembly:normal', data => {
+        this.normalUnsub = eventBus.subscribe('assembly:normal', data => {
             this.splineParameterMap.clear()
             this.clear()
-        });
+        })
+
+        this.lineIntersectionUnsub = eventBus.subscribe('lineIntersection', data => {
+
+            if (0 === this.splineParameterMap.size) {
+                return
+            }
+
+            const { t, nodeName } = data
+
+            if (undefined === this.splineParameterMap.get(nodeName)) {
+                return
+            }
+
+            const { startParam, endParam } = this.splineParameterMap.get(nodeName)
+            const param = startParam * ( 1 - t) + endParam * t
+
+            this.visualFeedbackElement.style.display = 'block';
+
+            const { width } = this.container.getBoundingClientRect();
+            this.visualFeedbackElement.style.left = `${ Math.floor(width * param) }px`;
+        })
+
+        this.clearIntersectioUnsub = eventBus.subscribe('clearIntersection', data => {
+            this.visualFeedbackElement.style.display = 'none';
+            this.visualFeedbackElement.style.left = '-8px';
+        })
 
     }
 
+    createVisualFeedbackElement() {
+        this.visualFeedbackElement = document.createElement('div');
+        this.visualFeedbackElement.className = 'pgb-sequence-container__visual-feedback';
+        this.container.appendChild(this.visualFeedbackElement);
+    }
+
     setupEventHandlers() {
+
         this.boundResizeHandler = this.resizeCanvas.bind(this, this.container);
         window.addEventListener('resize', this.boundResizeHandler);
 
@@ -98,7 +128,6 @@ class AnnotationRenderService {
         this.boundMouseLeaveHandler = this.handleMouseLeave.bind(this);
         this.container.addEventListener('mouseleave', this.boundMouseLeaveHandler);
     }
-
 
     render(renderConfig) {
 
@@ -124,7 +153,6 @@ class AnnotationRenderService {
     resizeCanvas(container) {
         const dpr = window.devicePixelRatio || 1;
         const {width, height} = container.getBoundingClientRect();
-        // console.log(`annotationRenderService resizeCanvas ${width}`);
 
         // Set the canvas size in pixels
         const canvas = container.querySelector('canvas')
@@ -161,32 +189,16 @@ class AnnotationRenderService {
         this.drawConfig = null;
     }
 
-    async raycastClickHandler(intersection, event) {
-        if (intersection) {
-            const {nodeName} = intersection
-            const { locus, assembly } = this.genomicService.metadata.get(nodeName)
-
-            if (locus) {
-                const {annotationRenderService} = this.genomicService.assemblyPayload.get(assembly)
-                if (annotationRenderService === this) {
-                    const { chr, startBP, endBP } = locus
-                    const features = await this.getFeatures(chr, startBP, endBP)
-                    // if (features.length > 0) {
-                    console.log(`AnnotationRenderService: assembly: ${assembly} locus: ${LocusInput.prettyPrintLocus(locus)} features: ${features.length}`)
-                    this.render({ container: this.container, bpStart: startBP, bpEnd: endBP, features })
-                    // }
-                }
-            } else {
-                // implement this
-                this.clearCanvas(this.container.querySelector('canvas'))
-            }
-        } else {
-            this.clearCanvas(this.container.querySelector('canvas'))
-        }
+    handleMouseEnter(event) {
+        this.raycastService.disable()
+        this.visualFeedbackElement.style.display = 'block'
+        this.visualFeedbackElement.style.left = '-8px'
     }
 
-    handleMouseEnter(event) {
-        this.raycastService.disable();
+    handleMouseLeave(event) {
+        this.raycastService.enable()
+        this.visualFeedbackElement.style.display = 'none'
+        this.visualFeedbackElement.style.left = '-8px'
     }
 
     handleMouseMove(event) {
@@ -197,6 +209,8 @@ class AnnotationRenderService {
 
         const { left, width } = this.container.getBoundingClientRect();
         const exe = event.clientX - left;
+
+        this.visualFeedbackElement.style.left = `${exe}px`;
 
         const param = (exe / width)
 
@@ -213,24 +227,18 @@ class AnnotationRenderService {
         const spline = this.geometryManager.getSpline(nodeId)
         const pointOnLine = spline.getPoint(u)
 
-        console.log(`node ${ nodeId }`)
         this.raycastService.showVisualFeedback(pointOnLine, new THREE.Color(0x00ff00));
-
-    }
-
-    handleMouseLeave(event) {
-        this.raycastService.enable();
     }
 
     dispose() {
 
-        if (this.deemphasizeUnsub) {
-            this.deemphasizeUnsub();
-        }
+        this.emphasizeUnsub()
 
-        if (this.restoreUnsub) {
-            this.restoreUnsub();
-        }
+        this.normalUnsub()
+
+        this.lineIntersectionUnsub()
+
+        this.clearIntersectioUnsub()
 
         window.removeEventListener('resize', this.boundResizeHandler);
 
@@ -239,6 +247,12 @@ class AnnotationRenderService {
             this.container.removeEventListener('mousemove', this.boundMouseMoveHandler);
             this.container.removeEventListener('mouseenter', this.boundMouseEnterHandler);
             this.container.removeEventListener('mouseleave', this.boundMouseLeaveHandler);
+        }
+
+        // Remove the vertical bar element
+        if (this.verticalBar && this.verticalBar.parentNode) {
+            this.verticalBar.parentNode.removeChild(this.verticalBar);
+            this.verticalBar = null;
         }
 
         this.drawConfig = null;

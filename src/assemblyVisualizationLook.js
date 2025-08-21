@@ -267,10 +267,7 @@ class AssemblyVisualizationLook extends Look {
 
     createNodeTooltipContent(nodeObject) {
         const { nodeName } = nodeObject.userData;
-        const nativeAssemblies = this.genomicService.getAssemblyListForNodeName(nodeName);
-        const set = new Set([ ...nativeAssemblies ])
-        const str = [ ...set ].map(assembly => `<div><strong>Assembly:</strong> ${assembly}</div>`)
-        return `<div><strong>Node:</strong> ${nodeName}</div>${ str.join('') }`
+        return `<div><strong>Node:</strong> ${nodeName}</div>`
     }
 
     #updateEdgeAnimation(edgesGroup) {

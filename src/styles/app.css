@@ -39,6 +39,17 @@
   pointer-events: none;
   display: none;
 }
+.pgb-sequence-container__visual-feedback {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 100%;
+  background-color: red;
+  pointer-events: none;
+  z-index: 1000;
+  display: none;
+}
 
 #pgb-gene-render-container.pgb-sequence-container {
   height: 64px;

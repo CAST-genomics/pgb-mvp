@@ -151,7 +151,8 @@ class App {
     clearIntersection() {
         this.raycastService.clearIntersection()
         this.renderer.domElement.style.cursor = '';
-        this.hideTooltip();
+        this.hideTooltip()
+        eventBus.publish('clearIntersection', {})
     }
 
     animate() {
