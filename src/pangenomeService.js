@@ -11,7 +11,7 @@
 //    getAnyBpExtent / indexWalkBpExtents helpers
 //  - Key indexing accepts both "#" and "|" delimiters for assembly keys
 
-class PangenomeService {
+export default class PangenomeService {
     constructor(json = null) {
         this.graph = null;
         // active spine bp lookups for tooltips
@@ -115,7 +115,9 @@ class PangenomeService {
      * Extract a walk (simple chain) per keyed connected component.
      * mode: "auto" | "endpoint" | "blockcut"
      */
-    createAssemblyWalk(key, { mode = "auto" } = {}) {
+    createAssemblyWalk(key, { mode = "auto", startNodeId = null, directionPolicy = "asFound" } = {}) {
+
+
         this.#requireGraph();
         const g = this.graph;
         const nodeSet = g.index.byAssembly.get(key);
@@ -168,20 +170,44 @@ class PangenomeService {
             paths.push({ nodes, edges: edgesOnPath, leftEndpoint: nodes[0], rightEndpoint: nodes[nodes.length - 1], bpLen, modeUsed: actualMode });
         }
 
+        // Orient each path deterministically and recompute edges to match
+        this._normalizePathDirections(paths, { startNodeId, directionPolicy });
+
         return { key, paths, diagnostics };
     }
 
-    createAssemblyWalks({ keys = null, mode = "auto" } = {}) {
+    createAssemblyWalks({ keys = null, mode = "auto", startNodeId = null, directionPolicy = "asFound" } = {}) {
+
         this.#requireGraph();
+
         const all = keys ? keys : this.listAssemblyKeys();
-        return all.map(k => this.createAssemblyWalk(k, { mode }));
+
+        // Resolve per-assembly start node. Supports:
+        //  - string (same start node for every assembly),
+        //  - Map<string,string>,
+        //  - plain object { [assemblyKey]: nodeId },
+        //  - function (key) => nodeId | null
+        const resolveStart = (key) => {
+            if (!startNodeId) return null;
+            if (typeof startNodeId === "string") return startNodeId;
+            if (typeof startNodeId === "function") return startNodeId(key);
+            if (startNodeId instanceof Map) return startNodeId.get(key) || null;
+            if (typeof startNodeId === "object") return startNodeId[key] || null;
+            return null;
+        }
+
+        return all.map(k => this.createAssemblyWalk(k, {
+            mode,
+            startNodeId: resolveStart(k),
+            directionPolicy
+        }))
     }
 
     /** Analyze features relative to the provided spine walk. */
     assessGraphFeatures(spineWalk, {
         locusStartBp = 0,
         includeAdjacent = true,
-        includeUpstream = false, // default is to ignore mirror (R,L) events
+        includeUpstream = true,
         allowMidSpineReentry = true,
         includeDangling = true,
         includeOffSpineComponents = true,
@@ -806,6 +832,106 @@ class PangenomeService {
         return walk;
     }
 
+    /**
+     * Normalize per-path direction and recompute edges to match the chosen orientation.
+     * - startNodeId: if provided AND it is an endpoint of a path, orient so the path starts there.
+     * - directionPolicy:
+     *     "asFound"   – keep search order unless startNodeId applies
+     *     "nodeIdAsc" – orient from smaller numeric id → larger
+     *     "nodeIdDesc"– orient from larger numeric id → smaller
+     *     "edgeFlow"  – orient so we traverse with the majority of directed edges (a→b) present in graph.edges
+     */
+    _normalizePathDirections(
+        paths,
+        { startNodeId = null, directionPolicy = "asFound" } = {}
+    ) {
+        if (!Array.isArray(paths) || paths.length === 0) return;
+
+        const asNum = (id) => {
+            const m = String(id).match(/^(\d+)/);
+            return m ? Number(m[1]) : Number.NEGATIVE_INFINITY;
+        };
+
+        const edgeVote = (nodes) => {
+            // +1 if directed edge a->b exists, -1 if only b->a exists, 0 if neither/both (ambiguous)
+            let score = 0;
+            for (let i = 0; i < nodes.length - 1; i++) {
+                const a = nodes[i], b = nodes[i + 1];
+                const f = this.#edgeKeyOf(a, b);
+                const r = this.#edgeKeyOf(b, a);
+                const hasF = this.graph.edges.has(f);
+                const hasR = this.graph.edges.has(r);
+                if (hasF && !hasR) score += 1;
+                else if (!hasF && hasR) score -= 1;
+                // if (hasF && hasR) → score += 0 (bidirected / ambiguous)
+            }
+            return score;
+        };
+
+        for (const p of paths) {
+            if (!p || !Array.isArray(p.nodes) || p.nodes.length === 0) continue;
+
+            let policyApplied = "asFound";
+            const nodes = p.nodes;
+
+            // 1) Explicit start node (only if it's an endpoint)
+            if (nodes.length >= 2 && startNodeId) {
+                const atHead = nodes[0] === startNodeId;
+                const atTail = nodes[nodes.length - 1] === startNodeId;
+                if (!atHead && atTail) {
+                    nodes.reverse();
+                    policyApplied = "startNodeId";
+                }
+            }
+
+            // 2) Edge-flow policy (only if startNodeId didn't apply)
+            if (policyApplied === "asFound" && directionPolicy === "edgeFlow" && nodes.length >= 2) {
+                const scoreFwd = edgeVote(nodes);
+                const scoreRev = -scoreFwd; // symmetric if we reversed
+                if (scoreFwd < 0) {
+                    nodes.reverse();
+                    policyApplied = "edgeFlow";
+                } else if (scoreFwd === 0) {
+                    // tie → fall through to numeric policy if provided
+                } else {
+                    policyApplied = "edgeFlow";
+                }
+            }
+
+            // 3) Numeric fallbacks (if still asFound)
+            if (policyApplied === "asFound" &&
+                (directionPolicy === "nodeIdAsc" || directionPolicy === "nodeIdDesc") &&
+                nodes.length >= 2) {
+                const first = asNum(nodes[0]);
+                const last  = asNum(nodes[nodes.length - 1]);
+                const needAsc  = (directionPolicy === "nodeIdAsc"  && first > last);
+                const needDesc = (directionPolicy === "nodeIdDesc" && first < last);
+                if (needAsc || needDesc) {
+                    nodes.reverse();
+                    policyApplied = directionPolicy;
+                } else {
+                    policyApplied = directionPolicy;
+                }
+            }
+
+            // 4) Recompute edges to match orientation
+            const edgesOnPath = [];
+            for (let i = 0; i < nodes.length - 1; i++) {
+                const a = nodes[i], b = nodes[i + 1];
+                const f = this.#edgeKeyOf(a, b);
+                const r = this.#edgeKeyOf(b, a);
+                if (this.graph.edges.has(f)) edgesOnPath.push(f);
+                else if (this.graph.edges.has(r)) edgesOnPath.push(r);
+                // else: missing edge in either direction; keep going
+            }
+            p.edges = edgesOnPath;
+
+            p.leftEndpoint  = nodes[0];
+            p.rightEndpoint = nodes[nodes.length - 1];
+            p.direction = { start: p.leftEndpoint, end: p.rightEndpoint, policyApplied };
+        }
+    }
+
     // -------- Patch B: robust block–cut extractor --------
     #biconnectedDecomposition(indAdj) {
         const disc = new Map(), low = new Map(), parent = new Map();
@@ -948,5 +1074,3 @@ class PangenomeService {
         return looksChainy ? "endpoint" : "blockcut";
     }
 }
-
-export default PangenomeService

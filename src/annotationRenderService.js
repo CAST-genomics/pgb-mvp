@@ -1,28 +1,32 @@
+import * as THREE from 'three';
 import {app} from "./main.js"
 import LocusInput from "./locusInput.js"
 import eventBus from "./utils/eventBus.js"
 
 class AnnotationRenderService {
 
-    constructor(container, assemblyKey, featureSource, featureRenderer, genomicService, raycastService) {
+    constructor(container, assemblyKey, featureSource, featureRenderer, genomicService, geometryManager, raycastService) {
 
         this.container = container;
         this.assemblyKey = assemblyKey
         this.featureSource = featureSource;
         this.featureRenderer = featureRenderer;
         this.genomicService = genomicService;
+        this.geometryManager = geometryManager;
+        this.raycastService = raycastService;
 
         raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
 
         // Initial resize
         this.resizeCanvas(container);
 
-        this.boundResizeHandler = this.resizeCanvas.bind(this, container);
-        window.addEventListener('resize', this.boundResizeHandler);
+        this.setupEventHandlers()
+
+        this.splineParameterMap = new Map()
 
         this.deemphasizeUnsub = eventBus.subscribe('assembly:emphasis', async (data) => {
 
-            const { assembly, nodeSet, edgeSet } = data
+            const { assembly } = data
 
             if (this.assemblyKey !== assembly) {
                 return
@@ -53,29 +57,48 @@ class AnnotationRenderService {
                     locusStartBp: this.genomicService.locus.startBP
                 };
 
-            const result = app.pangenomeService.assessGraphFeatures(spineWalk, config)
+            const { spine } = app.pangenomeService.assessGraphFeatures(spineWalk, config)
 
-            const { nodes } = result.spine
+            const { nodes } = spine
             const { chr } = this.genomicService.locus
             const bpStart = nodes[0].bpStart
             const bpEnd = nodes[ nodes.length - 1].bpEnd
 
+            // Build node spline parameter look up table for
+            const bpExtent = bpEnd - bpStart
+            this.splineParameterMap.clear()
+            for (const node of nodes) {
+                const startParam = (node.bpStart - bpStart) / bpExtent;
+                const endParam = (node.bpEnd - bpStart) / bpExtent;
+                this.splineParameterMap.set(node.id, {startParam, endParam})
+            }
+
             const features = await this.getFeatures(chr, bpStart, bpEnd)
             this.render({ container: this.container, bpStart, bpEnd, features })
-
 
         });
 
         this.restoreUnsub = eventBus.subscribe('assembly:normal', data => {
-
-            const { assembly } = data
-
-            console.log(`AnnotationRenderService - assembly:normal handler for ${ assembly }`)
-
+            this.splineParameterMap.clear()
             this.clear()
         });
 
     }
+
+    setupEventHandlers() {
+        this.boundResizeHandler = this.resizeCanvas.bind(this, this.container);
+        window.addEventListener('resize', this.boundResizeHandler);
+
+        this.boundMouseMoveHandler = this.handleMouseMove.bind(this);
+        this.container.addEventListener('mousemove', this.boundMouseMoveHandler);
+
+        this.boundMouseEnterHandler = this.handleMouseEnter.bind(this);
+        this.container.addEventListener('mouseenter', this.boundMouseEnterHandler);
+
+        this.boundMouseLeaveHandler = this.handleMouseLeave.bind(this);
+        this.container.addEventListener('mouseleave', this.boundMouseLeaveHandler);
+    }
+
 
     render(renderConfig) {
 
@@ -138,18 +161,6 @@ class AnnotationRenderService {
         this.drawConfig = null;
     }
 
-    dispose() {
-        // Remove the bound resize event listener
-        window.removeEventListener('resize', this.boundResizeHandler);
-
-        // Clear any stored configuration
-        this.drawConfig = null;
-
-        // Clear references to services
-        this.featureSource = null;
-        this.featureRenderer = null;
-    }
-
     async raycastClickHandler(intersection, event) {
         if (intersection) {
             const {nodeName} = intersection
@@ -172,6 +183,70 @@ class AnnotationRenderService {
         } else {
             this.clearCanvas(this.container.querySelector('canvas'))
         }
+    }
+
+    handleMouseEnter(event) {
+        this.raycastService.disable();
+    }
+
+    handleMouseMove(event) {
+
+        if (0 === this.splineParameterMap.size) {
+            return
+        }
+
+        const { left, width } = this.container.getBoundingClientRect();
+        const exe = event.clientX - left;
+
+        const param = (exe / width)
+
+        let nodeId
+        let u
+        for (const [ node, bpExtent ] of this.splineParameterMap) {
+            if (bpExtent.startParam <= param && bpExtent.endParam >= param){
+                nodeId = node
+                u = (param - bpExtent.startParam) / (bpExtent.endParam - bpExtent.startParam)
+                break
+            }
+        }
+
+        const spline = this.geometryManager.getSpline(nodeId)
+        const pointOnLine = spline.getPoint(u)
+
+        console.log(`node ${ nodeId }`)
+        this.raycastService.showVisualFeedback(pointOnLine, new THREE.Color(0x00ff00));
+
+    }
+
+    handleMouseLeave(event) {
+        this.raycastService.enable();
+    }
+
+    dispose() {
+
+        if (this.deemphasizeUnsub) {
+            this.deemphasizeUnsub();
+        }
+
+        if (this.restoreUnsub) {
+            this.restoreUnsub();
+        }
+
+        window.removeEventListener('resize', this.boundResizeHandler);
+
+        // Remove mouse event listeners
+        if (this.container) {
+            this.container.removeEventListener('mousemove', this.boundMouseMoveHandler);
+            this.container.removeEventListener('mouseenter', this.boundMouseEnterHandler);
+            this.container.removeEventListener('mouseleave', this.boundMouseLeaveHandler);
+        }
+
+        this.drawConfig = null;
+
+        this.featureSource = null;
+        this.featureRenderer = null;
+
+        this.splineParameterMap.clear()
     }
 
 }

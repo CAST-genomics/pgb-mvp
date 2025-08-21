@@ -271,7 +271,7 @@ class App {
         this.pangenomeService.createGraph(json)
 
         this.genomicService.clear()
-        await this.genomicService.createMetadata(json, this.pangenomeService, this.genomeLibrary, this.raycastService)
+        await this.genomicService.createMetadata(json, this.pangenomeService, this.genomeLibrary, this.geometryManager, this.raycastService)
 
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         const scene = this.sceneManager.getActiveScene()

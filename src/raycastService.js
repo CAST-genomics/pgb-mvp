@@ -130,7 +130,8 @@ class RayCastService {
     createVisualFeeback(color) {
 
         const material = new THREE.MeshBasicMaterial({ color, transparent: true, depthTest: false })
-        const geometry = new THREE.SphereGeometry(16, 32, 16)
+        // const geometry = new THREE.SphereGeometry(16, 32, 16)
+        const geometry = new THREE.SphereGeometry(24, 32, 16)
         const sphere = new THREE.Mesh(geometry, material)
         sphere.name = 'raycastVisualFeedback'
         sphere.visible = false
@@ -139,8 +140,11 @@ class RayCastService {
     }
 
     showVisualFeedback(pointOnLine, visualFeedbackColor) {
+
+
         this.raycastVisualFeedback.visible = true;
         this.raycastVisualFeedback.position.copy(pointOnLine);
+
         this.raycastVisualFeedback.material.color.copy(visualFeedbackColor).offsetHSL(0.7, 0, 0);
     }
 

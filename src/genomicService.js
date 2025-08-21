@@ -15,9 +15,10 @@ class GenomicService {
         this.assemblySet = new Set()
         this.assemblyWalkMap = new Map()
         this.annotationRenderServiceMap = new Map()
+        this.startNode = undefined
     }
 
-    async createMetadata(json, pangenomeService, genomeLibrary, raycastService) {
+    async createMetadata(json, pangenomeService, genomeLibrary, geometryManager, raycastService) {
 
         const { locus:locusString, node:nodes, edge:edges, sequence:sequences } = json
 
@@ -27,7 +28,12 @@ class GenomicService {
         this.locus.startBP -= 1
         console.log(`locus length ${ prettyPrint(this.locus.endBP - this.locus.startBP) }`)
 
+        this.startNode = undefined
         for (const [nodeName, { assembly, length }] of Object.entries(nodes)) {
+
+            if (undefined === this.startNode) {
+                this.startNode = nodeName
+            }
 
             const assemblySet = new Set()
             for(const item of assembly){
@@ -51,13 +57,13 @@ class GenomicService {
             if (assemblyKey.includes('GRCh38')) {
                 const {geneFeatureSource, geneRenderer} = await genomeLibrary.getGenomePayload('GRCh38')
                 const container = document.querySelector('#pgb-gene-render-container')
-                const annotationRenderService = new AnnotationRenderService(container, assemblyKey, geneFeatureSource, geneRenderer, this, raycastService)
+                const annotationRenderService = new AnnotationRenderService(container, assemblyKey, geneFeatureSource, geneRenderer, this, geometryManager, raycastService)
                 this.annotationRenderServiceMap.set(assemblyKey, annotationRenderService)
             }
         }
 
         // Build assembly walk map
-        const assemblyWalks = pangenomeService.createAssemblyWalks({ mode:'auto' })
+        const assemblyWalks = pangenomeService.createAssemblyWalks({ mode:'auto', directionPolicy: "edgeFlow" })
         for (const key of this.assemblySet){
             const walks = assemblyWalks.find(walk => key === walk.key)
             this.assemblyWalkMap.set(key, walks)
@@ -116,14 +122,10 @@ class GenomicService {
     }
 
     clear() {
+
+        this.startNode = undefined
+
         this.metadata.clear()
-
-        for (const {annotationRenderService} of this.assemblyPayload.values()) {
-
-            if (annotationRenderService) {
-                annotationRenderService.dispose();
-            }
-        }
 
         this.assemblyPayload.clear()
 
@@ -133,6 +135,9 @@ class GenomicService {
 
         this.assemblyWalkMap.clear()
 
+        for (const annotationRenderService of this.annotationRenderServiceMap.values()) {
+            annotationRenderService.dispose()
+        }
         this.annotationRenderServiceMap.clear()
     }
 }
