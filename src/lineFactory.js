@@ -21,7 +21,9 @@ class LineFactory {
 
         // Create LineGeometry (not BufferGeometry) for Line2 compatibility
         const lineGeometry = new LineGeometry();
-        lineGeometry.setPositions(xyzList);
+        lineGeometry.setPositions(xyzList)
+        lineGeometry.userData.xyzStart = xyzList.slice()
+        lineGeometry.userData.xyzEnd = xyzList.slice()
 
         // Diagnostics
         // const expectPoints = `Expected points: ${ points.length }`
@@ -80,6 +82,25 @@ class LineFactory {
     }
 }
 
+function buildArcLengthTable(line2){
+    const g = line2.geometry;
+    const starts = g.attributes.instanceStart; // per-segment A
+    const ends   = g.attributes.instanceEnd;   // per-segment B
+    const a = new THREE.Vector3(), b = new THREE.Vector3();
+    const segLen = new Float32Array(starts.count);
+    const cum = new Float32Array(starts.count + 1);
+    let acc = 0; cum[0] = 0;
+    for (let i = 0; i < starts.count; i++){
+        a.fromBufferAttribute(starts, i);
+        b.fromBufferAttribute(ends,   i);
+        const L = a.distanceTo(b);
+        segLen[i] = L;
+        acc += L;
+        cum[i + 1] = acc;
+    }
+    return { segLen, cum, total: acc };
+}
+
 function fixedSplineDivisions(spline, divisions) {
     return divisions
 }
@@ -88,5 +109,5 @@ function adaptiveSplineDivisions(spline, multiplier) {
     return Math.round(multiplier * spline.points.length)
 }
 
-export { fixedSplineDivisions, adaptiveSplineDivisions }
+export { fixedSplineDivisions, adaptiveSplineDivisions, buildArcLengthTable }
 export default LineFactory;

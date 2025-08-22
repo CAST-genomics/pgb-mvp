@@ -152,16 +152,20 @@ class RayCastService {
         this.raycastVisualFeedback.visible = false;
     }
 
-    handleIntersection(geometryManager, nodeLine, pointOnLine, faceIndex) {
-        this.showVisualFeedback(pointOnLine, nodeLine.material.color)
+    handleIntersection(geometryManager, intersection) {
 
-        const { userData } = nodeLine;
+        const { faceIndex, pointOnLine, object:line } = intersection
+
+        this.showVisualFeedback(pointOnLine, line.material.color)
+
+        const { userData } = line;
         const { nodeName } = userData;
         const spline = geometryManager.getSpline(nodeName);
-        const segments = nodeLine.geometry.getAttribute('instanceStart');
+
+        const segments = line.geometry.getAttribute('instanceStart');
         const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
 
-        const payload = { t, nodeName, nodeLine }
+        const payload = { t, nodeName, line }
         if(undefined === this.currentIntersection) {
             eventBus.publish('newLineIntersection', payload)
         }
@@ -201,6 +205,35 @@ class RayCastService {
         }
 
         return bestT;
+    }
+
+    function
+
+    // const { t, u, segmentIndex } = tFromHit(line, intersections[0])
+    calculateTParameterFromIntersection(intersection){
+
+        const { faceIndex, point, object:line } = intersection
+
+        const P = point.clone();
+        line.worldToLocal(P);
+
+        const A = new THREE.Vector3().fromBufferAttribute(line.geometry.attributes.instanceStart, faceIndex);
+        const B = new THREE.Vector3().fromBufferAttribute(line.geometry.attributes.instanceEnd,   faceIndex);
+
+        const AB = B.clone().sub(A);
+
+        const u = AB.lengthSq() > 0 ? THREE.MathUtils.clamp( AB.dot(P.clone().sub(A)) / AB.lengthSq(), 0, 1 ) : 0;
+
+        const { cum, segLen, total } = line.userData.arcLengthTable
+
+        const s = cum[ faceIndex ] + u * segLen[ faceIndex ];
+
+        const t = total > 0 ? s / total : 0;
+
+        const { userData } = line;
+        const { nodeName } = userData;
+
+        return { t, nodeName, line }
     }
 
     disable() {

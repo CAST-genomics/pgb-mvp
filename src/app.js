@@ -4,6 +4,7 @@ import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
 import eventBus from './utils/eventBus.js';
 import { loadPath } from './utils/utils.js'
+import {int} from "three/tsl"
 
 class App {
 
@@ -61,9 +62,16 @@ class App {
             this.raycastService.showVisualFeedback(point, new THREE.Color(0x00ff00));
             this.showTooltip(object, point, 'edge');
         } else if (object.userData?.type === 'node') {
-            const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.geometryManager, object, pointOnLine, faceIndex);
+
+            const { t:_t, nodeName:_nodeName, nodeLine:_nodeLine } = this.raycastService.calculateTParameterFromIntersection(intersections[0])
+
+            const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.geometryManager, intersections[0])
+
+            console.log(`t along line ${ _t.toFixed(4) } t via spline interpolation ${ t.toFixed(4) }`)
+
             eventBus.publish('lineIntersection', { t, nodeName, nodeLine })
-            this.showTooltip(object, point, 'node');
+            this.showTooltip(object, point, 'node')
+
         }
     }
 

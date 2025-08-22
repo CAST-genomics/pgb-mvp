@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import GeometryFactory from './geometryFactory.js';
+import { buildArcLengthTable } from "./lineFactory.js"
 
 class GeometryManager {
 
@@ -29,7 +30,12 @@ class GeometryManager {
     #createNodeMeshes(look) {
         for (const [nodeName, data] of this.geometryData.nodeGeometries) {
             const context = { type: 'node', nodeName };
-            const mesh = look.createMesh(data.geometry, context);
+            const mesh = look.createMesh(data.geometry, context)
+
+            // Used during raycast.intersections to help calculate the "t" parameter
+            // for a line. We treat lines as one-dimensional parametric lines.
+            mesh.userData.arcLengthTable = buildArcLengthTable(mesh)
+
             this.linesGroup.add(mesh);
         }
     }
