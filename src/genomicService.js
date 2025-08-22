@@ -20,7 +20,7 @@ class GenomicService {
 
     async createMetadata(json, pangenomeService, genomeLibrary, geometryManager, raycastService) {
 
-        const { locus:locusString, node:nodes, edge:edges, sequence:sequences } = json
+        const { locus:locusString, node:nodes, sequence:sequences } = json
 
         this.locus = LocusInput.parseLocusString(locusString)
 
@@ -29,7 +29,7 @@ class GenomicService {
         console.log(`locus length ${ prettyPrint(this.locus.endBP - this.locus.startBP) }`)
 
         this.startNode = undefined
-        for (const [nodeName, { assembly, length }] of Object.entries(nodes)) {
+        for (const [nodeName, { assembly }] of Object.entries(nodes)) {
 
             if (undefined === this.startNode) {
                 this.startNode = nodeName
