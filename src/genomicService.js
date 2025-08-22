@@ -56,7 +56,7 @@ class GenomicService {
         for (const assemblyKey of this.assemblySet){
             if (assemblyKey.includes('GRCh38')) {
                 const {geneFeatureSource, geneRenderer} = await genomeLibrary.getGenomePayload('GRCh38')
-                const container = document.querySelector('#pgb-gene-render-container')
+                const container = document.querySelector('.pgb-gene-annotation-track-container')
                 const annotationRenderService = new AnnotationRenderService(container, assemblyKey, geneFeatureSource, geneRenderer, this, geometryManager, raycastService)
                 this.annotationRenderServiceMap.set(assemblyKey, annotationRenderService)
             }

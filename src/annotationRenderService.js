@@ -131,7 +131,7 @@ class AnnotationRenderService {
 
     createVisualFeedbackElement() {
         this.visualFeedbackElement = document.createElement('div');
-        this.visualFeedbackElement.className = 'pgb-sequence-container__visual-feedback';
+        this.visualFeedbackElement.className = 'pgb-gene-annotation-track-container__visual-feedback';
         this.container.appendChild(this.visualFeedbackElement);
     }
 
