@@ -15,103 +15,15 @@ class AnnotationRenderService {
         this.geometryManager = geometryManager;
         this.raycastService = raycastService;
 
+        this.splineParameterMap = new Map()
+
         this.createVisualFeedbackElement();
 
         this.resizeCanvas(container);
 
         this.setupEventHandlers()
 
-        this.splineParameterMap = new Map()
-
-        this.emphasizeUnsub = eventBus.subscribe('assembly:emphasis', async (data) => {
-
-            const { assembly } = data
-
-            if (this.assemblyKey !== assembly) {
-                return
-            }
-
-            const walk = this.genomicService.assemblyWalkMap.get(assembly)
-            const longestPath = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
-
-            const spineWalk = { key: walk.key, paths: [ longestPath ]}
-
-            const config =
-                {
-                    // discovery toggles
-                    includeAdjacent: true,           // show pills (adjacent-anchor insertions)
-                    includeUpstream: false,           // ignore mirror (R,L) events
-                    allowMidSpineReentry: true,      // allow detours to touch mid-spine nodes → richer braids
-                    includeDangling: true,           // show branches that don’t rejoin in-window
-                    includeOffSpineComponents: true, // report islands that never touch the spine (context)
-
-                    // path sampling & safety rails
-                    maxPathsPerEvent: 5,             // 3–5 for UI; up to 8+ for analysis
-                    maxRegionNodes: 5000,
-                    maxRegionEdges: 8000,
-
-                    // optional x-origin in bp (default 0)
-                    locusStartBp: this.genomicService.locus.startBP
-                };
-
-            const { spine } = app.pangenomeService.assessGraphFeatures(spineWalk, config)
-
-            const { nodes } = spine
-            const { chr } = this.genomicService.locus
-            const bpStart = nodes[0].bpStart
-            const bpEnd = nodes[ nodes.length - 1].bpEnd
-
-            // Build node spline parameter look up table for
-            const bpExtent = bpEnd - bpStart
-            this.splineParameterMap.clear()
-            for (const node of nodes) {
-                const startParam = (node.bpStart - bpStart) / bpExtent;
-                const endParam = (node.bpEnd - bpStart) / bpExtent;
-                this.splineParameterMap.set(node.id, {startParam, endParam})
-            }
-
-            const features = await this.getFeatures(chr, bpStart, bpEnd)
-            this.render({ container: this.container, bpStart, bpEnd, features })
-
-        })
-
-        this.normalUnsub = eventBus.subscribe('assembly:normal', data => {
-            this.splineParameterMap.clear()
-            this.clear()
-        })
-
-        this.lineIntersectionUnsub = eventBus.subscribe('lineIntersection', data => {
-
-            if (0 === this.splineParameterMap.size) {
-                return
-            }
-
-            const { t, nodeName } = data
-
-            if (undefined === this.splineParameterMap.get(nodeName)) {
-                return
-            }
-
-            const { startParam, endParam } = this.splineParameterMap.get(nodeName)
-            const param = startParam * ( 1 - t) + endParam * t
-
-            this.visualFeedbackElement.style.display = 'block';
-
-            const { width } = this.container.getBoundingClientRect();
-            this.visualFeedbackElement.style.left = `${ Math.floor(width * param) }px`;
-        })
-
-        this.clearIntersectioUnsub = eventBus.subscribe('clearIntersection', data => {
-            this.visualFeedbackElement.style.display = 'none';
-            this.visualFeedbackElement.style.left = '-8px';
-        })
-
-    }
-
-    createVisualFeedbackElement() {
-        this.visualFeedbackElement = document.createElement('div');
-        this.visualFeedbackElement.className = 'pgb-sequence-container__visual-feedback';
-        this.container.appendChild(this.visualFeedbackElement);
+        this.setupEventBusSubscriptions()
     }
 
     setupEventHandlers() {
@@ -127,6 +39,100 @@ class AnnotationRenderService {
 
         this.boundMouseLeaveHandler = this.handleMouseLeave.bind(this);
         this.container.addEventListener('mouseleave', this.boundMouseLeaveHandler);
+    }
+
+    setupEventBusSubscriptions() {
+        this.emphasizeUnsub = eventBus.subscribe('assembly:emphasis', this.handleAssemblyEmphasis.bind(this))
+        this.normalUnsub = eventBus.subscribe('assembly:normal', this.handleAssemblyNormal.bind(this))
+        this.lineIntersectionUnsub = eventBus.subscribe('lineIntersection', this.handleLineIntersection.bind(this))
+        this.clearIntersectioUnsub = eventBus.subscribe('clearIntersection', this.handleClearIntersection.bind(this))
+    }
+
+    async handleAssemblyEmphasis(data) {
+        const { assembly } = data
+
+        if (this.assemblyKey !== assembly) {
+            return
+        }
+
+        const walk = this.genomicService.assemblyWalkMap.get(assembly)
+        const longestPath = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
+
+        const spineWalk = { key: walk.key, paths: [ longestPath ]}
+
+        const config =
+            {
+                // discovery toggles
+                includeAdjacent: true,           // show pills (adjacent-anchor insertions)
+                includeUpstream: false,           // ignore mirror (R,L) events
+                allowMidSpineReentry: true,      // allow detours to touch mid-spine nodes → richer braids
+                includeDangling: true,           // show branches that don't rejoin in-window
+                includeOffSpineComponents: true, // report islands that never touch the spine (context)
+
+                // path sampling & safety rails
+                maxPathsPerEvent: 5,             // 3–5 for UI; up to 8+ for analysis
+                maxRegionNodes: 5000,
+                maxRegionEdges: 8000,
+
+                // optional x-origin in bp (default 0)
+                locusStartBp: this.genomicService.locus.startBP
+            };
+
+        const { spine } = app.pangenomeService.assessGraphFeatures(spineWalk, config)
+
+        const { nodes } = spine
+        const { chr } = this.genomicService.locus
+        const bpStart = nodes[0].bpStart
+        const bpEnd = nodes[ nodes.length - 1].bpEnd
+
+        // Build node spline parameter look up table for
+        const bpExtent = bpEnd - bpStart
+        this.splineParameterMap.clear()
+        for (const node of nodes) {
+            const startParam = (node.bpStart - bpStart) / bpExtent;
+            const endParam = (node.bpEnd - bpStart) / bpExtent;
+            this.splineParameterMap.set(node.id, {startParam, endParam})
+        }
+
+        const features = await this.getFeatures(chr, bpStart, bpEnd)
+        this.render({ container: this.container, bpStart, bpEnd, features })
+    }
+
+    handleAssemblyNormal(data) {
+        this.splineParameterMap.clear()
+        this.clear()
+    }
+
+    handleLineIntersection(data) {
+
+        if (0 === this.splineParameterMap.size) {
+            return
+        }
+
+        const { t, nodeName } = data
+
+        if (undefined === this.splineParameterMap.get(nodeName)) {
+            return
+        }
+
+        const { startParam, endParam } = this.splineParameterMap.get(nodeName)
+        const param = startParam * ( 1 - t) + endParam * t
+
+        this.visualFeedbackElement.style.display = 'block';
+
+        const { width } = this.container.getBoundingClientRect();
+        this.visualFeedbackElement.style.left = `${ Math.floor(width * param) }px`;
+    }
+
+    handleClearIntersection(data) {
+        this.visualFeedbackElement.style.display = 'none';
+        this.visualFeedbackElement.style.left = '-8px';
+    }
+
+    createVisualFeedbackElement() {
+        this.visualFeedbackElement = document.createElement('div');
+        this.visualFeedbackElement.className = 'pgb-sequence-container__visual-feedback';
+        this.container.appendChild(this.visualFeedbackElement);
     }
 
     render(renderConfig) {
@@ -182,13 +188,6 @@ class AnnotationRenderService {
         ctx.clearRect(0, 0, width, height);
     }
 
-    clearCanvas(canvas) {
-        const { width, height } = canvas.getBoundingClientRect();
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, width, height);
-        this.drawConfig = null;
-    }
-
     handleMouseEnter(event) {
         this.raycastService.disable()
         this.visualFeedbackElement.style.display = 'block'
@@ -226,8 +225,9 @@ class AnnotationRenderService {
 
         const spline = this.geometryManager.getSpline(nodeId)
         const pointOnLine = spline.getPoint(u)
+        const line = this.geometryManager.getLine(nodeId)
 
-        this.raycastService.showVisualFeedback(pointOnLine, new THREE.Color(0x00ff00));
+        this.raycastService.showVisualFeedback(pointOnLine, line.material.color)
     }
 
     dispose() {

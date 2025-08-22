@@ -49,6 +49,13 @@ class GeometryManager {
         return this.geometryFactory.getSpline(nodeName);
     }
 
+    getLine(nodeName){
+
+        const line = this.linesGroup.children.find(child => child.userData.nodeName === nodeName)
+        return line
+    }
+
+
     addToScene(scene) {
         scene.add(this.linesGroup);
         scene.add(this.edgesGroup);
