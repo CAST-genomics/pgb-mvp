@@ -4,6 +4,9 @@
   position: relative;
   height: 64px;
   background-color: transparent;
+  border-bottom-width: thin;
+  border-bottom-style: solid;
+  border-bottom-color: colors.$silver;
 
   &__canvas {
     cursor: pointer;
@@ -15,7 +18,7 @@
     left: 0;
     width: 2px;
     height: 100%;
-    background-color: red;
+    background-color: colors.$maraschino;
     pointer-events: none;
     z-index: 1000;
     display: none;
