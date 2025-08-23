@@ -65,16 +65,15 @@ class App {
 
             const { t, nodeName, line } = this.raycastService.handleIntersection(this.geometryManager, intersections[0], RayCastService.DIRECT_LINE_INTERSECTION_STRATEGY)
 
-            const { x, y } = point
-            const exe = `${ prettyPrint(Math.floor(x)) }`
-            const wye = `${ prettyPrint(Math.floor(y)) }`
-            // console.log(`xyz(${ exe }, ${ wye }) t ${ t.toFixed(4) }`)
-
-            const { x:_x, y:_y } = line.getPoint(t, 'world')
-            const _exe = `${ prettyPrint(Math.floor(_x)) }`
-            const _wye = `${ prettyPrint(Math.floor(_y)) }`
-
-            console.log(`intersectionXY (${ exe }, ${ wye }) xyDerivedFromT (${ _exe }, ${ _wye })`)
+            // const { x, y } = point
+            // const exe = `${ prettyPrint(Math.floor(x)) }`
+            // const wye = `${ prettyPrint(Math.floor(y)) }`
+            // // console.log(`xyz(${ exe }, ${ wye }) t ${ t.toFixed(4) }`)
+            //
+            // const { x:_x, y:_y } = line.getPoint(t, 'world')
+            // const _exe = `${ prettyPrint(Math.floor(_x)) }`
+            // const _wye = `${ prettyPrint(Math.floor(_y)) }`
+            // console.log(`intersectionXY (${ exe }, ${ wye }) xyDerivedFromT (${ _exe }, ${ _wye })`)
 
             eventBus.publish('lineIntersection', { t, nodeName, nodeLine:line })
 
