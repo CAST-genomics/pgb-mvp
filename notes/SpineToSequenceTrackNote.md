@@ -123,14 +123,14 @@ function renderSequenceStrip(canvas, spine, viewport) {
 
 ```js
 // 1) Build the spine accessor once for the current window
-const spine = buildSpineAccessor(spineWalk, seqDict);
+const spine = buildSequenceStripAccessor(spineWalk, seqDict);
 
 // 2) Render for the current viewport (in bp along the concatenated spine)
 const canvas = document.getElementById('seqStrip');
 const dpr = window.devicePixelRatio || 1;
-canvas.width  = Math.floor(canvas.clientWidth * dpr);
+canvas.width = Math.floor(canvas.clientWidth * dpr);
 canvas.height = Math.floor(48 * dpr); // track height
-renderSequenceStrip(canvas, spine, { pathStartBp, pathEndBp });
+renderSequenceStripAccessor(canvas, spine, {pathStartBp, pathEndBp});
 
 // 3) On pan/zoom, call renderSequenceStrip(...) again with the new viewport.
 // 4) For bi-directional mapping, your cursor ↔ graph dot already speaks in path bp.

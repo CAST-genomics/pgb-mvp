@@ -1,21 +1,21 @@
 import * as THREE from 'three';
 import {app} from "./main.js"
 import LocusInput from "./locusInput.js"
+import {colorOfBase} from "./utils/genomicUtils.js"
 import eventBus from "./utils/eventBus.js"
 
 class AnnotationRenderService {
 
-    constructor(container, assemblyKey, featureSource, featureRenderer, genomicService, geometryManager, raycastService) {
+    constructor(container, genomicService, geometryManager, raycastService) {
 
         this.container = container;
-        this.assemblyKey = assemblyKey
-        this.featureSource = featureSource;
-        this.featureRenderer = featureRenderer;
         this.genomicService = genomicService;
         this.geometryManager = geometryManager;
         this.raycastService = raycastService;
 
         this.splineParameterMap = new Map()
+
+        this.isSequenceRenderer = false
 
         this.createVisualFeedbackElement();
 
@@ -51,42 +51,17 @@ class AnnotationRenderService {
     async handleAssemblyEmphasis(data) {
         const { assembly } = data
 
-        if (this.assemblyKey !== assembly) {
-            return
-        }
+        this.isSequenceRenderer = false
 
-        const walk = this.genomicService.assemblyWalkMap.get(assembly)
-        const longestPath = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
+        const service = this.genomicService.annotationRenderServiceMap.get(assembly)
 
-        const spineWalk = { key: walk.key, paths: [ longestPath ]}
+        this.featureSource = undefined
+        this.featureRenderer = undefined
 
-        const config =
-            {
-                // discovery toggles
-                includeAdjacent: true,           // show pills (adjacent-anchor insertions)
-                includeUpstream: false,           // ignore mirror (R,L) events
-                allowMidSpineReentry: true,      // allow detours to touch mid-spine nodes → richer braids
-                includeDangling: true,           // show branches that don't rejoin in-window
-                includeOffSpineComponents: true, // report islands that never touch the spine (context)
+        const { nodes, bpStart, bpEnd } = service
 
-                // path sampling & safety rails
-                maxPathsPerEvent: 5,             // 3–5 for UI; up to 8+ for analysis
-                maxRegionNodes: 5000,
-                maxRegionEdges: 8000,
-
-                // optional x-origin in bp (default 0)
-                locusStartBp: this.genomicService.locus.startBP
-            };
-
-        const { spine } = app.pangenomeService.assessGraphFeatures(spineWalk, config)
-
-        const { nodes } = spine
-        const { chr } = this.genomicService.locus
-        const bpStart = nodes[0].bpStart
-        const bpEnd = nodes[ nodes.length - 1].bpEnd
-
-        // Build node spline parameter look up table for
         const bpExtent = bpEnd - bpStart
+
         this.splineParameterMap.clear()
         for (const node of nodes) {
             const startParam = (node.bpStart - bpStart) / bpExtent;
@@ -94,12 +69,40 @@ class AnnotationRenderService {
             this.splineParameterMap.set(node.id, {startParam, endParam})
         }
 
-        const features = await this.getFeatures(chr, bpStart, bpEnd)
-        this.render({ container: this.container, bpStart, bpEnd, features })
+        if (service.sequenceStripAccessor) {
+
+            const { sequenceStripAccessor, bpStart, bpEnd } = service
+
+            this.isSequenceRenderer = true
+            this.drawConfig = { sequenceStripAccessor, bpStart, bpEnd }
+
+            this.renderSequenceStripAccessor(this.drawConfig)
+            console.log(`assembly ${ assembly } will use sequence service`)
+        } else if (service.geneFeatureSource) {
+
+            const { geneFeatureSource, geneRenderer, nodes, chr, bpStart, bpEnd } = service
+            this.featureSource = geneFeatureSource
+            this.featureRenderer = geneRenderer
+
+            const features = await this.getFeatures(chr, bpStart, bpEnd)
+            this.render({ container: this.container, bpStart, bpEnd, features })
+        }
+
+
     }
 
     handleAssemblyNormal(data) {
+
+        this.featureSource = undefined
+
+        this.featureRenderer = undefined
+
+        this.isSequenceRenderer = false
+
+        this.drawConfig = undefined
+
         this.splineParameterMap.clear()
+
         this.clear()
     }
 
@@ -133,6 +136,82 @@ class AnnotationRenderService {
         this.visualFeedbackElement = document.createElement('div');
         this.visualFeedbackElement.className = 'pgb-gene-annotation-track-container__visual-feedback';
         this.container.appendChild(this.visualFeedbackElement);
+    }
+
+    renderSequenceStripAccessor({ sequenceStripAccessor, bpStart, bpEnd }) {
+
+        const canvas = this.container.querySelector('canvas')
+
+        const ctx = canvas.getContext('2d', { willReadFrequently: false })
+
+        const { width, height } = canvas
+        ctx.clearRect(0, 0, width, height);
+        ctx.imageSmoothingEnabled = false;
+
+        const bpLength = Math.max(1, bpEnd - bpStart);
+        const bpPerPixel = bpLength / width;
+
+        const imageData = ctx.createImageData(width, 1); // 1-row image, then stretch vertically
+        const data = imageData.data;
+
+        if (bpPerPixel <= 1) {
+            // Zoomed in: each pixel column is one base (or some columns unused)
+            for (let x = 0; x < width; x++) {
+
+                const bp = Math.floor(bpStart + x * bpPerPixel);
+                const [r,g,b,a] = colorOfBase(sequenceStripAccessor.charAt(bp))
+                const i = x * 4;
+
+                data[i  ] = r;
+                data[i+1] = g;
+                data[i+2] = b;
+                data[i+3] = a;
+            }
+        } else {
+            // Zoomed out: one pixel column covers multiple bases — average color
+            for (let x = 0; x < width; x++) {
+
+                let r=0
+                let g=0
+                let b=0
+
+                const bps = Math.floor(bpStart + x * bpPerPixel);
+                const bpe = Math.floor(bpStart + (x+1) * bpPerPixel);
+
+                let cnt=0;
+
+                for (let bp = bps; bp < bpe; bp++) {
+
+                    const base = sequenceStripAccessor.charAt(bp - bps)
+
+                    const [R,G,B] = colorOfBase(base);
+                    r+=R;
+                    g+=G;
+                    b+=B;
+
+                    cnt++;
+                }
+
+                // default grey
+                if (0 === cnt) {
+                    r=g=b=160;
+                    cnt=1;
+                }
+
+                const i = 4 * x;
+
+                data[i  ] = (r / cnt) | 0;
+                data[i+1] = (g / cnt) | 0;
+                data[i+2] = (b / cnt) | 0;
+                data[i+3] = 255;
+
+            }
+        }
+
+        // Blit 1-row then scale to full height (fast)
+        ctx.putImageData(imageData, 0, 0);
+
+        ctx.drawImage(canvas, 0, 0, width, 1, 0, 0, width, height);
     }
 
     render(renderConfig) {
@@ -173,8 +252,10 @@ class AnnotationRenderService {
         canvas.style.width = `${width}px`;
         canvas.style.height = `${height}px`
 
-        if (this.drawConfig) {
+        if (false === this.isSequenceRenderer && this.drawConfig) {
             this.render(this.drawConfig);
+        } else if (true === this.isSequenceRenderer && this.drawConfig) {
+            this.renderSequenceStripAccessor(this.drawConfig)
         } else {
             ctx.clearRect(0, 0, width, height);
         }

@@ -14,9 +14,11 @@ class GenomeLibrary {
     }
 
     async getGenomePayload(genomeId) {
+
         const config = knownGenomes[genomeId] || knownGenomes[genomeIDAliases.get(genomeId)] || undefined;
+
         if (!config) {
-            throw new Error(`Genome ${genomeId} not found`);
+            return undefined
         }
 
         const genome = await Genome.createGenome(config)

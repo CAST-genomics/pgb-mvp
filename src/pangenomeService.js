@@ -11,7 +11,9 @@
 //    getAnyBpExtent / indexWalkBpExtents helpers
 //  - Key indexing accepts both "#" and "|" delimiters for assembly keys
 
-export default class PangenomeService {
+import { reverseComplement } from "./utils/genomicUtils.js"
+
+class PangenomeService {
     constructor(json = null) {
         this.graph = null;
         // active spine bp lookups for tooltips
@@ -1073,4 +1075,50 @@ export default class PangenomeService {
         const looksChainy = (endpoints === 2) && (maxDeg <= 2) && (e <= n);
         return looksChainy ? "endpoint" : "blockcut";
     }
+
+    // --- Build a lazy concatenated accessor over spine (no giant string) ---
+    static buildSequenceStripAccessor(spineWalk, sequences) {
+
+        const chunks = []
+
+        let accumulator = 0;
+        for (const walkKey of spineWalk) {
+
+            // sequence keys are stored as "+"
+            const storedKey = walkKey.endsWith('+') || walkKey.endsWith('-') ? walkKey.slice(0, -1) + '+' : walkKey;
+
+            const rawSequenceString = sequences[storedKey] || '';
+
+            const orientation = walkKey.endsWith('-') ? '-' : '+';
+            const sequenceString = orientation === '+' ? rawSequenceString : reverseComplement(rawSequenceString);
+
+            const len = sequenceString.length;
+            const startOffset = accumulator;
+
+            chunks.push({ len, start: startOffset, end: startOffset + len, get: i => sequenceString[i] || 'N' });
+
+            accumulator += len;
+        }
+
+        const charAt = pathBp => {
+
+            let lo = 0
+            let hi = chunks.length - 1
+
+            // binary search chunk by cumulative bounds
+            while (lo <= hi) {
+                const mid = (lo + hi) >> 1;
+                const chunk = chunks[mid];
+                if (pathBp < chunk.start) hi = mid - 1;
+                else if (pathBp >= chunk.end) lo = mid + 1;
+                else return chunk.get(pathBp - chunk.start);
+            }
+            return 'N';
+        }
+
+        return { totalLen: accumulator, charAt }
+    }
+
 }
+
+export default PangenomeService

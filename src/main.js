@@ -12,12 +12,14 @@ import LookManager from './lookManager.js'
 import AssemblyVisualizationLook from './assemblyVisualizationLook.js'
 import SceneManager from './sceneManager.js'
 import PangenomeService from "./pangenomeService.js"
+import AnnotationRenderService from "./annotationRenderService.js"
 import './styles/app.scss'
 
 let app
 let locusInput
 let defaultGenome
 let sequenceService
+let annotationRenderService
 document.addEventListener("DOMContentLoaded", async (event) => {
 
     await materialService.initialize()
@@ -36,6 +38,9 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const geometryManager = new GeometryManager(genomicService)
 
     sequenceService = new SequenceService(threeJSContainer, raycastService, genomicService)
+
+    const annotationRenderServiceContainer = document.querySelector('.pgb-gene-annotation-track-container')
+    annotationRenderService = new AnnotationRenderService(annotationRenderServiceContainer, genomicService, geometryManager, raycastService)
 
     const gear = document.getElementById('pgb-gear-btn-container')
     const assemblyWidgetContainer = document.getElementById('pgb-gear-card')

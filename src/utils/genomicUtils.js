@@ -43,4 +43,38 @@ function getChromosomeLength(chromosomeName) {
     }
 }
 
-export { getRandomChromosomeName, getChromosomeLength }
+const reverseComplementLUT =
+    {
+        A:'T',
+        C:'G',
+        G:'C',
+        T:'A',
+        a:'t',
+        c:'g',
+        g:'c',
+        t:'a'
+    };
+
+function reverseComplement(s) {
+    let out = '';
+    for (let i = s.length - 1; i >= 0; i--) {
+        const ch = s[i];
+        out += reverseComplementLUT[ch] || (ch === 'N' || ch === 'n' ? ch : 'N');
+    }
+    return out;
+}
+
+const nucleotideColorsLUT = {
+    A: [  0, 160,   0, 255],
+    C: [  0,   0, 200, 255],
+    G: [220, 140,   0, 255],
+    T: [200,   0,   0, 255],
+    N: [160, 160, 160, 255]
+};
+
+function colorOfBase(base) {
+    const b = (base || 'N').toUpperCase();
+    return nucleotideColorsLUT[ b ] || nucleotideColorsLUT.N;
+}
+
+export { getRandomChromosomeName, getChromosomeLength, reverseComplement, colorOfBase }

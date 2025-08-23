@@ -1,9 +1,10 @@
 import AnnotationRenderService from "./annotationRenderService.js"
-import { locusInput } from "./main.js"
+import {app, locusInput} from "./main.js"
 import LocusInput from "./locusInput.js"
 import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
 import {colors32Distinct, colors64Distinct} from "./utils/color.js"
 import {prettyPrint, uniqueRandomGenerator} from "./utils/utils.js"
+import PangenomeService from "./pangenomeService.js"
 
 class GenomicService {
 
@@ -52,20 +53,62 @@ class GenomicService {
             }
         }
 
-        for (const assemblyKey of this.assemblySet){
-            if (assemblyKey.includes('GRCh38')) {
-                const {geneFeatureSource, geneRenderer} = await genomeLibrary.getGenomePayload('GRCh38')
-                const container = document.querySelector('.pgb-gene-annotation-track-container')
-                const annotationRenderService = new AnnotationRenderService(container, assemblyKey, geneFeatureSource, geneRenderer, this, geometryManager, raycastService)
-                this.annotationRenderServiceMap.set(assemblyKey, annotationRenderService)
-            }
-        }
 
         // Build assembly walk map
         const assemblyWalks = pangenomeService.createAssemblyWalks({ mode:'auto', directionPolicy: "edgeFlow" })
         for (const key of this.assemblySet){
             const walks = assemblyWalks.find(walk => key === walk.key)
             this.assemblyWalkMap.set(key, walks)
+        }
+
+        for (const key of this.assemblySet){
+
+            const [ assembly, haplotype, sequence_id ] = key.split('#')
+
+            const walk = this.assemblyWalkMap.get(key)
+            const longestPath = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
+
+            const spineWalk = { key: walk.key, paths: [ longestPath ]}
+
+            const config =
+                {
+                    // discovery toggles
+                    includeAdjacent: true,           // show pills (adjacent-anchor insertions)
+                    includeUpstream: false,           // ignore mirror (R,L) events
+                    allowMidSpineReentry: true,      // allow detours to touch mid-spine nodes → richer braids
+                    includeDangling: true,           // show branches that don't rejoin in-window
+                    includeOffSpineComponents: true, // report islands that never touch the spine (context)
+
+                    // path sampling & safety rails
+                    maxPathsPerEvent: 5,             // 3–5 for UI; up to 8+ for analysis
+                    maxRegionNodes: 5000,
+                    maxRegionEdges: 8000,
+
+                    // optional x-origin in bp (default 0)
+                    locusStartBp: this.locus.startBP
+                };
+
+            const { spine } = app.pangenomeService.assessGraphFeatures(spineWalk, config)
+
+            const { nodes } = spine
+
+            const { chr } = this.locus
+            const bpStart = nodes[0].bpStart
+            const bpEnd = nodes[ nodes.length - 1].bpEnd
+
+            const result = await genomeLibrary.getGenomePayload(assembly)
+
+            if (undefined === result) {
+
+                const sequenceStripAccessor = PangenomeService.buildSequenceStripAccessor(nodes.map(({id}) =>id), sequences)
+                const sequence = { sequenceStripAccessor, nodes, chr, bpStart, bpEnd }
+                this.annotationRenderServiceMap.set(key, sequence)
+            } else {
+
+                const {geneFeatureSource, geneRenderer} = await genomeLibrary.getGenomePayload('GRCh38')
+                const geneAnnotation = { geneFeatureSource, geneRenderer, nodes, chr, bpStart, bpEnd }
+                this.annotationRenderServiceMap.set(key, geneAnnotation)
+            }
         }
 
         const uniqueColors = getPerceptuallyDistinctColors(1 + this.assemblySet.size)
@@ -76,8 +119,6 @@ class GenomicService {
             this.assemblyPayload.set(assemblyKey, { color:uniqueColorsRandomized[ i ] });
             i++;
         }
-
-        console.log(`GenomicService: Created ${this.assemblySet.size} assembly colors`);
 
     }
 
@@ -134,9 +175,6 @@ class GenomicService {
 
         this.assemblyWalkMap.clear()
 
-        for (const annotationRenderService of this.annotationRenderServiceMap.values()) {
-            annotationRenderService.dispose()
-        }
         this.annotationRenderServiceMap.clear()
     }
 
