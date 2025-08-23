@@ -1,9 +1,13 @@
 import * as THREE from 'three';
 import eventBus from './utils/eventBus.js';
+import ParametricLine from "./parametricLine.js"
 
 class RayCastService {
 
     static MOUSE_MOVEMENT_THRESHOLD = 5;
+
+    static DIRECT_LINE_INTERSECTION_STRATEGY = 'directLineIntersectionStrategy'
+    static SPLINE_INTERPOLATION_INTERSECTION_STRATEGY = 'splineInterpolationIntersectionStrategy'
 
     constructor(container, threshold) {
         this.pointer = new THREE.Vector2();
@@ -152,11 +156,29 @@ class RayCastService {
         this.raycastVisualFeedback.visible = false;
     }
 
-    handleIntersection(geometryManager, intersection) {
+    handleIntersection(geometryManager, intersection, intersectionStrategy) {
+
+        if (RayCastService.SPLINE_INTERPOLATION_INTERSECTION_STRATEGY === intersectionStrategy){
+            this.currentIntersection = this.#doSplineInterpolationIntersection(geometryManager, intersection)
+        } else if (RayCastService.DIRECT_LINE_INTERSECTION_STRATEGY === intersectionStrategy) {
+
+            // class ParametricLine implements methods to interpret a Line2 object
+            // as a one-dimensional parametric line. This establishes a mapping: xyz <--> t
+            // where t: 0-1
+            this.currentIntersection = ParametricLine.getParameter(intersection)
+        } else {
+            throw new Error(`handleIntersection fail`);
+        }
+
+        const { pointOnLine, object:line } = intersection
+        this.showVisualFeedback(pointOnLine, line.material.color)
+
+        return this.currentIntersection
+    }
+
+    #doSplineInterpolationIntersection(geometryManager, intersection){
 
         const { faceIndex, pointOnLine, object:line } = intersection
-
-        this.showVisualFeedback(pointOnLine, line.material.color)
 
         const { userData } = line;
         const { nodeName } = userData;
@@ -165,14 +187,8 @@ class RayCastService {
         const segments = line.geometry.getAttribute('instanceStart');
         const t = this.findClosestT(spline, pointOnLine, faceIndex, segments.count);
 
-        const payload = { t, nodeName, line }
-        if(undefined === this.currentIntersection) {
-            eventBus.publish('newLineIntersection', payload)
-        }
+        return { t, nodeName, line }
 
-        this.currentIntersection = payload;
-
-        return this.currentIntersection;
     }
 
     clearIntersection() {

@@ -2,9 +2,9 @@ import * as THREE from 'three'
 import CameraManager from './cameraManager.js'
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
+import RayCastService from "./raycastService.js"
+import {loadPath, prettyPrint} from './utils/utils.js'
 import eventBus from './utils/eventBus.js';
-import { loadPath } from './utils/utils.js'
-import {int} from "three/tsl"
 
 class App {
 
@@ -54,7 +54,7 @@ class App {
         // Sort by distance to get the closest intersection
         intersections.sort((a, b) => a.distance - b.distance);
 
-        const { faceIndex, point, pointOnLine, object } = intersections[0];
+        const { point, object } = intersections[0];
 
         this.renderer.domElement.style.cursor = 'none';
 
@@ -63,13 +63,21 @@ class App {
             this.showTooltip(object, point, 'edge');
         } else if (object.userData?.type === 'node') {
 
-            const { t:_t, nodeName:_nodeName, nodeLine:_nodeLine } = this.raycastService.calculateTParameterFromIntersection(intersections[0])
+            const { t, nodeName, line } = this.raycastService.handleIntersection(this.geometryManager, intersections[0], RayCastService.DIRECT_LINE_INTERSECTION_STRATEGY)
 
-            const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.geometryManager, intersections[0])
+            const { x, y } = point
+            const exe = `${ prettyPrint(Math.floor(x)) }`
+            const wye = `${ prettyPrint(Math.floor(y)) }`
+            // console.log(`xyz(${ exe }, ${ wye }) t ${ t.toFixed(4) }`)
 
-            console.log(`t along line ${ _t.toFixed(4) } t via spline interpolation ${ t.toFixed(4) }`)
+            const { x:_x, y:_y } = line.getPoint(t, 'world')
+            const _exe = `${ prettyPrint(Math.floor(_x)) }`
+            const _wye = `${ prettyPrint(Math.floor(_y)) }`
 
-            eventBus.publish('lineIntersection', { t, nodeName, nodeLine })
+            console.log(`intersectionXY (${ exe }, ${ wye }) xyDerivedFromT (${ _exe }, ${ _wye })`)
+
+            eventBus.publish('lineIntersection', { t, nodeName, nodeLine:line })
+
             this.showTooltip(object, point, 'node')
 
         }

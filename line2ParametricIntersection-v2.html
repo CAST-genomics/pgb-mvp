@@ -1,0 +1,149 @@
+<script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.179.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.179.1/examples/jsm/"
+      }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { Line2 } from 'three/addons/lines/Line2.js';
+    import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+    import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+
+    // --- scene
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    document.body.style.margin = '0';
+    document.body.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x101010);
+    const camera = new THREE.PerspectiveCamera(45, 2, 0.1, 100);
+    camera.position.set(8, 6, 12);
+    camera.lookAt(0, 0, 0);
+
+    // --- Line2 (thin enough + set resolution on resize)
+    const mat = new LineMaterial({ color: 0xffffff, linewidth: 0.12, worldUnits: true });
+    const geom = new LineGeometry();
+    let xyzList = [ 0,0,0,  2,0,0,  3,1,0,  5,1,0,  6,0,0 ];
+    geom.setPositions(xyzList);
+    const line = new Line2(geom, mat);
+    scene.add(line);
+
+    // --- compute arc-length table (reuse what you already have)
+    let ARC = buildArcLengthTable(line);
+    function buildArcLengthTable(line2){
+        const starts = line2.geometry.attributes.instanceStart;
+        const ends   = line2.geometry.attributes.instanceEnd;
+        const a = new THREE.Vector3(), b = new THREE.Vector3();
+        const segLen = new Float32Array(starts.count);
+        const cum = new Float32Array(starts.count + 1);
+        let acc = 0; cum[0] = 0;
+        for (let i = 0; i < starts.count; i++){
+            a.fromBufferAttribute(starts, i);
+            b.fromBufferAttribute(ends,   i);
+            const L = a.distanceTo(b);
+            segLen[i] = L;
+            acc += L;
+            cum[i + 1] = acc;
+        }
+        return { segLen, cum, total: acc };
+    }
+
+    function updatePositions(newXYZ){
+        geom.setPositions(newXYZ);
+        ARC = buildArcLengthTable(line);
+    }
+
+    // --- t -> point on line (returns world-space by default)
+    function pointAtT(line2, t, arc, out = new THREE.Vector3(), space = 'world'){
+        if (!arc || arc.total === 0) return out.set(0,0,0);
+        const tt = THREE.MathUtils.clamp(t, 0, 1);
+        const s = tt * arc.total;
+
+        // handle exact end
+        if (s >= arc.total) {
+            const B = new THREE.Vector3().fromBufferAttribute(line2.geometry.attributes.instanceEnd, arc.segLen.length - 1);
+            out.copy(B);
+            return space === 'world' ? line2.localToWorld(out) : out;
+        }
+
+        // binary search cum[] to locate segment
+        const cum = arc.cum;
+        let lo = 0, hi = cum.length - 1;
+        while (lo + 1 < hi) {
+            const mid = (lo + hi) >> 1;
+            (cum[mid] <= s) ? (lo = mid) : (hi = mid);
+        }
+        const i = lo; // segment index with cum[i] <= s < cum[i+1]
+
+        const starts = line2.geometry.attributes.instanceStart;
+        const ends   = line2.geometry.attributes.instanceEnd;
+        const A = new THREE.Vector3().fromBufferAttribute(starts, i);
+        const B = new THREE.Vector3().fromBufferAttribute(ends,   i);
+
+        const L = arc.segLen[i];
+        const u = L > 0 ? (s - cum[i]) / L : 0; // guard zero-length
+        out.copy(A).lerp(B, THREE.MathUtils.clamp(u, 0, 1));
+        return space === 'world' ? line2.localToWorld(out) : out;
+    }
+
+    // --- little marker to visualize the result
+    const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 16, 12),
+        new THREE.MeshBasicMaterial({ color: 0xff4444 })
+    );
+    scene.add(marker);
+
+    // --- UI: slider for t
+    const slider = document.createElement('input');
+    slider.type = 'range'; slider.min = '0'; slider.max = '1'; slider.step = '0.001'; slider.value = '0';
+    slider.style.cssText = 'position:fixed;left:8px;bottom:8px;width:280px';
+    document.body.appendChild(slider);
+
+    const label = document.createElement('div');
+    label.style.cssText = 'position:fixed;left:8px;top:8px;color:#fff;font:14px/1.4 monospace';
+    document.body.appendChild(label);
+
+    slider.addEventListener('input', () => {
+        const t = parseFloat(slider.value);
+        pointAtT(line, t, ARC, marker.position, 'world');
+        label.textContent = `t: ${t.toFixed(3)}  →  (${marker.position.x.toFixed(3)}, ${marker.position.y.toFixed(3)}, ${marker.position.z.toFixed(3)})`;
+    });
+
+    // demo: also let you shorten the last segment like before
+    const shorten = document.createElement('input');
+    shorten.type = 'range'; shorten.min = '0'; shorten.max = '1'; shorten.step = '0.01'; shorten.value = '1';
+    shorten.style.cssText = 'position:fixed;left:300px;bottom:8px;width:240px';
+    document.body.appendChild(shorten);
+    shorten.addEventListener('input', () => {
+        const k = parseFloat(shorten.value);
+        const last = new THREE.Vector3(xyzList.at(-3), xyzList.at(-2), xyzList.at(-1));
+        const prev = new THREE.Vector3(xyzList.at(-6), xyzList.at(-5), xyzList.at(-4));
+        const moved = prev.clone().lerp(last, k);
+        const arr = xyzList.slice();
+        arr.splice(-3, 3, moved.x, moved.y, moved.z);
+        updatePositions(arr);
+        // keep marker consistent after geometry change
+        pointAtT(line, parseFloat(slider.value), ARC, marker.position, 'world');
+    });
+
+    // --- resize (important for LineMaterial)
+    function onResize(){
+        const w = innerWidth, h = innerHeight;
+        renderer.setPixelRatio(devicePixelRatio);
+        renderer.setSize(w, h);
+        camera.aspect = w / h; camera.updateProjectionMatrix();
+        mat.resolution.set(w, h);
+    }
+    addEventListener('resize', onResize); onResize();
+
+    // init marker
+    pointAtT(line, parseFloat(slider.value), ARC, marker.position, 'world');
+
+    (function loop(){
+        renderer.render(scene, camera);
+        requestAnimationFrame(loop);
+    })();
+</script>

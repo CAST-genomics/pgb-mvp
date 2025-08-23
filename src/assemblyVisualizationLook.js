@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import ParametricLine from './parametricLine.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import Look from './look.js';
 import { colorRampArrowMaterialFactory } from './materialService.js';
@@ -59,7 +59,7 @@ class AssemblyVisualizationLook extends Look {
 
         const material = this.getNodeMaterial(nodeName);
 
-        const mesh = new Line2(geometry, material);
+        const mesh = new ParametricLine(geometry, material);
 
         // Set up user data
         mesh.userData = {
@@ -327,10 +327,10 @@ class AssemblyVisualizationLook extends Look {
                         instanceEnd[i + 2] = zOffset;
                     }
 
-                    // Update line distances for Line2 objects
-                    if (object.computeLineDistances) {
-                        object.computeLineDistances();
-                    }
+                    // Only needed for dashed lines
+                    // if (object.computeLineDistances) {
+                    //     object.computeLineDistances();
+                    // }
 
                     object.geometry.attributes.instanceStart.needsUpdate = true;
                     object.geometry.attributes.instanceEnd.needsUpdate = true;

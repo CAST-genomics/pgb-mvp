@@ -223,11 +223,16 @@ class AnnotationRenderService {
             }
         }
 
-        const spline = this.geometryManager.getSpline(nodeId)
-        const pointOnLine = spline.getPoint(u)
-        const line = this.geometryManager.getLine(nodeId)
+        // const spline = this.geometryManager.getSpline(nodeId)
+        // const pointOnLine = spline.getPoint(u)
 
-        this.raycastService.showVisualFeedback(pointOnLine, line.material.color)
+        // class ParametricLine implements methods to interpret a Line2 object
+        // as a one-dimensional parametric line. This establishes a mapping: xyz <--> t
+        // where t: 0-1
+        const parametricLine = this.geometryManager.getLine(nodeId)
+        const pointOnLine = parametricLine.getPoint(u, 'world')
+
+        this.raycastService.showVisualFeedback(pointOnLine, parametricLine.material.color)
     }
 
     dispose() {
