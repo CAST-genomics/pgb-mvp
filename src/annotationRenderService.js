@@ -3,6 +3,7 @@ import {app} from "./main.js"
 import LocusInput from "./locusInput.js"
 import {colorOfBase} from "./utils/genomicUtils.js"
 import eventBus from "./utils/eventBus.js"
+import {colorToRGBString, getAppleCrayonColorByName, getRandomPastelAppleCrayonColor} from "./utils/color.js"
 
 class AnnotationRenderService {
 
@@ -140,6 +141,33 @@ class AnnotationRenderService {
 
     renderSequenceStripAccessor({ sequenceStripAccessor, bpStart, bpEnd }) {
 
+        const { totalLen, charAt, sequences } = sequenceStripAccessor
+
+        const canvas = this.container.querySelector('canvas')
+
+        const ctx = canvas.getContext('2d')
+
+        const { width, height } = canvas
+        ctx.clearRect(0, 0, width, height);
+        ctx.imageSmoothingEnabled = false;
+
+        const bpLength = Math.max(1, bpEnd - bpStart);
+        const bpPerPixel = totalLen / width
+        const pixelPerBP = 1/bpPerPixel
+
+        for (const { len, start, end } of sequences) {
+            const x = Math.floor(start * pixelPerBP)
+            const w = Math.ceil(len * pixelPerBP)
+            ctx.fillStyle = colorToRGBString(getRandomPastelAppleCrayonColor())
+            ctx.fillRect(x, 0, w, height)
+        }
+
+    }
+
+    __renderSequenceStripAccessor({ sequenceStripAccessor, bpStart, bpEnd }) {
+
+        const { totalLen, charAt, sequences } = sequenceStripAccessor
+
         const canvas = this.container.querySelector('canvas')
 
         const ctx = canvas.getContext('2d', { willReadFrequently: false })
@@ -159,7 +187,7 @@ class AnnotationRenderService {
             for (let x = 0; x < width; x++) {
 
                 const bp = Math.floor(bpStart + x * bpPerPixel);
-                const [r,g,b,a] = colorOfBase(sequenceStripAccessor.charAt(bp))
+                const [r,g,b,a] = colorOfBase(charAt(bp, sequences))
                 const i = x * 4;
 
                 data[i  ] = r;
@@ -182,7 +210,7 @@ class AnnotationRenderService {
 
                 for (let bp = bps; bp < bpe; bp++) {
 
-                    const base = sequenceStripAccessor.charAt(bp - bps)
+                    const base = charAt(bp - bps, sequences)
 
                     const [R,G,B] = colorOfBase(base);
                     r+=R;

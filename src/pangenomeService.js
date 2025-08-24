@@ -1100,7 +1100,7 @@ class PangenomeService {
             accumulator += len;
         }
 
-        const charAt = pathBp => {
+        const charAt = (pathBp, chunks) => {
 
             let lo = 0
             let hi = chunks.length - 1
@@ -1116,7 +1116,7 @@ class PangenomeService {
             return 'N';
         }
 
-        return { totalLen: accumulator, charAt }
+        return { totalLen: accumulator, charAt, sequences:chunks }
     }
 
 }
