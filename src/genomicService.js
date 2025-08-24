@@ -50,13 +50,10 @@ class GenomicService {
             }
         }
 
-
         // Build assembly walk map
         pangenomeService.setDefaultLocusStartBp(this.locus.startBP)
 
         for (const assemblyKey of this.assemblySet){
-
-            // const walk = pangenomeService.getChosenWalk(assemblyKey, { mode: "auto", directionPolicy: "edgeFlow" });
 
             const features =
                 pangenomeService.getSpineFeatures(assemblyKey,

@@ -11,9 +11,10 @@
 //    getAnyBpExtent / indexWalkBpExtents helpers
 //  - Key indexing accepts both "#" and "|" delimiters for assembly keys
 
-class PangenomeService {
+export default class PangenomeService {
     constructor(json = null) {
         this.graph = null;
+        this._dirOut = null; // cache of directed out-edges for orientation
         // active spine bp lookups for tooltips
         this._spineKey = null;
         this._bpStart = null; // Map<nodeId, number>
@@ -134,6 +135,7 @@ class PangenomeService {
         for (const [id, set] of adjSet) adj.set(id, Array.from(set));
 
         this.graph = { nodes, edges, adj, index };
+        this._dirOut = null; // reset directed cache on rebuild
         return this.graph;
     }
 
@@ -201,6 +203,7 @@ class PangenomeService {
 
         // Orient each path deterministically and recompute edges to match the chosen orientation
         this._normalizePathDirections(paths, { startNodeId, directionPolicy });
+        if (directionPolicy === "edgeFlow") this._orientPathsToEdges(paths);
 
         return { key, paths, diagnostics };
     }
@@ -839,6 +842,61 @@ class PangenomeService {
         }
     }
 
+    #directedOut() {
+        if (this._dirOut) return this._dirOut;
+        const out = new Map(); // Map<a, Set<b>> for directed edges a->b
+        for (const [ek] of this.graph.edges) {
+            const parts = ek.split(":");
+            if (parts.length !== 3) continue;
+            const a = parts[1], b = parts[2];
+            if (!out.has(a)) out.set(a, new Set());
+            out.get(a).add(b);
+        }
+        this._dirOut = out;
+        return out;
+    }
+
+    _orientPathsToEdges(paths) {
+        if (!Array.isArray(paths)) return;
+        const out = this.#directedOut();
+        const score = (nodes) => {
+            let s = 0;
+            for (let i = 0; i < nodes.length - 1; i++) {
+                const a = nodes[i], b = nodes[i + 1];
+                if (out.get(a)?.has(b)) s++;
+                else if (out.get(b)?.has(a)) s--;
+            }
+            return s;
+        };
+
+        for (const p of paths) {
+            if (!p || !Array.isArray(p.nodes) || p.nodes.length < 2) continue;
+            // Respect explicit startNode orientation if already applied
+            if (p.direction && p.direction.policyApplied === "startNodeId") continue;
+            const fwd = score(p.nodes);
+            const rev = score([...p.nodes].reverse());
+            if (rev > fwd) {
+                p.nodes.reverse();
+                // recompute edges to match
+                const edgesOnPath = [];
+                for (let i = 0; i < p.nodes.length - 1; i++) {
+                    const a = p.nodes[i], b = p.nodes[i + 1];
+                    const f = this.#edgeKeyOf(a, b);
+                    const r = this.#edgeKeyOf(b, a);
+                    if (this.graph.edges.has(f)) edgesOnPath.push(f);
+                    else if (this.graph.edges.has(r)) edgesOnPath.push(r);
+                }
+                p.edges = edgesOnPath;
+                p.leftEndpoint  = p.nodes[0];
+                p.rightEndpoint = p.nodes[p.nodes.length - 1];
+                p.direction = { start: p.leftEndpoint, end: p.rightEndpoint, policyApplied: "edgeFlow" };
+            } else if (fwd > rev) {
+                p.direction = { start: p.nodes[0], end: p.nodes[p.nodes.length - 1], policyApplied: "edgeFlow" };
+            }
+        }
+    }
+
+
     #chooseLongestPath(paths) {
         if (!paths || !paths.length) return null;
         let best = null, bestLen = -1;
@@ -1050,5 +1108,3 @@ class PangenomeService {
         return looksChainy ? "endpoint" : "blockcut";
     }
 }
-
-export default PangenomeService
