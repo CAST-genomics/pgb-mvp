@@ -112,8 +112,8 @@ class AssemblyWidget {
             event.target.style.border = '2px solid #000';
             event.target.style.transform = 'scale(1.5)'
 
-            const walk = this.genomicService.assemblyWalkMap.get(assembly)
-            const longestPath = walk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
+            const { spineWalk } = this.genomicService.assemblyWalkMap.get(assembly)
+            const longestPath = spineWalk.paths.reduce((best, p) => (p.bpLen > (best?.bpLen||0) ? p : best), null)
             const { nodes, edges } = longestPath
 
             const nodeSet = new Set([ ...nodes ])

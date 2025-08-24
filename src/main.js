@@ -93,5 +93,5 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
 })
 
-export { app, locusInput, defaultGenome }
+export { app, locusInput, annotationRenderService, defaultGenome }
 

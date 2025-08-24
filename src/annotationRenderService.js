@@ -50,45 +50,41 @@ class AnnotationRenderService {
     }
 
     async handleAssemblyEmphasis(data) {
+
+        this.splineParameterMap.clear()
+
         const { assembly } = data
 
-        this.isSequenceRenderer = false
+        const { path, spineWalk, spine, events } = this.genomicService.assemblyWalkMap.get(assembly)
+        const { nodes } = spine
 
-        const service = this.genomicService.annotationRenderServiceMap.get(assembly)
-
-        this.featureSource = undefined
-        this.featureRenderer = undefined
-
-        const { nodes, bpStart, bpEnd } = service
+        const { chr } = this.genomicService.locus
+        const bpStart = nodes[0].bpStart
+        const bpEnd = nodes[ nodes.length - 1].bpEnd
 
         const bpExtent = bpEnd - bpStart
 
-        this.splineParameterMap.clear()
         for (const node of nodes) {
             const startParam = (node.bpStart - bpStart) / bpExtent;
             const endParam = (node.bpEnd - bpStart) / bpExtent;
             this.splineParameterMap.set(node.id, {startParam, endParam})
         }
 
-        if (service.sequenceStripAccessor) {
+        const [ genomeId, haplotype, sequence_id ] = assembly.split('#')
+        const result = await app.genomeLibrary.getGenomePayload(genomeId)
 
-            const { sequenceStripAccessor, bpStart, bpEnd } = service
-
+        if (undefined === result) {
             this.isSequenceRenderer = true
-            this.drawConfig = { sequenceStripAccessor, bpStart, bpEnd }
-
+            this.drawConfig = { nodes, chr, bpStart, bpEnd }
             this.renderSequenceStripAccessor(this.drawConfig)
-            console.log(`assembly ${ assembly } will use sequence service`)
-        } else if (service.geneFeatureSource) {
-
-            const { geneFeatureSource, geneRenderer, nodes, chr, bpStart, bpEnd } = service
+        } else {
+            this.isSequenceRenderer = false
+            const {geneFeatureSource, geneRenderer} = result
             this.featureSource = geneFeatureSource
             this.featureRenderer = geneRenderer
-
             const features = await this.getFeatures(chr, bpStart, bpEnd)
             this.render({ container: this.container, bpStart, bpEnd, features })
         }
-
 
     }
 
@@ -139,9 +135,9 @@ class AnnotationRenderService {
         this.container.appendChild(this.visualFeedbackElement);
     }
 
-    renderSequenceStripAccessor({ sequenceStripAccessor, bpStart, bpEnd }) {
+    renderSequenceStripAccessor(config) {
 
-        const { totalLen, charAt, sequences } = sequenceStripAccessor
+        const { nodes, bpStart:assemblyBPStart, bpEnd:assemblyBPEnd } = config
 
         const canvas = this.container.querySelector('canvas')
 
@@ -149,18 +145,21 @@ class AnnotationRenderService {
 
         const { width, height } = canvas
         ctx.clearRect(0, 0, width, height);
-        ctx.imageSmoothingEnabled = false;
 
-        const bpLength = Math.max(1, bpEnd - bpStart);
-        const bpPerPixel = totalLen / width
+        const bpLength = Math.max(1, assemblyBPEnd - assemblyBPStart);
+        const bpPerPixel = bpLength / width
         const pixelPerBP = 1/bpPerPixel
 
-        for (const { len, start, end } of sequences) {
-            const x = Math.floor(start * pixelPerBP)
-            const w = Math.ceil(len * pixelPerBP)
+        for (const { id, bpStart, bpEnd, lenBp } of nodes){
+
             ctx.fillStyle = colorToRGBString(getRandomPastelAppleCrayonColor())
+
+            const xBP = bpStart - assemblyBPStart
+            const x = Math.floor(xBP * pixelPerBP)
+            const w = Math.ceil(lenBp * pixelPerBP)
             ctx.fillRect(x, 0, w, height)
         }
+
 
     }
 
@@ -291,6 +290,9 @@ class AnnotationRenderService {
     }
 
     clear() {
+
+        this.splineParameterMap.clear()
+
         const { width, height } = this.container.getBoundingClientRect();
         const canvas = this.container.querySelector('canvas')
         const ctx = canvas.getContext('2d')

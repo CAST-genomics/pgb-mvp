@@ -5,6 +5,7 @@ import RendererFactory from './rendererFactory.js'
 import RayCastService from "./raycastService.js"
 import {loadPath, prettyPrint} from './utils/utils.js'
 import eventBus from './utils/eventBus.js';
+import { annotationRenderService } from "./main.js"
 
 class App {
 
@@ -285,6 +286,8 @@ class App {
         }
 
         this.pangenomeService.createGraph(json)
+
+        annotationRenderService.clear()
 
         this.genomicService.clear()
         await this.genomicService.createMetadata(json, this.pangenomeService, this.genomeLibrary, this.geometryManager, this.raycastService)
