@@ -285,7 +285,7 @@ class App {
             return
         }
 
-        this.pangenomeService.createGraph(json)
+        this.pangenomeService.loadData(json)
 
         annotationRenderService.clear()
 

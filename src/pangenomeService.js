@@ -1,54 +1,32 @@
-// PangenomeService.js — bullet-proof, performant (pure JavaScript)
-
-/* Design notes (tl;dr)
- * - Loader builds fast indexes: out/in/adj, edgesByNode, undirectedIndex, assembliesIndex.
- * - createAssemblyWalk(): builds strict simple paths (one per component) in O(V+E) using 2×BFS.
- * - getChosenWalk(): chooses longest-by-bp path; orients by edgeFlow; optional leaf-trim by caps.
- * - getSpineFeatures(): calls getChosenWalk() then a FAST assessor:
- *     * local, bounded BFS around each spine leg (L–R) with hop cap + node/edge budgets
- *     * optional 1× shortest alt path inside region (no enumeration)
- *     * zero global scans; all per-event work is O(region)
- * - Hard budgets: operationBudget, maxRegionHops/Nodes/Edges, maxAltPaths=1 by default
- * - Off-spine components off by default (set "summary" | "full" if needed)
- */
+// PangenomeService v1.1 — deterministic walks + bounded feature assessment.
+// Pure JavaScript. No external dependencies.
 
 class PangenomeService {
-    constructor(json = null) {
-        this.graph = null;                 // { nodes, edges, out, in, adj, sequences, assembliesIndex, edgesByNode, undirectedIndex, locus }
-        this._dirOut = null;               // cache of directed out map
-        this._inducedCache = new Map();    // assemblyKey -> { nodesIn:Set, adj:Map, components:[Set] }
-        this.defaultLocusStartBp = 0;
-        if (json) this.createGraph(json);
+    constructor() {
+        this.graph = null;       // { nodes, edges, out, adj, assembliesIndex }
+        this._dirOut = null;
+        this._defaultLocusStartBp = 0;
     }
 
-    // ========================= Dataset lifecycle =========================
-    loadData(json, opts) { return this.createGraph(json, opts); }
-    reload(json, opts)   { this.clear(); return this.createGraph(json, opts); }
-    clear()              { this.graph = null; this._dirOut = null; this._inducedCache.clear(); return true; }
-    getGraph()           { return this.graph; }
+    // ---------- Public API ----------
 
-    // ========================= Loader (fast indexes) =========================
-    createGraph(json, { assemblyKeyDelim = "#" } = {}) {
-        const nodes           = new Map();
-        const edges           = new Map();
-        const out             = new Map();
-        const incoming        = new Map();
-        const adj             = new Map();
-        const sequences       = new Map();
-        const assembliesIndex = new Map();
+    loadData(json, { assemblyKeyDelim = "#" } = {}) {
+        const nodes = new Map();      // id -> { id, lengthBp, assemblies:Set, raw? }
+        const edges = new Map();      // "edge:a:b" -> { from, to }
+        const out   = new Map();      // id -> Set(neighbors) (directed)
+        const adj   = new Map();      // id -> Set(neighbors) (undirected)
+        const assembliesIndex = new Map(); // asmKey -> Set(nodeId)
 
-        const addOut = (a,b)=>{ if(!out.has(a)) out.set(a,new Set()); out.get(a).add(b); };
-        const addIn  = (a,b)=>{ if(!incoming.has(b)) incoming.set(b,new Set()); incoming.get(b).add(a); };
-        const addAdj = (a,b)=>{ if(!adj.has(a)) adj.set(a,new Set()); if(!adj.has(b)) adj.set(b,new Set()); adj.get(a).add(b); adj.get(b).add(a); };
+        const addOut=(a,b)=>{ if(!out.has(a)) out.set(a,new Set()); out.get(a).add(b); };
+        const addAdj=(a,b)=>{ if(!adj.has(a)) adj.set(a,new Set()); if(!adj.has(b)) adj.set(b,new Set()); adj.get(a).add(b); adj.get(b).add(a); };
 
-        if (json?.sequence) {
-            for (const [id, seq] of Object.entries(json.sequence)) sequences.set(String(id), String(seq ?? ""));
-        }
+        const seqs = new Map();
+        if (json?.sequence) for (const [id, seq] of Object.entries(json.sequence)) seqs.set(String(id), String(seq ?? ""));
 
         const nodeBag = json?.node || {};
         for (const [k, raw] of Object.entries(nodeBag)) {
             const id = String(raw?.name ?? k);
-            const seq = sequences.get(id) ?? null;
+            const seq = seqs.get(id) ?? null;
             const lengthBp = Number.isFinite(raw?.length) ? Number(raw.length) : (seq ? seq.length : 0);
 
             const assemblies = new Set();
@@ -62,14 +40,11 @@ class PangenomeService {
                 assembliesIndex.get(key).add(id);
             }
 
-            nodes.set(id, { id, lengthBp, assemblies, seq, range: raw?.range ?? "", ogdf: raw?.ogdf_coordinates ?? null, raw });
-
+            nodes.set(id, { id, lengthBp, assemblies, raw });
             if (!out.has(id)) out.set(id, new Set());
-            if (!incoming.has(id)) incoming.set(id, new Set());
             if (!adj.has(id)) adj.set(id, new Set());
         }
 
-        // endpoint resolver (handle +/- mismatches)
         const stripSign = s => String(s).replace(/[+-]$/, "");
         const resolveNodeId = rawId => {
             if (!rawId) return null;
@@ -77,8 +52,6 @@ class PangenomeService {
             if (nodes.has(id)) return id;
             if (/[+-]$/.test(id)) {
                 const base = stripSign(id);
-                const flip = id.endsWith("+") ? `${base}-` : `${base}+`;
-                if (nodes.has(flip)) return flip;
                 for (const cand of nodes.keys()) if (stripSign(cand) === base) return cand;
             } else {
                 for (const cand of nodes.keys()) if (stripSign(cand) === id) return cand;
@@ -86,240 +59,145 @@ class PangenomeService {
             return null;
         };
 
-        // edges
         for (const e of (json?.edge || [])) {
             const from = resolveNodeId(e.starting_node);
             const to   = resolveNodeId(e.ending_node);
             if (!from || !to) continue;
-            const key = this.#edgeKeyOf(from, to);
-            if (!edges.has(key)) { edges.set(key, { key, from, to }); addOut(from,to); addIn(from,to); addAdj(from,to); }
+            const key = `edge:${from}:${to}`;
+            if (!edges.has(key)) { edges.set(key, { from, to }); addOut(from, to); addAdj(from, to); }
         }
 
-        // Indexes for fast region edge collection
-        const undirectedIndex = new Map(); // "a|b" (a<b) -> [edge:a:b, edge:b:a?]
-        const edgesByNode = new Map();     // nodeId -> [edge keys touching node]
-        const undirectedKey = (a,b)=> (a < b ? `${a}|${b}` : `${b}|${a}`);
-
-        for (const [ek, { from, to }] of edges) {
-            const uk = undirectedKey(from,to);
-            if (!undirectedIndex.has(uk)) undirectedIndex.set(uk, []);
-            undirectedIndex.get(uk).push(ek);
-            if (!edgesByNode.has(from)) edgesByNode.set(from, []);
-            if (!edgesByNode.has(to))   edgesByNode.set(to,   []);
-            edgesByNode.get(from).push(ek);
-            edgesByNode.get(to).push(ek);
-        }
-
-        this.graph = { nodes, edges, out, in: incoming, adj, sequences, assembliesIndex, undirectedIndex, edgesByNode, locus: json?.locus ?? null };
+        this.graph = { nodes, edges, out, adj, assembliesIndex, locus: json?.locus ?? null };
         this._dirOut = null;
-        this._inducedCache.clear();
-        return this.graph;
+        return true;
     }
 
     listAssemblyKeys() {
         this.#requireGraph();
-        const keys = new Set();
-        for (const [, n] of this.graph.nodes) for (const k of (n.assemblies || [])) keys.add(k);
-        return [...keys].sort();
+        return [...this.graph.assembliesIndex.keys()].sort();
     }
 
-    debugAssembly(key, sample = 8) {
-        this.#requireGraph();
-        const hits = [];
-        for (const [id, n] of this.graph.nodes) if (n.assemblies && n.assemblies.has(key)) hits.push(id);
-        hits.sort((a,b)=>String(a).localeCompare(String(b), 'en', {numeric:true}));
-        return { key, count: hits.length, sample: hits.slice(0, sample) };
-    }
+    // --- Walks ---
 
-    // ========================= Truth helper =========================
-    getAssemblySubgraph(key) {
-        const { nodesIn, adj } = this._getInduced(key);
-        const ekeys = [];
-        for (const [ek, {from,to}] of this.graph.edges) if (nodesIn.has(from) && nodesIn.has(to)) ekeys.push(ek);
-        const adjObj = {}; for (const [v,set] of adj) adjObj[v] = [...set];
-        return { nodes: [...nodesIn], edges: ekeys, adj: adjObj };
-    }
-
-    // ========================= Walks (strict, oriented) =========================
-    createAssemblyWalk(key, { mode = "auto", startNodeId = null, directionPolicy = "edgeFlow" } = {}) {
-        this.#requireGraph();
-        const { adj, components } = this._getInduced(key);
-
-        // One simple path per component (diameter proxy via double BFS)
-        const paths = [];
-        for (const comp of components) {
-            const p = this._buildStrictPathForComponent(comp, adj);
-            if (p && p.nodes && p.nodes.length) paths.push(p);
-        }
-
-        this._normalizePathDirections(paths, { startNodeId, directionPolicy });
-        if (directionPolicy === "edgeFlow") this._orientPathsToEdges(paths);
-
-        return { key, paths, diagnostics: { nComponents: components.length, mode } };
-    }
-
-    getChosenWalk(key, {
-        mode = "auto",
+    /**
+     * Return a single **linear, non-branching** path for an assembly.
+     * If `startNodeId` is present in the assembly component and `startPolicy:"forceFromNode"`,
+     * the path **starts at that node**.
+     */
+    getAssemblyWalk(assemblyKey, {
         startNodeId = null,
-        directionPolicy = "edgeFlow",
-        trimLeafEnds = false,
-        leafEndBpMax = 0,
-        leafEndNodesMax = 0
+        startPolicy = "preferEndpoint",   // "preferEndpoint" | "forceFromNode"
+        directionPolicy = "edgeFlow"      // "edgeFlow" | "asIs"
     } = {}) {
-        const walk = this.createAssemblyWalk(key, { mode, startNodeId, directionPolicy });
-        const chosen0 = this.#chooseLongestPath(walk.paths);
-        if (!chosen0) return { key, path: null, provenance: { assemblyKey: key, note: "no path" } };
+        this.#requireGraph();
 
-        const prov = this._provenanceForPath(key, chosen0);
+        const induced = this.#induced(assemblyKey);
+        if (induced.nodesIn.size === 0) return { nodes: [], edges: [] };
 
-        let path = chosen0;
-        if (trimLeafEnds && (leafEndBpMax > 0 || leafEndNodesMax > 0)) {
-            const before = chosen0.nodes.slice();
-            path = this._trimLeafEndsForAssembly(key, chosen0, { bpMax: leafEndBpMax, nodesMax: leafEndNodesMax });
-            const { prefixRemoved, suffixRemoved } = this._trimDiff(before, path.nodes);
-            prov.trimmed = {
-                enabled: true,
-                leafEndBpMax, leafEndNodesMax,
-                prefixRemoved,
-                suffixRemoved,
-                totalNodes: prefixRemoved.length + suffixRemoved.length,
-                totalBp: this._bpLenOf(prefixRemoved.concat(suffixRemoved))
-            };
-        } else {
-            prov.trimmed = { enabled: false };
+        if (startNodeId && !induced.nodesIn.has(startNodeId)) {
+            throw new Error(`startNodeId ${startNodeId} is not in assembly ${assemblyKey}`);
         }
 
-        prov.offSpineKeyed = this._countOffSpineKeyed(key, new Set(path.nodes));
-        return { key, path, provenance: prov, diagnostics: walk.diagnostics };
+        const comp = (startNodeId)
+            ? this.#componentContaining(startNodeId, induced.adj)
+            : this.#largestComponentByBp(induced.adj);
+
+        let nodes = (startNodeId && startPolicy === "forceFromNode")
+            ? this.#anchoredPathByDoubleSweep(comp, startNodeId, induced.adj)
+            : this.#diameterPath(comp, induced.adj);
+
+        if (directionPolicy === "edgeFlow" && !(startNodeId && startPolicy === "forceFromNode")) {
+            const sF = this.#edgeFlowScore(nodes);
+            const sR = this.#edgeFlowScore([...nodes].reverse());
+            if (sR > sF) nodes.reverse();
+        }
+
+        const edges = this._recomputeEdges(nodes);
+        return { nodes, edges };
     }
 
-    getChosenWalks({ keys = null, mode = "auto", startNodeId = null, directionPolicy = "edgeFlow" } = {}) {
-        const all = keys ? keys : this.listAssemblyKeys();
-        const resolveStart = (k) => {
-            if (!startNodeId) return null;
-            if (typeof startNodeId === "string") return startNodeId;
-            if (typeof startNodeId === "function") return startNodeId(k);
-            if (startNodeId instanceof Map) return startNodeId.get(k) ?? null;
-            if (typeof startNodeId === "object") return startNodeId[k] ?? null;
-            return null;
-        };
-        return all.map(k => this.getChosenWalk(k, { mode, startNodeId: resolveStart(k), directionPolicy }));
-    }
+    // --- Locus baseline ---
 
-    // ========================= Spine + FAST features =========================
-    setDefaultLocusStartBp(bp) { this.defaultLocusStartBp = Number(bp) || 0; return this.defaultLocusStartBp; }
-    getDefaultLocusStartBp()   { return this.defaultLocusStartBp ?? 0; }
+    setDefaultLocusStartBp(bp) { this._defaultLocusStartBp = Number(bp) || 0; return this._defaultLocusStartBp; }
+    getDefaultLocusStartBp()   { return this._defaultLocusStartBp ?? 0; }
 
-    getSpineFeatures(key, assessOpts = {}, walkOpts = {}) {
+    // --- Spine + features (bounded, fast) ---
+
+    /**
+     * Build a linearized “spine” for an assembly and discover nearby events.
+     * Bounded by caps & a global operation budget to avoid stalls.
+     *
+     * assessOpts:
+     *  - includeAdjacent=true
+     *  - allowMidSpineReentry=true
+     *  - includeDangling=true
+     *  - includeOffSpineComponents="none"|"summary"|"full"
+     *  - maxPathsPerEvent=1
+     *  - maxRegionHops=64, maxRegionNodes=4000, maxRegionEdges=4000
+     *  - operationBudget=500000
+     *  - locusStartBp = (default set via setDefaultLocusStartBp)
+     *
+     * walkOpts: passed to getAssemblyWalk (startNodeId, startPolicy, directionPolicy)
+     */
+    getSpineFeatures(assemblyKey, assessOpts = {}, walkOpts = {}) {
         this.#requireGraph();
 
         const {
-            // discovery/perf (SAFE DEFAULTS)
             includeAdjacent = true,
             allowMidSpineReentry = true,
             includeDangling = true,
-            includeOffSpineComponents = "none", // "none" | "summary" | "full"
-            nestRegions = "none",               // "none" | "shallow"
-
-            // bp origin
-            locusStartBp = (this.defaultLocusStartBp ?? 0),
-
-            // hard caps
-            maxPathsPerEvent = 1,      // at most one alt path (shortest) — avoids explosion
-            maxRegionHops = 64,        // depth cap
-            maxRegionNodes = 4000,     // node cap per event region
-            maxRegionEdges = 4000,     // edge cap per event region
-            operationBudget = 500000   // global step budget for this call (prevents hangs)
+            includeOffSpineComponents = "none",  // "none" | "summary" | "full"
+            maxPathsPerEvent = 1,
+            maxRegionHops = 64,
+            maxRegionNodes = 4000,
+            maxRegionEdges = 4000,
+            operationBudget = 500000,
+            locusStartBp = (this._defaultLocusStartBp ?? 0)
         } = assessOpts || {};
 
-        const {
-            mode = "auto",
-            directionPolicy = "edgeFlow",
-            startNodeId = null,
-            trimLeafEnds = true,
-            leafEndBpMax = 0,
-            leafEndNodesMax = 2
-        } = walkOpts || {};
-
-        const { path, provenance } = this.getChosenWalk(key, { mode, startNodeId, directionPolicy, trimLeafEnds, leafEndBpMax, leafEndNodesMax });
-
-        if (!path) {
+        // 1) Spine path (linear, anchored if requested)
+        const path = this.getAssemblyWalk(assemblyKey, walkOpts);
+        if (!path.nodes.length) {
             return {
-                spine: { assemblyKey: key, nodes: [], edges: [], lengthBp: 0 },
-                events: [], offSpine: [],
-                spineWalk: { key, paths: [] }, path: null, provenance,
+                spine: { assemblyKey, nodes: [], edges: [], lengthBp: 0 },
+                events: [],
+                offSpine: [],
                 aborted: false
             };
         }
 
-        const spineWalk = { key, paths: [path] };
-        const features = this._assessGraphFeaturesFast(spineWalk, {
-            includeAdjacent, allowMidSpineReentry, includeDangling,
-            includeOffSpineComponents, nestRegions,
-            maxPathsPerEvent, maxRegionHops, maxRegionNodes, maxRegionEdges,
-            locusStartBp, operationBudget
-        });
-
-        return { ...features, spineWalk, path, provenance };
-    }
-
-    // Tooltip/helper: exact for spine; projected for off-spine (if in event)
-    getAnyBpExtent(nodeId, features) {
-        if (!features || !features.spine) return null;
-        const m = new Map(features.spine.nodes.map(n => [n.id, { bpStart: n.bpStart, bpEnd: n.bpEnd }]));
-        if (m.has(nodeId)) return m.get(nodeId);
-        for (const ev of (features.events || [])) if (ev.region.nodes.includes(nodeId)) {
-            return { bpStart: ev.anchors.spanStart, bpEnd: ev.anchors.spanEnd };
+        // 2) Spine with bp coords
+        let x = Number(locusStartBp) || 0;
+        const spineNodes = [];
+        for (const id of path.nodes) {
+            const len = this.graph.nodes.get(id)?.lengthBp || 0;
+            spineNodes.push({ id, bpStart: x, bpEnd: x + len, lengthBp: len });
+            x += len;
         }
-        return null;
-    }
+        const spine = {
+            assemblyKey,
+            nodes: spineNodes,
+            edges: path.edges.slice(),
+            lengthBp: spineNodes.length ? (spineNodes[spineNodes.length-1].bpEnd - spineNodes[0].bpStart) : 0
+        };
 
-    // ========================= Internals (FAST assessor) =========================
-    _assessGraphFeaturesFast(spineWalk, opts) {
-        const {
-            includeAdjacent, allowMidSpineReentry, includeDangling,
-            includeOffSpineComponents, nestRegions,
-            maxPathsPerEvent, maxRegionHops, maxRegionNodes, maxRegionEdges,
-            locusStartBp, operationBudget
-        } = opts;
-
-        let budget = Math.max(10000, Number(operationBudget) || 200000); // global step budget
-
-        const path = spineWalk.paths[0];
-        const spine = this._buildSpineBp(path, locusStartBp);
-        spine.assemblyKey = spineWalk.key;
-
+        // 3) Event discovery (bounded)
+        let budget = Math.max(10000, Number(operationBudget) || 200000);
         const onSpine = new Set(spine.nodes.map(n => n.id));
         const bpOf = new Map(spine.nodes.map(n => [n.id, { bpStart: n.bpStart, bpEnd: n.bpEnd }]));
         const events = [];
-        const markVisited = new Set();
+        const seenPairs = new Set();
 
         const hasOffSpineNeighbor = (id) => {
-            for (const u of (this.graph.adj.get(id) || [])) { budget--; if (budget <= 0) break;
+            for (const u of (this.graph.adj.get(id) || [])) {
+                if (--budget <= 0) break;
                 if (!onSpine.has(u)) return true;
             }
             return false;
         };
 
-        const collectRegionEdges = (set) => {
-            const out = new Set();
-            const seenPairs = new Set();
-            const undirectedIndex = this.graph.undirectedIndex;
-            for (const a of set) { budget--; if (budget <= 0) return { edges: out, truncated: true };
-                for (const b of (this.graph.adj.get(a) || [])) {
-                    if (!set.has(b)) continue;
-                    const pair = (a < b) ? `${a}|${b}` : `${b}|${a}`;
-                    if (seenPairs.has(pair)) continue;
-                    seenPairs.add(pair);
-                    const list = undirectedIndex.get(pair);
-                    if (list) for (const ek of list) out.add(ek);
-                    if (out.size > maxRegionEdges) return { edges: out, truncated: true };
-                }
-            }
-            return { edges: out, truncated: false };
-        };
-
-        const regionExplore = (L, R) => {
+        // Explore around (L,R) to find alt region
+        const exploreRegion = (L, R) => {
             const blockSpine = !allowMidSpineReentry;
             const allowed = (id) => (id === L || id === R || !blockSpine || !onSpine.has(id));
 
@@ -336,7 +214,6 @@ class PangenomeService {
                     if (!allowed(u)) continue;
                     if (parent.has(u)) continue;
                     if (d + 1 > maxRegionHops) { truncated = true; continue; }
-
                     parent.set(u, v);
                     region.add(u);
                     if (region.size > maxRegionNodes) { truncated = true; break; }
@@ -346,30 +223,44 @@ class PangenomeService {
                 if (truncated) break;
             }
 
-            const { edges: redges, truncated: edgeTrunc } = collectRegionEdges(region);
-            truncated = truncated || edgeTrunc;
+            // Region edges (directed keys, de-duplicated by undirected pair)
+            const redges = new Set();
+            const undPairs = new Set();
+            for (const a of region) {
+                for (const b of (this.graph.adj.get(a) || [])) {
+                    if (!region.has(b)) continue;
+                    const pair = (a < b) ? `${a}|${b}` : `${b}|${a}`;
+                    if (undPairs.has(pair)) continue;
+                    undPairs.add(pair);
+                    const k1 = `edge:${a}:${b}`;
+                    const k2 = `edge:${b}:${a}`;
+                    if (this.graph.edges.has(k1)) redges.add(k1);
+                    if (this.graph.edges.has(k2)) redges.add(k2);
+                    if (redges.size > maxRegionEdges) { truncated = true; break; }
+                }
+                if (truncated) break;
+            }
 
-            return { parent, region, redges, touchedR, truncated };
+            return { parent, region, redges: [...redges], touchedR, truncated };
         };
 
         const shortestAltPath = (L, R, region) => {
-            // BFS shortest by hops within region
             const q = [L];
-            const parent = new Map([[L, null]]);
+            const p = new Map([[L, null]]);
             while (q.length) {
                 const v = q.shift();
                 for (const u of (this.graph.adj.get(v) || [])) {
-                    budget--; if (budget <= 0) return null;
-                    if (!region.has(u) || parent.has(u)) continue;
-                    parent.set(u, v);
+                    if (--budget <= 0) return null;
+                    if (!region.has(u) || p.has(u)) continue;
+                    p.set(u, v);
                     if (u === R) {
                         const nodes = [];
-                        let cur = u;
-                        while (cur != null) { nodes.push(cur); cur = parent.get(cur); }
+                        for (let cur = u; cur != null; cur = p.get(cur)) nodes.push(cur);
                         nodes.reverse();
                         const edges = this._recomputeEdges(nodes);
                         const offNodes = nodes.filter(id => !onSpine.has(id));
-                        return { nodes, edges, altLenBp: this._bpLenOf(offNodes) };
+                        const altLenBp = offNodes.reduce((s, id)=> s + (this.graph.nodes.get(id)?.lengthBp || 0), 0);
+                        return { nodes, edges, altLenBp };
                     }
                     q.push(u);
                 }
@@ -377,39 +268,43 @@ class PangenomeService {
             return null;
         };
 
-        // Iterate adjacent pairs along the spine (linear)
         for (let i = 0; i < spine.nodes.length - 1; i++) {
             if (budget <= 0) break;
-
             const L = spine.nodes[i].id;
-            const R = spine.nodes[i + 1].id;
+            const R = spine.nodes[i+1].id;
             const pairKey = `${L}|${R}`;
-            if (markVisited.has(pairKey)) continue;
+            if (seenPairs.has(pairKey)) continue;
 
-            // Fast degree check
             if (!hasOffSpineNeighbor(L) && !hasOffSpineNeighbor(R)) {
-                markVisited.add(pairKey);
+                seenPairs.add(pairKey);
                 continue;
             }
 
-            const { region, redges, touchedR, truncated } = regionExplore(L, R);
-            const onlyLR = region.size === 2 && region.has(L) && region.has(R);
-            if (onlyLR && !includeAdjacent) { markVisited.add(pairKey); continue; }
+            const { region, redges, touchedR, truncated } = exploreRegion(L, R);
 
-            const hasOffSpine = [...region].some(n => !onSpine.has(n));
+            // If region == {L,R} only and we don't want adjacent-only pills, skip
+            const onlyLR = (region.size === 2 && region.has(L) && region.has(R));
+            if (onlyLR && !includeAdjacent) { seenPairs.add(pairKey); continue; }
+
+            // Must actually include off-spine content
+            const hasOff = [...region].some(n => !onSpine.has(n));
+            if (!hasOff) { seenPairs.add(pairKey); continue; }
+
             const touchesMidSpine = [...region].some(n => n !== L && n !== R && onSpine.has(n));
-            if (!hasOffSpine) { markVisited.add(pairKey); continue; }
 
             let type = null;
-            if (touchedR) type = touchesMidSpine ? "braid" : ((bpOf.get(R).bpStart - bpOf.get(L).bpEnd) === 0 ? "pill" : "simple_bubble");
-            else if (includeDangling) type = "dangling";
-            if (!type) { markVisited.add(pairKey); continue; }
+            if (touchedR) {
+                const refLen = Math.max(0, (bpOf.get(R).bpStart - bpOf.get(L).bpEnd));
+                type = touchesMidSpine ? "braid" : (refLen === 0 ? "pill" : "simple_bubble");
+            } else if (includeDangling) {
+                type = "dangling";
+            }
+            if (!type) { seenPairs.add(pairKey); continue; }
 
             const spanStart = bpOf.get(L)?.bpEnd ?? 0;
             const spanEnd   = bpOf.get(R)?.bpStart ?? spanStart;
             const refLenBp  = Math.max(0, spanEnd - spanStart);
 
-            // Alt paths: at most 1 shortest (bounded)
             const paths = [];
             if (touchedR && maxPathsPerEvent > 0) {
                 const p = shortestAltPath(L, R, region);
@@ -417,49 +312,65 @@ class PangenomeService {
             }
 
             const regionNodes = [...region].filter(id => !(id === L && id === R));
-            const anchors = { leftId: L, rightId: R, spanStart, spanEnd, refLenBp, orientation: "forward" };
-            const stats = {
-                nPaths: paths.length,
-                minAltLenBp: paths.length ? Math.min(...paths.map(p => p.altLenBp)) : 0,
-                maxAltLenBp: paths.length ? Math.max(...paths.map(p => p.altLenBp)) : 0,
-                truncatedPaths: truncated,
-                removedSpineLeg: true
-            };
-
             events.push({
                 id: `${L}~${R}`,
                 type,
-                anchors,
-                region: { nodes: regionNodes, edges: [...redges], truncated: !!truncated },
+                anchors: { leftId: L, rightId: R, spanStart, spanEnd, refLenBp, orientation: "forward" },
+                region: { nodes: regionNodes, edges: redges, truncated: !!truncated },
                 paths,
-                stats,
+                stats: {
+                    nPaths: paths.length,
+                    minAltLenBp: paths.length ? Math.min(...paths.map(p => p.altLenBp)) : 0,
+                    maxAltLenBp: paths.length ? Math.max(...paths.map(p => p.altLenBp)) : 0,
+                    truncatedPaths: !!truncated,
+                    removedSpineLeg: true
+                },
                 relations: { parentId: null, childrenIds: [], overlapGroup: null, sameAnchorGroup: null }
             });
 
-            markVisited.add(pairKey);
+            seenPairs.add(pairKey);
         }
 
-        // Off-spine components (default off)
+        // 4) Optional: off-spine components (context only)
         const offSpine = [];
         if (includeOffSpineComponents !== "none" && budget > 0) {
-            const seen = new Set();
+            const seen = new Set([...onSpine]);
             for (const [id] of this.graph.nodes) {
                 if (budget <= 0) break;
-                if (onSpine.has(id) || seen.has(id)) continue;
+                if (seen.has(id)) continue;
                 const q = [id], comp = new Set([id]); seen.add(id);
                 let touches = false;
                 while (q.length) {
-                    const v = q.shift(); budget--; if (budget <= 0) break;
-                    if (onSpine.has(v)) touches = true;
-                    for (const u of (this.graph.adj.get(v) || [])) if (!seen.has(u)) { seen.add(u); comp.add(u); q.push(u); }
-                    if (comp.size > maxRegionNodes * 2) break; // hard stop for huge islands
+                    const v = q.shift();
+                    for (const u of (this.graph.adj.get(v) || [])) {
+                        if (--budget <= 0) break;
+                        if (onSpine.has(u)) touches = true;
+                        if (!seen.has(u)) { seen.add(u); comp.add(u); q.push(u); }
+                        if (comp.size > maxRegionNodes * 2) break;
+                    }
+                    if (budget <= 0) break;
                 }
                 if (!touches) {
                     if (includeOffSpineComponents === "summary") {
                         offSpine.push({ nodes: [...comp], edges: [], keyed: false });
                     } else {
-                        const { edges: e, truncated } = collectRegionEdges(comp);
-                        offSpine.push({ nodes: [...comp], edges: [...e], keyed: false, truncated });
+                        // full: collect internal directed edges
+                        const redges = new Set();
+                        const pairs = new Set();
+                        for (const a of comp) {
+                            for (const b of (this.graph.adj.get(a) || [])) {
+                                if (!comp.has(b)) continue;
+                                const pair = (a < b) ? `${a}|${b}` : `${b}|${a}`;
+                                if (pairs.has(pair)) continue;
+                                pairs.add(pair);
+                                const k1 = `edge:${a}:${b}`, k2 = `edge:${b}:${a}`;
+                                if (this.graph.edges.has(k1)) redges.add(k1);
+                                if (this.graph.edges.has(k2)) redges.add(k2);
+                                if (redges.size > maxRegionEdges) break;
+                            }
+                            if (redges.size > maxRegionEdges) break;
+                        }
+                        offSpine.push({ nodes: [...comp], edges: [...redges], keyed: false, truncated: redges.size > maxRegionEdges });
                     }
                 }
             }
@@ -469,298 +380,183 @@ class PangenomeService {
         return { spine, events, offSpine, aborted };
     }
 
-    // ========================= Private utils =========================
-    #edgeKeyOf(a, b) { return `edge:${a}:${b}`; }
-    #requireGraph() { if (!this.graph) throw new Error("PangenomeService: call loadData/createGraph(json) first."); }
+    // ---------- Private: induced subgraph & components ----------
 
-    _getInduced(key) {
-        if (this._inducedCache.has(key)) return this._inducedCache.get(key);
-
+    #induced(assemblyKey) {
         const nodesIn = new Set();
-        for (const [id, n] of this.graph.nodes) if (n.assemblies.has(key)) nodesIn.add(id);
+        for (const [id, n] of this.graph.nodes) if (n.assemblies.has(assemblyKey)) nodesIn.add(id);
 
         const adj = new Map();
-        const add = (a,b)=>{ if(!adj.has(a)) adj.set(a,new Set()); adj.get(a).add(b); };
+        const add=(a,b)=>{ if(!adj.has(a)) adj.set(a,new Set()); adj.get(a).add(b); };
 
-        for (const [ek, {from,to}] of this.graph.edges) if (nodesIn.has(from) && nodesIn.has(to)) { add(from,to); add(to,from); }
-
-        const components = [];
-        const seen = new Set();
-        for (const v of nodesIn) {
-            if (seen.has(v)) continue;
-            const q = [v], comp = new Set([v]); seen.add(v);
-            while (q.length) {
-                const x = q.shift();
-                for (const y of (adj.get(x) || [])) if (!seen.has(y)) { seen.add(y); comp.add(y); q.push(y); }
-            }
-            components.push(comp);
+        for (const [id] of nodesIn) adj.set(id, new Set());
+        for (const [from, outs] of this.graph.out) if (nodesIn.has(from)) {
+            for (const to of outs) if (nodesIn.has(to)) { add(from,to); add(to,from); }
         }
-
-        const induced = { nodesIn, adj, components };
-        this._inducedCache.set(key, induced);
-        return induced;
+        return { nodesIn, adj };
     }
 
-    #chooseLongestPath(paths) {
-        if (!paths || !paths.length) return null;
-        let best = null, bestLen = -1;
-        for (const p of paths) {
-            const L = (p && Number.isFinite(p.bpLen)) ? p.bpLen : this._bpLenOf(p?.nodes || []);
-            if (L > bestLen) { best = p; bestLen = L; }
+    #componentContaining(start, adj) {
+        const seen = new Set([start]);
+        const q = [start];
+        while (q.length) {
+            const v = q.shift();
+            for (const u of (adj.get(v) || [])) if (!seen.has(u)) { seen.add(u); q.push(u); }
+        }
+        return seen;
+    }
+
+    #largestComponentByBp(adj) {
+        const lenOf = (id)=> (this.graph.nodes.get(id)?.lengthBp || 0);
+        const seen = new Set();
+        let best = null, bestBp = -1;
+
+        for (const v of adj.keys()) {
+            if (seen.has(v)) continue;
+            const q = [v], comp = new Set([v]); seen.add(v);
+            let bp = lenOf(v);
+            while (q.length) {
+                const x = q.shift();
+                for (const y of (adj.get(x) || [])) if (!seen.has(y)) { seen.add(y); comp.add(y); q.push(y); bp += lenOf(y); }
+            }
+            if (bp > bestBp) { bestBp = bp; best = comp; }
         }
         return best;
     }
 
-    _bpLenOf(nodes) {
-        let L = 0;
-        for (const id of nodes) {
-            const n = this.graph.nodes.get(id);
-            if (n && Number.isFinite(n.lengthBp)) L += n.lengthBp;
-        }
-        return L;
+    // ---------- Private: path algorithms (deterministic) ----------
+
+    #diameterPath(comp, adj) {
+        const seed = [...comp].sort(this.#idCmp)[0];
+        const a = this.#bfsFarthest(seed, adj).far;
+        const { far: b, parent } = this.#bfsFarthest(a, adj);
+        return this.#reconstruct(parent, b);
     }
 
-    _recomputeEdges(nodes) {
-        const out = [];
-        for (let i = 0; i < nodes.length - 1; i++) {
-            const a = nodes[i], b = nodes[i + 1];
-            const f = this.#edgeKeyOf(a, b);
-            const r = this.#edgeKeyOf(b, a);
-            if (this.graph.edges.has(f)) out.push(f);
-            else if (this.graph.edges.has(r)) out.push(r);
-        }
-        return out;
+    #anchoredPathByDoubleSweep(comp, anchor, adj) {
+        if (!comp.has(anchor)) throw new Error("Anchor not in component.");
+        const fromA = this.#bfsAll(anchor, adj);
+        const end = this.#argMaxBy(comp, (u)=>[
+            fromA.dist.get(u) ?? -Infinity,
+            fromA.bp.get(u) ?? -Infinity,
+            -this.#idRank(u)
+        ]);
+        const path = this.#reconstruct(fromA.parent, end);
+        const idx = path.indexOf(anchor);
+        return (idx <= 0) ? path : path.slice(idx);
     }
 
-    _buildSpineBp(path, locusStartBp) {
-        let x = Number(locusStartBp) || 0;
-        const nodes = [];
-        for (const id of path.nodes) {
-            const len = this.graph.nodes.get(id)?.lengthBp || 0;
-            nodes.push({ id, bpStart: x, bpEnd: x + len, lengthBp: len });
-            x += len;
-        }
-        return {
-            assemblyKey: null,
-            nodes,
-            edges: path.edges.slice(),
-            lengthBp: nodes.length ? nodes[nodes.length - 1].bpEnd - nodes[0].bpStart : 0
-        };
-    }
-
-    _bfsFarthest(start, adj) {
+    #bfsFarthest(start, adj) {
         const parent = new Map([[start, null]]);
+        const dist   = new Map([[start, 0]]);
         const q = [start];
-        let last = start;
+        let far = start;
+
         while (q.length) {
             const v = q.shift();
-            last = v;
-            for (const u of (adj.get(v) || [])) if (!parent.has(u)) { parent.set(u, v); q.push(u); }
+            for (const u of (adj.get(v) || [])) {
+                if (dist.has(u)) continue;
+                parent.set(u, v);
+                dist.set(u, dist.get(v) + 1);
+                q.push(u);
+                if (dist.get(u) > dist.get(far) || (dist.get(u) === dist.get(far) && this.#idCmp(u, far) < 0)) {
+                    far = u;
+                }
+            }
         }
-        return { far: last, parent };
+        return { far, parent, dist };
     }
 
-    _reconstructPath(parent, dst) {
-        const nodes = [];
-        let cur = dst;
-        while (cur != null) { nodes.push(cur); cur = parent.get(cur); }
-        nodes.reverse();
-        const edges = this._recomputeEdges(nodes);
-        return { nodes, edges, bpLen: this._bpLenOf(nodes), leftEndpoint: nodes[0], rightEndpoint: nodes[nodes.length - 1] };
-    }
+    #bfsAll(start, adj) {
+        const lenOf = (id)=> (this.graph.nodes.get(id)?.lengthBp || 0);
+        const parent = new Map([[start, null]]);
+        const dist   = new Map([[start, 0]]);
+        const bp     = new Map([[start, lenOf(start)]]);
+        const q = [start];
 
-    _buildStrictPathForComponent(compSet, adj) {
-        let start = null;
-        for (const v of compSet) if ((adj.get(v)?.size || 0) === 1) { start = v; break; }
-        if (!start) start = compSet.values().next().value;
-        const a = this._bfsFarthest(start, adj).far;
-        const { far: b, parent } = this._bfsFarthest(a, adj);
-        return this._reconstructPath(parent, b);
-    }
-
-    _normalizePathDirections(paths, { startNodeId = null, directionPolicy = "asFound" } = {}) {
-        if (!Array.isArray(paths) || paths.length === 0) return;
-        const asNum = (id) => { const m = String(id).match(/^([0-9]+)/); return m ? Number(m[1]) : Number.NEGATIVE_INFINITY; };
-        const edgeVote = (nodes) => {
-            let score = 0;
-            const out = this.#directedOut();
-            for (let i = 0; i < nodes.length - 1; i++) {
-                const a = nodes[i], b = nodes[i + 1];
-                if (out.get(a)?.has(b)) score += 1;
-                else if (out.get(b)?.has(a)) score -= 1;
+        while (q.length) {
+            const v = q.shift();
+            for (const u of (adj.get(v) || [])) {
+                const candD = dist.get(v) + 1;
+                const candB = (bp.get(v) || 0) + lenOf(u);
+                if (!dist.has(u)) {
+                    parent.set(u, v);
+                    dist.set(u, candD);
+                    bp.set(u, candB);
+                    q.push(u);
+                } else if (candD === dist.get(u) && candB > bp.get(u)) {
+                    parent.set(u, v);
+                    bp.set(u, candB);
+                }
             }
-            return score;
-        };
-
-        for (const p of paths) {
-            if (!p || !Array.isArray(p.nodes) || p.nodes.length < 2) continue;
-            let policyApplied = "asFound";
-            const nodes = p.nodes;
-
-            if (startNodeId) {
-                const head = nodes[0] === startNodeId;
-                const tail = nodes[nodes.length - 1] === startNodeId;
-                if (!head && tail) { nodes.reverse(); policyApplied = "startNodeId"; }
-            }
-
-            if (policyApplied === "asFound" && directionPolicy === "edgeFlow") {
-                const score = edgeVote(nodes);
-                if (score < 0) { nodes.reverse(); policyApplied = "edgeFlow"; }
-                else if (score > 0) policyApplied = "edgeFlow";
-            }
-
-            if (policyApplied === "asFound" &&
-                (directionPolicy === "nodeIdAsc" || directionPolicy === "nodeIdDesc")) {
-                const first = asNum(nodes[0]), last = asNum(nodes[nodes.length - 1]);
-                const needAsc  = directionPolicy === "nodeIdAsc"  && first > last;
-                const needDesc = directionPolicy === "nodeIdDesc" && first < last;
-                if (needAsc || needDesc) { nodes.reverse(); policyApplied = directionPolicy; }
-                else policyApplied = directionPolicy;
-            }
-
-            p.edges = this._recomputeEdges(nodes);
-            p.leftEndpoint  = nodes[0];
-            p.rightEndpoint = nodes[nodes.length - 1];
-            p.direction = { start: p.leftEndpoint, end: p.rightEndpoint, policyApplied };
         }
+        return { parent, dist, bp };
+    }
+
+    #reconstruct(parent, end) {
+        const arr = [];
+        for (let cur = end; cur != null; cur = parent.get(cur)) arr.push(cur);
+        arr.reverse();
+        return arr;
+    }
+
+    // ---------- Private: utilities ----------
+
+    _recomputeEdges(nodes) {
+        const keys = [];
+        for (let i = 0; i < nodes.length - 1; i++) {
+            const a = nodes[i], b = nodes[i+1];
+            const k1 = `edge:${a}:${b}`, k2 = `edge:${b}:${a}`;
+            if (this.graph.edges.has(k1)) keys.push(k1);
+            else if (this.graph.edges.has(k2)) keys.push(k2);
+            else keys.push(`edge:${a}:${b}`); // fall back for display
+        }
+        return keys;
     }
 
     #directedOut() {
         if (this._dirOut) return this._dirOut;
         const out = new Map();
-        if (this.graph?.out?.size) {
-            for (const [a, setB] of this.graph.out) out.set(a, new Set(setB));
-        } else {
-            for (const [ek, {from,to}] of this.graph.edges) {
-                if (!out.has(from)) out.set(from, new Set());
-                out.get(from).add(to);
-            }
-        }
+        for (const [a, setB] of this.graph.out) out.set(a, new Set(setB));
         this._dirOut = out;
         return out;
     }
 
-    _orientPathsToEdges(paths) {
-        if (!Array.isArray(paths)) return;
+    #edgeFlowScore(nodes) {
         const out = this.#directedOut();
-        const score = (nodes) => {
-            let s = 0;
-            for (let i = 0; i < nodes.length - 1; i++) {
-                const a = nodes[i], b = nodes[i + 1];
-                if (out.get(a)?.has(b)) s++;
-                else if (out.get(b)?.has(a)) s--;
-            }
-            return s;
-        };
-        for (const p of paths) {
-            if (!p || !Array.isArray(p.nodes) || p.nodes.length < 2) continue;
-            if (p.direction && p.direction.policyApplied === "startNodeId") continue;
-            const fwd = score(p.nodes), rev = score([...p.nodes].reverse());
-            if (rev > fwd) {
-                p.nodes.reverse();
-                p.edges = this._recomputeEdges(p.nodes);
-                p.leftEndpoint  = p.nodes[0];
-                p.rightEndpoint = p.nodes[p.nodes.length - 1];
-                p.direction = { start: p.leftEndpoint, end: p.rightEndpoint, policyApplied: "edgeFlow" };
-            } else if (fwd > rev) {
-                p.direction = { start: p.nodes[0], end: p.nodes[p.nodes.length - 1], policyApplied: "edgeFlow" };
-            }
-        }
-    }
-
-    _trimLeafEndsForAssembly(key, path, { bpMax = 0, nodesMax = 0 } = {}) {
-        if (!path || !Array.isArray(path.nodes) || path.nodes.length < 2) return path;
-        const { adj } = this._getInduced(key);
-        const lenOf = (id) => (this.graph.nodes.get(id)?.lengthBp || 0);
-
-        const sideLen = (forward) => {
-            let i = forward ? 0 : path.nodes.length - 1;
-            let j = forward ? 1 : path.nodes.length - 2;
-            let total = 0, n = 0;
-            while (i >= 0 && j >= 0 && i < path.nodes.length && j < path.nodes.length) {
-                const a = path.nodes[i], b = path.nodes[j];
-                const degA = (adj.get(a)?.size || 0);
-                if (degA !== 1) break;
-                total += lenOf(a); n++;
-                i = forward ? i + 1 : i - 1;
-                j = forward ? j + 1 : j - 1;
-                const mid = path.nodes[i];
-                const degMid = (adj.get(mid)?.size || 0);
-                if (degMid !== 2) break;
-            }
-            return { totalBp: total, count: n, cutIndex: i };
-        };
-
-        let left = 0, right = path.nodes.length;
-        if (bpMax > 0 || nodesMax > 0) {
-            const L = sideLen(true);
-            if ((bpMax > 0 && L.totalBp <= bpMax) || (nodesMax > 0 && L.count <= nodesMax)) {
-                left = Math.min(Math.max(L.cutIndex, 0), right - 2);
-            }
-            const R = sideLen(false);
-            if ((bpMax > 0 && R.totalBp <= bpMax) || (nodesMax > 0 && R.count <= nodesMax)) {
-                right = Math.max(Math.min(R.cutIndex + 1, path.nodes.length), left + 2);
-            }
-        }
-        if (left === 0 && right === path.nodes.length) return path;
-
-        const nodes = path.nodes.slice(left, right);
-        return {
-            nodes,
-            edges: this._recomputeEdges(nodes),
-            bpLen: this._bpLenOf(nodes),
-            leftEndpoint: nodes[0],
-            rightEndpoint: nodes[nodes.length - 1],
-            direction: { start: nodes[0], end: nodes[nodes.length - 1], policyApplied: (path.direction?.policyApplied || "trimmed") }
-        };
-    }
-
-    _trimDiff(before, after) {
-        let i = 0; while (i < before.length && i < after.length && before[i] === after[i]) i++;
-        let j = 0; while (j < before.length && j < after.length && before[before.length-1-j] === after[after.length-1-j]) j++;
-        const prefixRemoved = before.slice(0, before.length - (after.length + (before.length - after.length - j)));
-        const suffixRemoved = before.slice(before.length - j + 0);
-        // The above is conservative; provide straightforward version instead:
-        const pr = before.slice(0, i);
-        const sr = before.slice(before.length - j);
-        return { prefixRemoved: pr, suffixRemoved: sr };
-    }
-
-    _countOffSpineKeyed(key, pathNodeSet) {
-        const set = this.graph.assembliesIndex.get(key) || new Set();
-        let c = 0; for (const id of set) if (!pathNodeSet.has(id)) c++;
-        return c;
-    }
-
-    _edgeFlowScores(nodes) {
-        const out = this.#directedOut();
-        let fwd = 0, rev = 0;
+        let s = 0;
         for (let i = 0; i < nodes.length - 1; i++) {
-            const a = nodes[i], b = nodes[i + 1];
-            if (out.get(a)?.has(b)) fwd++;
-            if (out.get(b)?.has(a)) rev++;
+            const a = nodes[i], b = nodes[i+1];
+            if (out.get(a)?.has(b)) s++;
+            else if (out.get(b)?.has(a)) s--;
         }
-        const rnodes = [...nodes].reverse();
-        let fwdR = 0, revR = 0;
-        for (let i = 0; i < rnodes.length - 1; i++) {
-            const a = rnodes[i], b = rnodes[i + 1];
-            if (out.get(a)?.has(b)) fwdR++;
-            if (out.get(b)?.has(a)) revR++;
-        }
-        return { forward: fwd - rev, reverse: fwdR - revR };
+        return s;
     }
 
-    _provenanceForPath(key, path) {
-        const ef = this._edgeFlowScores(path.nodes);
-        return {
-            assemblyKey: key,
-            endpoints: { start: path.leftEndpoint, end: path.rightEndpoint },
-            direction: path.direction || { policyApplied: "unknown" },
-            edgeFlow: { forwardScore: ef.forward, reverseScore: ef.reverse, chosen: (ef.forward >= ef.reverse) ? "forward" : "reverse" },
-            method: "induced-longest-simple + edgeFlow + optional leafTrim",
-            trimmed: { enabled: false },
-            offSpineKeyed: 0
-        };
+    #idCmp = (a, b) => String(a).localeCompare(String(b), 'en', { numeric: true });
+    #idRank = (a) => { const m = String(a).match(/^(\d+)/); return m ? Number(m[1]) : Number.POSITIVE_INFINITY; };
+
+    #argMaxBy(iterable, keyFn) {
+        let best = null, bestK = null;
+        for (const x of iterable) {
+            const k = keyFn(x);
+            if (!bestK || this.#tupleCmp(k, bestK) > 0) { best = x; bestK = k; }
+        }
+        return best;
+    }
+
+    #tupleCmp(a, b) {
+        const n = Math.max(a.length, b.length);
+        for (let i = 0; i < n; i++) {
+            const va = a[i] ?? 0, vb = b[i] ?? 0;
+            if (va === vb) continue;
+            return (va > vb) ? 1 : -1;
+        }
+        return 0;
+    }
+
+    #requireGraph() {
+        if (!this.graph) throw new Error("PangenomeService: call loadData(json) first.");
     }
 }
 

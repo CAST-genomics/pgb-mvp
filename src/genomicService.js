@@ -58,20 +58,20 @@ class GenomicService {
 
             const assessmentConfig =
                 {
-                    includeOffSpineComponents: "none", // avoids global walks
-                    maxPathsPerEvent: 1,               // one shortest alt only
+                    includeOffSpineComponents: "none",
+                    maxPathsPerEvent: 1,
                     maxRegionHops: 64,
                     maxRegionNodes: 4000,
                     maxRegionEdges: 4000,
-                    operationBudget: 500000,           // global guard
+                    operationBudget: 500000,
                     locusStartBp: this.locus.startBP
                 };
 
             const walkConfig =
                 {
+                    // startNodeId: this.startNode,
+                    startPolicy: "forceFromNode",
                     directionPolicy: "edgeFlow",
-                    trimLeafEnds: true,
-                    leafEndNodesMax: 2
                 };
 
             const features = pangenomeService.getSpineFeatures(assemblyKey, assessmentConfig, walkConfig)
