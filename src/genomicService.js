@@ -51,19 +51,30 @@ class GenomicService {
         }
 
         // Build assembly walk map
+
         pangenomeService.setDefaultLocusStartBp(this.locus.startBP)
 
         for (const assemblyKey of this.assemblySet){
 
-            const features =
-                pangenomeService.getSpineFeatures(assemblyKey,
+            const assessmentConfig =
+                {
+                    includeOffSpineComponents: "none", // avoids global walks
+                    maxPathsPerEvent: 1,               // one shortest alt only
+                    maxRegionHops: 64,
+                    maxRegionNodes: 4000,
+                    maxRegionEdges: 4000,
+                    operationBudget: 500000,           // global guard
+                    locusStartBp: this.locus.startBP
+                };
 
-                    // assessment options
-                    { includeAdjacent: true, includeUpstream: false, allowMidSpineReentry: true, includeDangling: true, includeOffSpineComponents: true, nestRegions: "none", maxPathsPerEvent: 5 },
+            const walkConfig =
+                {
+                    directionPolicy: "edgeFlow",
+                    trimLeafEnds: true,
+                    leafEndNodesMax: 2
+                };
 
-                    // walk options
-                    { mode: "auto", directionPolicy: "edgeFlow" }
-                );
+            const features = pangenomeService.getSpineFeatures(assemblyKey, assessmentConfig, walkConfig)
 
             this.assemblyWalkMap.set(assemblyKey, features)
         }

@@ -1,856 +1,640 @@
-// PangenomeService.js — refreshed build (2025‑08‑20)
-// Plain JavaScript (ES Module). No external deps. Drop‑in replacement.
-//
-// Highlights in this refresh:
-//  - Patch A: more defensive #decideMode for tiny/degenerate components
-//  - Patch B: robust #extractPathBlockCut (singleton/cycle fallbacks)
-//  - Patch C: call‑site fallback in createAssemblyWalk (never drop comps)
-//  - Path sampling bugfix in assessGraphFeatures: Dijkstra runs on MUTABLE
-//    adjacency; edges consumed between iterations; duplicate guard
-//  - Convenience: setActiveSpine / getBpExtent / getProjectedBpInEvent /
-//    getAnyBpExtent / indexWalkBpExtents helpers
-//  - Key indexing accepts both "#" and "|" delimiters for assembly keys
+// PangenomeService.js — bullet-proof, performant (pure JavaScript)
 
-export default class PangenomeService {
+/* Design notes (tl;dr)
+ * - Loader builds fast indexes: out/in/adj, edgesByNode, undirectedIndex, assembliesIndex.
+ * - createAssemblyWalk(): builds strict simple paths (one per component) in O(V+E) using 2×BFS.
+ * - getChosenWalk(): chooses longest-by-bp path; orients by edgeFlow; optional leaf-trim by caps.
+ * - getSpineFeatures(): calls getChosenWalk() then a FAST assessor:
+ *     * local, bounded BFS around each spine leg (L–R) with hop cap + node/edge budgets
+ *     * optional 1× shortest alt path inside region (no enumeration)
+ *     * zero global scans; all per-event work is O(region)
+ * - Hard budgets: operationBudget, maxRegionHops/Nodes/Edges, maxAltPaths=1 by default
+ * - Off-spine components off by default (set "summary" | "full" if needed)
+ */
+
+class PangenomeService {
     constructor(json = null) {
-        this.graph = null;
-        this._dirOut = null; // cache of directed out-edges for orientation
-        // active spine bp lookups for tooltips
-        this._spineKey = null;
-        this._bpStart = null; // Map<nodeId, number>
-        this._bpEnd = null;   // Map<nodeId, number>
+        this.graph = null;                 // { nodes, edges, out, in, adj, sequences, assembliesIndex, edgesByNode, undirectedIndex, locus }
+        this._dirOut = null;               // cache of directed out map
+        this._inducedCache = new Map();    // assemblyKey -> { nodesIn:Set, adj:Map, components:[Set] }
+        this.defaultLocusStartBp = 0;
         if (json) this.createGraph(json);
     }
 
-    // ========================= Public API =========================
+    // ========================= Dataset lifecycle =========================
+    loadData(json, opts) { return this.createGraph(json, opts); }
+    reload(json, opts)   { this.clear(); return this.createGraph(json, opts); }
+    clear()              { this.graph = null; this._dirOut = null; this._inducedCache.clear(); return true; }
+    getGraph()           { return this.graph; }
 
-    /**
-     * Return the single chosen (longest) linear path for a given assembly key.
-     * Convenience wrapper around createAssemblyWalk that guarantees exactly one path.
-     */
-    getChosenWalk(key, { mode = "auto", startNodeId = null, directionPolicy = "edgeFlow" } = {}) {
-        const walk = this.createAssemblyWalk(key, { mode, startNodeId, directionPolicy });
-        const path = this.#chooseLongestPath(walk.paths);
-        return { key: walk.key, path, diagnostics: walk.diagnostics };
-    }
+    // ========================= Loader (fast indexes) =========================
+    createGraph(json, { assemblyKeyDelim = "#" } = {}) {
+        const nodes           = new Map();
+        const edges           = new Map();
+        const out             = new Map();
+        const incoming        = new Map();
+        const adj             = new Map();
+        const sequences       = new Map();
+        const assembliesIndex = new Map();
 
-    /**
-     * Return chosen (longest) path per assembly for multiple keys.
-     */
-    getChosenWalks({ keys = null, mode = "auto", startNodeId = null, directionPolicy = "edgeFlow" } = {}) {
-        const all = keys ? keys : this.listAssemblyKeys();
-        return all.map(k => this.getChosenWalk(k, { mode, startNodeId, directionPolicy }));
-    }
+        const addOut = (a,b)=>{ if(!out.has(a)) out.set(a,new Set()); out.get(a).add(b); };
+        const addIn  = (a,b)=>{ if(!incoming.has(b)) incoming.set(b,new Set()); incoming.get(b).add(a); };
+        const addAdj = (a,b)=>{ if(!adj.has(a)) adj.set(a,new Set()); if(!adj.has(b)) adj.set(b,new Set()); adj.get(a).add(b); adj.get(b).add(a); };
 
-    /**
-     * One-stop: build chosen spine *features* for a given assembly key.
-     * Returns { spine, events, offSpine, spineWalk, path } so callers can skip wiring.
-     */
-    getSpineFeatures(key, assessOpts = {}, { mode = "auto", startNodeId = null, directionPolicy = "edgeFlow" } = {}) {
-        const { locusStartBp = (this.defaultLocusStartBp ?? 0), ...restAssess } = assessOpts || {};
-        const { path } = this.getChosenWalk(key, { mode, startNodeId, directionPolicy });
-        if (!path) return { spine: { assemblyKey: key, nodes: [], edges: [], lengthBp: 0 }, events: [], offSpine: [], spineWalk: { key, paths: [] }, path: null };
-        const spineWalk = { key, paths: [path] };
-        const features = this.assessGraphFeatures(spineWalk, { locusStartBp, ...restAssess });
-        return { ...features, spineWalk, path };
-    }
-
-    /**
-     * Parse input JSON to internal graph.
-     * - nodes: Map<id, { id, sign, bareId, lengthBp, assemblies[], seq? }>
-     * - edges: Map<edgeKey, { a, b, variants[] }>, where edgeKey = `edge:${a}:${b}`
-     * - adj:   Map<id, string[]> (undirected neighbor list for traversal)
-     * - index: { byAssembly: Map<assemblyKey, Set<nodeId>> }
-     */
-    createGraph(json) {
-        if (!json || typeof json !== "object") throw new Error("createGraph: bad JSON");
-
-        const nodes = new Map();
-        const edges = new Map();
-        const adjSet = new Map();
-        const index = { byAssembly: new Map() };
-
-        const seqObj  = json.sequence || {};   // { id: "ACGT..." }
-        const nodeObj = json.node     || {};   // { id: { length?, assembly?[] } }
-        const rawEdges = Array.isArray(json.edge) ? json.edge : [];
-
-        const parseSignedId = (id) => {
-            const m = String(id).match(/^(.+?)([+-])$/);
-            if (!m) throw new Error(`Node id "${id}" must end with + or -`);
-            return { bare: m[1], sign: m[2] };
-        };
-
-        // ---- nodes
-        for (const id in nodeObj) {
-            const n = nodeObj[id] || {};
-            const { bare, sign } = parseSignedId(id);
-
-            // Accept both | and # forms; index both so either works
-            const assemblies = [];
-            const assemblyArr = Array.isArray(n.assembly) ? n.assembly : [];
-            for (const a of assemblyArr) {
-                if (!a) continue;
-                const name = a.assembly_name;
-                const hap  = a.haplotype;
-                const seq  = a.sequence_id;
-                if (name) assemblies.push(name);
-                if (name && hap != null && seq != null) {
-                    const parts = [name, hap, seq];
-                    const kHash = parts.join("#");
-                    const kPipe = parts.join("|");
-                    assemblies.push(kHash, kPipe);
-                }
-            }
-
-            const seqLen = typeof seqObj[id] === "string" ? seqObj[id].length : undefined;
-            const lengthBp = Number.isFinite(n.length) ? Number(n.length)
-                : Number.isFinite(seqLen)    ? seqLen
-                    : 0;
-
-            const rec = { id, sign, bareId: bare, lengthBp, assemblies, seq: seqObj[id] };
-            nodes.set(id, rec);
-            adjSet.set(id, new Set());
-
-            for (const key of assemblies) {
-                if (!index.byAssembly.has(key)) index.byAssembly.set(key, new Set());
-                index.byAssembly.get(key).add(id);
-            }
+        if (json?.sequence) {
+            for (const [id, seq] of Object.entries(json.sequence)) sequences.set(String(id), String(seq ?? ""));
         }
 
-        // ---- edges
-        const edgeKeyOf = (a, b) => `edge:${a}:${b}`;
-        rawEdges.forEach((e, i) => {
-            const from = e.starting_node;
-            const to   = e.ending_node;
-            if (!nodes.has(from) || !nodes.has(to)) return; // ignore out-of-scope
-            const ek = edgeKeyOf(from, to);
-            if (!edges.has(ek)) edges.set(ek, { a: from, b: to, variants: [] });
-            edges.get(ek).variants.push({ rawIndex: i, from, to });
-            // undirected view for traversal
-            adjSet.get(from).add(to);
-            adjSet.get(to).add(from);
-        });
+        const nodeBag = json?.node || {};
+        for (const [k, raw] of Object.entries(nodeBag)) {
+            const id = String(raw?.name ?? k);
+            const seq = sequences.get(id) ?? null;
+            const lengthBp = Number.isFinite(raw?.length) ? Number(raw.length) : (seq ? seq.length : 0);
 
-        const adj = new Map();
-        for (const [id, set] of adjSet) adj.set(id, Array.from(set));
+            const assemblies = new Set();
+            for (const a of (raw?.assembly || [])) {
+                const asm = String(a.assembly_name ?? "");
+                const hap = String(a.haplotype ?? "");
+                const sid = String(a.sequence_id ?? "");
+                const key = `${asm}${assemblyKeyDelim}${hap}${assemblyKeyDelim}${sid}`;
+                assemblies.add(key);
+                if (!assembliesIndex.has(key)) assembliesIndex.set(key, new Set());
+                assembliesIndex.get(key).add(id);
+            }
 
-        this.graph = { nodes, edges, adj, index };
-        this._dirOut = null; // reset directed cache on rebuild
+            nodes.set(id, { id, lengthBp, assemblies, seq, range: raw?.range ?? "", ogdf: raw?.ogdf_coordinates ?? null, raw });
+
+            if (!out.has(id)) out.set(id, new Set());
+            if (!incoming.has(id)) incoming.set(id, new Set());
+            if (!adj.has(id)) adj.set(id, new Set());
+        }
+
+        // endpoint resolver (handle +/- mismatches)
+        const stripSign = s => String(s).replace(/[+-]$/, "");
+        const resolveNodeId = rawId => {
+            if (!rawId) return null;
+            const id = String(rawId);
+            if (nodes.has(id)) return id;
+            if (/[+-]$/.test(id)) {
+                const base = stripSign(id);
+                const flip = id.endsWith("+") ? `${base}-` : `${base}+`;
+                if (nodes.has(flip)) return flip;
+                for (const cand of nodes.keys()) if (stripSign(cand) === base) return cand;
+            } else {
+                for (const cand of nodes.keys()) if (stripSign(cand) === id) return cand;
+            }
+            return null;
+        };
+
+        // edges
+        for (const e of (json?.edge || [])) {
+            const from = resolveNodeId(e.starting_node);
+            const to   = resolveNodeId(e.ending_node);
+            if (!from || !to) continue;
+            const key = this.#edgeKeyOf(from, to);
+            if (!edges.has(key)) { edges.set(key, { key, from, to }); addOut(from,to); addIn(from,to); addAdj(from,to); }
+        }
+
+        // Indexes for fast region edge collection
+        const undirectedIndex = new Map(); // "a|b" (a<b) -> [edge:a:b, edge:b:a?]
+        const edgesByNode = new Map();     // nodeId -> [edge keys touching node]
+        const undirectedKey = (a,b)=> (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+        for (const [ek, { from, to }] of edges) {
+            const uk = undirectedKey(from,to);
+            if (!undirectedIndex.has(uk)) undirectedIndex.set(uk, []);
+            undirectedIndex.get(uk).push(ek);
+            if (!edgesByNode.has(from)) edgesByNode.set(from, []);
+            if (!edgesByNode.has(to))   edgesByNode.set(to,   []);
+            edgesByNode.get(from).push(ek);
+            edgesByNode.get(to).push(ek);
+        }
+
+        this.graph = { nodes, edges, out, in: incoming, adj, sequences, assembliesIndex, undirectedIndex, edgesByNode, locus: json?.locus ?? null };
+        this._dirOut = null;
+        this._inducedCache.clear();
         return this.graph;
     }
 
     listAssemblyKeys() {
         this.#requireGraph();
-        return Array.from(this.graph.index.byAssembly.keys()).sort();
+        const keys = new Set();
+        for (const [, n] of this.graph.nodes) for (const k of (n.assemblies || [])) keys.add(k);
+        return [...keys].sort();
     }
 
-    /**
-     * Extract a walk (simple chain) per keyed connected component.
-     * mode: "auto" | "endpoint" | "blockcut"
-     */
-    createAssemblyWalk(key, { mode = "auto", startNodeId = null, directionPolicy = "asFound" } = {}) {
+    debugAssembly(key, sample = 8) {
         this.#requireGraph();
-        const g = this.graph;
-        const nodeSet = g.index.byAssembly.get(key);
+        const hits = [];
+        for (const [id, n] of this.graph.nodes) if (n.assemblies && n.assemblies.has(key)) hits.push(id);
+        hits.sort((a,b)=>String(a).localeCompare(String(b), 'en', {numeric:true}));
+        return { key, count: hits.length, sample: hits.slice(0, sample) };
+    }
 
-        const diagnostics = { inducedNodes: 0, inducedEdges: 0, modeUsed: mode, warnings: [] };
-        if (!nodeSet || nodeSet.size === 0) {
-            return { key, paths: [], diagnostics };
-        }
+    // ========================= Truth helper =========================
+    getAssemblySubgraph(key) {
+        const { nodesIn, adj } = this._getInduced(key);
+        const ekeys = [];
+        for (const [ek, {from,to}] of this.graph.edges) if (nodesIn.has(from) && nodesIn.has(to)) ekeys.push(ek);
+        const adjObj = {}; for (const [v,set] of adj) adjObj[v] = [...set];
+        return { nodes: [...nodesIn], edges: ekeys, adj: adjObj };
+    }
 
-        const indAdj = this.#inducedAdj(g.adj, nodeSet);
+    // ========================= Walks (strict, oriented) =========================
+    createAssemblyWalk(key, { mode = "auto", startNodeId = null, directionPolicy = "edgeFlow" } = {}) {
+        this.#requireGraph();
+        const { adj, components } = this._getInduced(key);
 
-        let inducedEdges = 0;
-        for (const [, nbrs] of indAdj) inducedEdges += (nbrs?.length || 0);
-        diagnostics.inducedNodes = nodeSet.size;
-        diagnostics.inducedEdges = Math.floor(inducedEdges / 2);
-
-        const comps = this.#connectedComponents(indAdj);
+        // One simple path per component (diameter proxy via double BFS)
         const paths = [];
-
-        for (const comp of comps) {
-            const subAdj = new Map(comp.map(id => [id, indAdj.get(id)]));
-            const actualMode = (mode === "auto") ? this.#decideMode(subAdj, comp) : mode;
-
-            // ---- Patch C: robust selection + fallbacks
-            let nodes = (actualMode === "endpoint")
-                ? this.#extractPathEndpointWalk(subAdj, comp)
-                : this.#extractPathBlockCut(subAdj, comp);
-
-            if (!nodes || nodes.length === 0) {
-                nodes = this.#extractPathEndpointWalk(subAdj, comp);
-            }
-            if ((!nodes || nodes.length === 0) && comp.length === 1) {
-                nodes = [comp[0]];
-            }
-            if (!nodes || nodes.length === 0) {
-                diagnostics.warnings.push(`empty walk for component of ${key} (size=${comp.length})`);
-                continue;
-            }
-
-            const edgesOnPath = [];
-            for (let i = 0; i < nodes.length - 1; i++) {
-                const a = nodes[i], b = nodes[i + 1];
-                const ekF = this.#edgeKeyOf(a, b), ekR = this.#edgeKeyOf(b, a);
-                if (g.edges.has(ekF)) edgesOnPath.push(ekF);
-                else if (g.edges.has(ekR)) edgesOnPath.push(ekR);
-                else diagnostics.warnings.push(`No edge found between ${a} and ${b} for ${key}`);
-            }
-
-            const bpLen = nodes.reduce((s, id) => s + (g.nodes.get(id)?.lengthBp || 0), 0);
-            paths.push({ nodes, edges: edgesOnPath, leftEndpoint: nodes[0], rightEndpoint: nodes[nodes.length - 1], bpLen, modeUsed: actualMode });
+        for (const comp of components) {
+            const p = this._buildStrictPathForComponent(comp, adj);
+            if (p && p.nodes && p.nodes.length) paths.push(p);
         }
 
-        // Orient each path deterministically and recompute edges to match the chosen orientation
         this._normalizePathDirections(paths, { startNodeId, directionPolicy });
         if (directionPolicy === "edgeFlow") this._orientPathsToEdges(paths);
 
-        return { key, paths, diagnostics };
+        return { key, paths, diagnostics: { nComponents: components.length, mode } };
     }
 
-    assessGraphFeatures(spineWalk, opts = {}) {
+    getChosenWalk(key, {
+        mode = "auto",
+        startNodeId = null,
+        directionPolicy = "edgeFlow",
+        trimLeafEnds = false,
+        leafEndBpMax = 0,
+        leafEndNodesMax = 0
+    } = {}) {
+        const walk = this.createAssemblyWalk(key, { mode, startNodeId, directionPolicy });
+        const chosen0 = this.#chooseLongestPath(walk.paths);
+        if (!chosen0) return { key, path: null, provenance: { assemblyKey: key, note: "no path" } };
+
+        const prov = this._provenanceForPath(key, chosen0);
+
+        let path = chosen0;
+        if (trimLeafEnds && (leafEndBpMax > 0 || leafEndNodesMax > 0)) {
+            const before = chosen0.nodes.slice();
+            path = this._trimLeafEndsForAssembly(key, chosen0, { bpMax: leafEndBpMax, nodesMax: leafEndNodesMax });
+            const { prefixRemoved, suffixRemoved } = this._trimDiff(before, path.nodes);
+            prov.trimmed = {
+                enabled: true,
+                leafEndBpMax, leafEndNodesMax,
+                prefixRemoved,
+                suffixRemoved,
+                totalNodes: prefixRemoved.length + suffixRemoved.length,
+                totalBp: this._bpLenOf(prefixRemoved.concat(suffixRemoved))
+            };
+        } else {
+            prov.trimmed = { enabled: false };
+        }
+
+        prov.offSpineKeyed = this._countOffSpineKeyed(key, new Set(path.nodes));
+        return { key, path, provenance: prov, diagnostics: walk.diagnostics };
+    }
+
+    getChosenWalks({ keys = null, mode = "auto", startNodeId = null, directionPolicy = "edgeFlow" } = {}) {
+        const all = keys ? keys : this.listAssemblyKeys();
+        const resolveStart = (k) => {
+            if (!startNodeId) return null;
+            if (typeof startNodeId === "string") return startNodeId;
+            if (typeof startNodeId === "function") return startNodeId(k);
+            if (startNodeId instanceof Map) return startNodeId.get(k) ?? null;
+            if (typeof startNodeId === "object") return startNodeId[k] ?? null;
+            return null;
+        };
+        return all.map(k => this.getChosenWalk(k, { mode, startNodeId: resolveStart(k), directionPolicy }));
+    }
+
+    // ========================= Spine + FAST features =========================
+    setDefaultLocusStartBp(bp) { this.defaultLocusStartBp = Number(bp) || 0; return this.defaultLocusStartBp; }
+    getDefaultLocusStartBp()   { return this.defaultLocusStartBp ?? 0; }
+
+    getSpineFeatures(key, assessOpts = {}, walkOpts = {}) {
+        this.#requireGraph();
+
         const {
-            locusStartBp = (this.defaultLocusStartBp ?? 0),
+            // discovery/perf (SAFE DEFAULTS)
             includeAdjacent = true,
-            includeUpstream = true,
             allowMidSpineReentry = true,
             includeDangling = true,
-            includeOffSpineComponents = true,
-            nestRegions = "none",
-            maxPathsPerEvent = 8,
-            maxRegionNodes = 5000,
-            maxRegionEdges = 8000
-        } = opts;
-        this.#requireGraph();
-        const g = this.graph;
-        const edgeKeyOf = (a, b) => `edge:${a}:${b}`;
+            includeOffSpineComponents = "none", // "none" | "summary" | "full"
+            nestRegions = "none",               // "none" | "shallow"
 
-        // ---- spine chain & maps
-        const chain = (spineWalk?.paths?.[0]?.nodes || []).slice();
-        const spineSet = new Set(chain);
-        const indexOnSpine = new Map(chain.map((id, i) => [id, i]));
+            // bp origin
+            locusStartBp = (this.defaultLocusStartBp ?? 0),
 
-        const bpStart = new Map(), bpEnd = new Map();
-        let acc = locusStartBp;
-        for (const id of chain) {
-            bpStart.set(id, acc);
-            acc += (g.nodes.get(id)?.lengthBp || 0);
-            bpEnd.set(id, acc);
+            // hard caps
+            maxPathsPerEvent = 1,      // at most one alt path (shortest) — avoids explosion
+            maxRegionHops = 64,        // depth cap
+            maxRegionNodes = 4000,     // node cap per event region
+            maxRegionEdges = 4000,     // edge cap per event region
+            operationBudget = 500000   // global step budget for this call (prevents hangs)
+        } = assessOpts || {};
+
+        const {
+            mode = "auto",
+            directionPolicy = "edgeFlow",
+            startNodeId = null,
+            trimLeafEnds = true,
+            leafEndBpMax = 0,
+            leafEndNodesMax = 2
+        } = walkOpts || {};
+
+        const { path, provenance } = this.getChosenWalk(key, { mode, startNodeId, directionPolicy, trimLeafEnds, leafEndBpMax, leafEndNodesMax });
+
+        if (!path) {
+            return {
+                spine: { assemblyKey: key, nodes: [], edges: [], lengthBp: 0 },
+                events: [], offSpine: [],
+                spineWalk: { key, paths: [] }, path: null, provenance,
+                aborted: false
+            };
         }
 
-        const edgesForPath = (nodes) => {
-            const out = [];
-            for (let i = 0; i < nodes.length - 1; i++) {
-                const a = nodes[i], b = nodes[i + 1];
-                const ekF = edgeKeyOf(a, b), ekR = edgeKeyOf(b, a);
-                if (g.edges.has(ekF)) out.push(ekF);
-                else if (g.edges.has(ekR)) out.push(ekR);
+        const spineWalk = { key, paths: [path] };
+        const features = this._assessGraphFeaturesFast(spineWalk, {
+            includeAdjacent, allowMidSpineReentry, includeDangling,
+            includeOffSpineComponents, nestRegions,
+            maxPathsPerEvent, maxRegionHops, maxRegionNodes, maxRegionEdges,
+            locusStartBp, operationBudget
+        });
+
+        return { ...features, spineWalk, path, provenance };
+    }
+
+    // Tooltip/helper: exact for spine; projected for off-spine (if in event)
+    getAnyBpExtent(nodeId, features) {
+        if (!features || !features.spine) return null;
+        const m = new Map(features.spine.nodes.map(n => [n.id, { bpStart: n.bpStart, bpEnd: n.bpEnd }]));
+        if (m.has(nodeId)) return m.get(nodeId);
+        for (const ev of (features.events || [])) if (ev.region.nodes.includes(nodeId)) {
+            return { bpStart: ev.anchors.spanStart, bpEnd: ev.anchors.spanEnd };
+        }
+        return null;
+    }
+
+    // ========================= Internals (FAST assessor) =========================
+    _assessGraphFeaturesFast(spineWalk, opts) {
+        const {
+            includeAdjacent, allowMidSpineReentry, includeDangling,
+            includeOffSpineComponents, nestRegions,
+            maxPathsPerEvent, maxRegionHops, maxRegionNodes, maxRegionEdges,
+            locusStartBp, operationBudget
+        } = opts;
+
+        let budget = Math.max(10000, Number(operationBudget) || 200000); // global step budget
+
+        const path = spineWalk.paths[0];
+        const spine = this._buildSpineBp(path, locusStartBp);
+        spine.assemblyKey = spineWalk.key;
+
+        const onSpine = new Set(spine.nodes.map(n => n.id));
+        const bpOf = new Map(spine.nodes.map(n => [n.id, { bpStart: n.bpStart, bpEnd: n.bpEnd }]));
+        const events = [];
+        const markVisited = new Set();
+
+        const hasOffSpineNeighbor = (id) => {
+            for (const u of (this.graph.adj.get(id) || [])) { budget--; if (budget <= 0) break;
+                if (!onSpine.has(u)) return true;
             }
-            return out;
+            return false;
         };
 
-        const spine = {
-            assemblyKey: spineWalk?.key || "spine",
-            nodes: chain.map(id => ({ id, bpStart: bpStart.get(id), bpEnd: bpEnd.get(id), lenBp: g.nodes.get(id)?.lengthBp || 0 })),
-            edges: edgesForPath(chain),
-            lengthBp: (bpEnd.get(chain.at(-1)) || locusStartBp) - locusStartBp
-        };
-
-        // ---- neighbor discovery
-        const offNbrs = new Map();
-        for (const v of chain) offNbrs.set(v, (g.adj.get(v) || []).filter(u => !spineSet.has(u)));
-
-        const spineWindow = (i, j) => new Set(chain.slice(Math.min(i, j), Math.max(i, j) + 1));
-
-        // ---- candidate anchor pairs
-        const candidatePairs = new Map(); // key -> { L, R, kind }
-        const visitedDanglingSets = new Set();
-
-        const addPair = (L, R, kind) => {
-            const i = indexOnSpine.get(L);
-            const j = (R != null) ? indexOnSpine.get(R) : null;
-            if (R != null) {
-                if (!includeAdjacent && j === i + 1) return;
-                if (!includeUpstream && j <= i) return;
+        const collectRegionEdges = (set) => {
+            const out = new Set();
+            const seenPairs = new Set();
+            const undirectedIndex = this.graph.undirectedIndex;
+            for (const a of set) { budget--; if (budget <= 0) return { edges: out, truncated: true };
+                for (const b of (this.graph.adj.get(a) || [])) {
+                    if (!set.has(b)) continue;
+                    const pair = (a < b) ? `${a}|${b}` : `${b}|${a}`;
+                    if (seenPairs.has(pair)) continue;
+                    seenPairs.add(pair);
+                    const list = undirectedIndex.get(pair);
+                    if (list) for (const ek of list) out.add(ek);
+                    if (out.size > maxRegionEdges) return { edges: out, truncated: true };
+                }
             }
-            const key = `${L}|${R}`;
-            if (!candidatePairs.has(key)) candidatePairs.set(key, { L, R, kind });
+            return { edges: out, truncated: false };
         };
 
-        // BFS from each spine node through off‑spine, collecting any spine re‑entry
-        for (const L of chain) {
-            const q = [...offNbrs.get(L)];
-            const seen = new Set([L, ...offNbrs.get(L)]);
-            let hitAny = false;
+        const regionExplore = (L, R) => {
+            const blockSpine = !allowMidSpineReentry;
+            const allowed = (id) => (id === L || id === R || !blockSpine || !onSpine.has(id));
+
+            const q = [[L, 0]];
+            const parent = new Map([[L, null]]);
+            const region = new Set([L]);
+            let touchedR = false;
+            let truncated = false;
+
+            while (q.length) {
+                const [v, d] = q.shift();
+                for (const u of (this.graph.adj.get(v) || [])) {
+                    budget -= 2; if (budget <= 0) { truncated = true; break; }
+                    if (!allowed(u)) continue;
+                    if (parent.has(u)) continue;
+                    if (d + 1 > maxRegionHops) { truncated = true; continue; }
+
+                    parent.set(u, v);
+                    region.add(u);
+                    if (region.size > maxRegionNodes) { truncated = true; break; }
+                    if (u === R) touchedR = true;
+                    q.push([u, d + 1]);
+                }
+                if (truncated) break;
+            }
+
+            const { edges: redges, truncated: edgeTrunc } = collectRegionEdges(region);
+            truncated = truncated || edgeTrunc;
+
+            return { parent, region, redges, touchedR, truncated };
+        };
+
+        const shortestAltPath = (L, R, region) => {
+            // BFS shortest by hops within region
+            const q = [L];
+            const parent = new Map([[L, null]]);
             while (q.length) {
                 const v = q.shift();
-                for (const w of (g.adj.get(v) || [])) {
-                    if (seen.has(w)) continue;
-                    seen.add(w);
-                    if (spineSet.has(w)) {
-                        hitAny = true;
-                        const i = indexOnSpine.get(L), j = indexOnSpine.get(w);
-                        if (w === L) addPair(L, L, "pill");
-                        else addPair(L, w, (j > i) ? "forward" : "upstream");
-                    } else {
-                        q.push(w);
+                for (const u of (this.graph.adj.get(v) || [])) {
+                    budget--; if (budget <= 0) return null;
+                    if (!region.has(u) || parent.has(u)) continue;
+                    parent.set(u, v);
+                    if (u === R) {
+                        const nodes = [];
+                        let cur = u;
+                        while (cur != null) { nodes.push(cur); cur = parent.get(cur); }
+                        nodes.reverse();
+                        const edges = this._recomputeEdges(nodes);
+                        const offNodes = nodes.filter(id => !onSpine.has(id));
+                        return { nodes, edges, altLenBp: this._bpLenOf(offNodes) };
                     }
+                    q.push(u);
                 }
             }
-            if (includeDangling && !hitAny) {
-                const regionNodes = Array.from(seen).filter(x => !spineSet.has(x));
-                if (regionNodes.length) {
-                    const sig = regionNodes.slice().sort((a, b) => this.#num(a) - this.#num(b)).join(",");
-                    if (!visitedDanglingSets.has(sig)) {
-                        visitedDanglingSets.add(sig);
-                        candidatePairs.set(`${L}|null:${sig}`, { L, R: null, kind: "dangling" });
-                    }
-                }
-            }
-        }
-
-        // ---- utilities
-        const buildRegion = (L, R) => {
-            const growOff = (seed) => {
-                const S = new Set([seed]);
-                const q = (g.adj.get(seed) || []).filter(x => !spineSet.has(x));
-                for (const x of q) S.add(x);
-                while (q.length) {
-                    const v = q.shift();
-                    for (const w of (g.adj.get(v) || [])) {
-                        if (S.has(w) || spineSet.has(w)) continue;
-                        S.add(w); q.push(w);
-                    }
-                }
-                return S;
-            };
-
-            const region = new Set([L]);
-            const Lset = growOff(L);
-            let Rset = null;
-            if (R) { Rset = growOff(R); region.add(R); }
-
-            if (R) {
-                for (const v of Lset) if (Rset.has(v)) region.add(v);
-            } else {
-                for (const v of Lset) if (!spineSet.has(v)) region.add(v);
-            }
-            return region;
+            return null;
         };
 
-        const buildRegionAdj = (region, allowMid) => {
-            const allow = new Set(region);
-            if (allowMid) {
-                // Already contains L/R; optionally include mid‑spine window later
-            }
-            const subAdj = new Map(); let edgeCount = 0;
-            for (const v of allow) subAdj.set(v, []);
-            for (const v of allow) {
-                for (const w of (g.adj.get(v) || [])) {
-                    if (!allow.has(w)) continue;
-                    subAdj.get(v).push(w);
-                    if (this.#num(v) < this.#num(w)) edgeCount++;
-                }
-            }
-            return { subAdj, edgeCount };
-        };
+        // Iterate adjacent pairs along the spine (linear)
+        for (let i = 0; i < spine.nodes.length - 1; i++) {
+            if (budget <= 0) break;
 
-        const dijkstraNodeWeighted = (subAdj, s, t, allow) => {
-            const A = allow || new Set(subAdj.keys());
-            if (!A.has(s) || !A.has(t)) return null;
-            const w = id => (g.nodes.get(id)?.lengthBp || 0);
-            const dist = new Map(), prev = new Map(), done = new Set();
-            for (const v of A) dist.set(v, Infinity);
-            dist.set(s, 0);
-            while (true) {
-                let u = null, best = Infinity;
-                for (const [v, d] of dist) if (!done.has(v) && d < best) { best = d; u = v; }
-                if (u === null) break;
-                done.add(u);
-                if (u === t) break;
-                for (const nb of (subAdj.get(u) || [])) {
-                    if (!A.has(nb) || done.has(nb)) continue;
-                    const alt = dist.get(u) + (nb === t ? 0 : w(nb));
-                    if (alt < dist.get(nb)) { dist.set(nb, alt); prev.set(nb, u); }
-                }
-            }
-            if (!prev.has(t)) return null;
-            const path = [t]; let cur = prev.get(t);
-            while (cur) { path.push(cur); cur = prev.get(cur); }
-            path.reverse();
-            return path;
-        };
+            const L = spine.nodes[i].id;
+            const R = spine.nodes[i + 1].id;
+            const pairKey = `${L}|${R}`;
+            if (markVisited.has(pairKey)) continue;
 
-        const decoratePath = (pathNodes, spanStart, spanEnd) => {
-            const len = id => (g.nodes.get(id)?.lengthBp || 0);
-            const interior = pathNodes.slice(1, -1);
-            const totalAlt = interior.reduce((s, id) => s + len(id), 0);
-            const spanLen = Math.max(0, spanEnd - spanStart);
-            const details = [];
-            let cum = 0;
-            for (let i = 0; i < pathNodes.length; i++) {
-                const id = pathNodes[i];
-                const isSpine = spineSet.has(id);
-                const nLen = len(id);
-                const addLen = (i > 0 && i < pathNodes.length - 1) ? nLen : 0;
-                const altStartBp = cum, altEndBp = cum + addLen;
-
-                let refBpStart, refBpEnd;
-                if (isSpine && bpStart.has(id)) {
-                    refBpStart = bpStart.get(id);
-                    refBpEnd = bpEnd.get(id);
-                } else {
-                    const t0 = totalAlt > 0 ? (altStartBp / totalAlt) : 0;
-                    const t1 = totalAlt > 0 ? (altEndBp / totalAlt) : t0;
-                    refBpStart = spanStart + t0 * spanLen;
-                    refBpEnd   = spanStart + t1 * spanLen;
-                }
-                details.push({ id, isSpine, lenBp: nLen, altStartBp, altEndBp, refBpStart, refBpEnd });
-                if (addLen > 0) cum += nLen;
-            }
-            return { nodesDetailed: details, altPathLenBp: totalAlt };
-        };
-
-        // ---- Build events
-        const events = [];
-
-        const removePathEdges = (adj, nodePath) => {
-            // Remove consecutive pairs from adj (both directions); return count
-            let removed = 0;
-            for (let i = 0; i < nodePath.length - 1; i++) {
-                const a = nodePath[i], b = nodePath[i + 1];
-                const la = adj.get(a) || [], lb = adj.get(b) || [];
-                const ia = la.indexOf(b); if (ia >= 0) { la.splice(ia, 1); removed++; }
-                const ib = lb.indexOf(a); if (ib >= 0) { lb.splice(ib, 1); removed++; }
-            }
-            return removed;
-        };
-        const pathSignature = (path) => (path || []).join(">");
-
-        for (const [, cand] of candidatePairs) {
-            const { L, R, kind } = cand;
-
-            // region discovery
-            let region = buildRegion(L, R);
-            if (allowMidSpineReentry && R) {
-                const i = indexOnSpine.get(L), j = indexOnSpine.get(R);
-                for (const s of spineWindow(i, j)) region.add(s);
-            }
-            const regionTooBig = region.size > maxRegionNodes;
-            const { subAdj: regionAdj, edgeCount } = buildRegionAdj(region, allowMidSpineReentry);
-            const adjTooBig = edgeCount > maxRegionEdges;
-
-            const regionNodes = Array.from(region).filter(x => !spineSet.has(x));
-
-            // off<->off unique edges
-            const regionEdges = [];
-            const offOffSeen = new Set();
-            for (const v of regionNodes) {
-                for (const nb of (g.adj.get(v) || [])) {
-                    if (!region.has(nb) || spineSet.has(nb)) continue;
-                    const a = this.#num(v) < this.#num(nb) ? v : nb;
-                    const b = (a === v) ? nb : v;
-                    const key = `${a}|${b}`;
-                    if (offOffSeen.has(key)) continue;
-                    offOffSeen.add(key);
-                    const ek = g.edges.has(edgeKeyOf(a, b)) ? edgeKeyOf(a, b) : edgeKeyOf(b, a);
-                    regionEdges.push(ek);
-                }
+            // Fast degree check
+            if (!hasOffSpineNeighbor(L) && !hasOffSpineNeighbor(R)) {
+                markVisited.add(pairKey);
+                continue;
             }
 
-            // off<->spine anchor edges inside region
-            const regionSpineNodes = Array.from(region).filter(id => spineSet.has(id));
-            const regionSpineSet = new Set(regionSpineNodes);
-            const anchorEdgesSet = new Set();
-            for (const v of regionNodes) {
-                for (const nb of (g.adj.get(v) || [])) {
-                    if (!regionSpineSet.has(nb)) continue;
-                    const ek = g.edges.has(edgeKeyOf(v, nb)) ? edgeKeyOf(v, nb) : edgeKeyOf(nb, v);
-                    anchorEdgesSet.add(ek);
-                }
-            }
-            const anchorEdges = Array.from(anchorEdgesSet);
+            const { region, redges, touchedR, truncated } = regionExplore(L, R);
+            const onlyLR = region.size === 2 && region.has(L) && region.has(R);
+            if (onlyLR && !includeAdjacent) { markVisited.add(pairKey); continue; }
 
-            // anchors in bp space
-            const spanStart = bpEnd.get(L);
-            const spanEnd   = R ? bpStart.get(R) : bpEnd.get(L);
-            const refLenBp  = R ? Math.max(0, spanEnd - spanStart) : 0;
+            const hasOffSpine = [...region].some(n => !onSpine.has(n));
+            const touchesMidSpine = [...region].some(n => n !== L && n !== R && onSpine.has(n));
+            if (!hasOffSpine) { markVisited.add(pairKey); continue; }
 
-            // path sampling (edge‑disjoint Dijkstra on MUTABLE adjacency)
+            let type = null;
+            if (touchedR) type = touchesMidSpine ? "braid" : ((bpOf.get(R).bpStart - bpOf.get(L).bpEnd) === 0 ? "pill" : "simple_bubble");
+            else if (includeDangling) type = "dangling";
+            if (!type) { markVisited.add(pairKey); continue; }
+
+            const spanStart = bpOf.get(L)?.bpEnd ?? 0;
+            const spanEnd   = bpOf.get(R)?.bpStart ?? spanStart;
+            const refLenBp  = Math.max(0, spanEnd - spanStart);
+
+            // Alt paths: at most 1 shortest (bounded)
             const paths = [];
-            const mutableAdj = new Map();
-            for (const [v, ns] of regionAdj) mutableAdj.set(v, ns ? ns.slice() : []);
-            let truncatedPaths = false;
-            let removedSpineLeg = false;
-            const seenSigs = new Set();
-
-            if (R) {
-                for (let k = 0; k < maxPathsPerEvent; k++) {
-                    const allowSet = new Set(mutableAdj.keys());
-                    // ✅ bugfix: run on mutableAdj, not the original regionAdj
-                    const path = dijkstraNodeWeighted(mutableAdj, L, R, allowSet);
-                    if (!path) break;
-
-                    const interior = path.slice(1, -1);
-                    const hasOffSpineInterior = interior.some(id => !spineSet.has(id));
-                    if (!hasOffSpineInterior) {
-                        removedSpineLeg = true;
-                        // actively remove the direct L—R edge so it cannot recur
-                        removePathEdges(mutableAdj, [L, R]);
-                        continue;
-                    }
-
-                    const sig = pathSignature(path);
-                    if (seenSigs.has(sig)) break; // duplicate guard
-                    seenSigs.add(sig);
-
-                    const { nodesDetailed, altPathLenBp } = decoratePath(path, spanStart, spanEnd);
-                    paths.push({ nodes: path, edges: edgesForPath(path), altLenBp: altPathLenBp, altPathLenBp, nodesDetailed });
-
-                    const removed = removePathEdges(mutableAdj, path);
-                    if (removed === 0) break; // no progress → stop
-                }
-                truncatedPaths = (maxPathsPerEvent > 0) && (paths.length === maxPathsPerEvent);
+            if (touchedR && maxPathsPerEvent > 0) {
+                const p = shortestAltPath(L, R, region);
+                if (p && !(p.nodes.length === 2 && p.nodes[0] === L && p.nodes[1] === R)) paths.push(p);
             }
 
-            let type = "simple_bubble";
-            if (!R) type = "dangling";
-            else if (L === R || refLenBp === 0) type = "pill";
-
-            const evt = {
-                id: R ? `${L}~${R}` : `${L}~null`,
-                type,
-                anchors: {
-                    leftId: L,
-                    rightId: R,
-                    spanStart,
-                    spanEnd,
-                    refLenBp,
-                    orientation: kind,
-                    leftBpStart: bpStart.get(L), leftBpEnd: bpEnd.get(L),
-                    rightBpStart: R ? bpStart.get(R) : null, rightBpEnd: R ? bpEnd.get(R) : null
-                },
-                region: { nodes: regionNodes, edges: regionEdges, anchorEdges, truncated: !!(regionTooBig || adjTooBig) },
-                paths,
-                stats: {
-                    nPaths: paths.length,
-                    minAltLenBp: paths.length ? Math.min(...paths.map(p => p.altLenBp)) : 0,
-                    maxAltLenBp: paths.length ? Math.max(...paths.map(p => p.altLenBp)) : 0,
-                    truncatedPaths,
-                    removedSpineLeg
-                },
-                relations: { parentId: null, childrenIds: [], overlapGroup: null, sameAnchorGroup: null }
+            const regionNodes = [...region].filter(id => !(id === L && id === R));
+            const anchors = { leftId: L, rightId: R, spanStart, spanEnd, refLenBp, orientation: "forward" };
+            const stats = {
+                nPaths: paths.length,
+                minAltLenBp: paths.length ? Math.min(...paths.map(p => p.altLenBp)) : 0,
+                maxAltLenBp: paths.length ? Math.max(...paths.map(p => p.altLenBp)) : 0,
+                truncatedPaths: truncated,
+                removedSpineLeg: true
             };
 
-            // NEW: optional shallow nesting of region events
-            if (nestRegions === "shallow") {
-                evt.innerEvents = this._assessInnerForEvent(evt, {
-                    locusStartBp,
-                    includeAdjacent,
-                    includeUpstream: false,          // avoid mirror duplicates inside
-                    allowMidSpineReentry,
-                    includeDangling: false,          // keep inner tight to L..R
-                    includeOffSpineComponents: false,
-                    nestRegions: "none",            // prevent infinite recursion
-                    maxPathsPerEvent,
-                    maxRegionNodes,
-                    maxRegionEdges
-                });
-            }
+            events.push({
+                id: `${L}~${R}`,
+                type,
+                anchors,
+                region: { nodes: regionNodes, edges: [...redges], truncated: !!truncated },
+                paths,
+                stats,
+                relations: { parentId: null, childrenIds: [], overlapGroup: null, sameAnchorGroup: null }
+            });
 
-            events.push(evt);
+            markVisited.add(pairKey);
         }
 
-        // ---- relations (same anchors, nesting, overlaps)
-        const proper = events.filter(e => e.anchors.rightId);
-        const sameKeyToGroup = new Map(); let sg = 1;
-        for (const e of proper) {
-            const k = `${e.anchors.leftId}|${e.anchors.rightId}`;
-            if (!sameKeyToGroup.has(k)) sameKeyToGroup.set(k, sg++);
-            e.relations.sameAnchorGroup = sameKeyToGroup.get(k);
-        }
-
-        const intervals = proper.map(e => ({
-            id: e.id,
-            start: Math.min(e.anchors.spanStart, e.anchors.spanEnd),
-            end:   Math.max(e.anchors.spanStart, e.anchors.spanEnd)
-        })).sort((a, b) => a.start - b.start || a.end - b.end);
-
-        const byId = new Map(proper.map(e => [e.id, e]));
-        const contains = (A, B) => A.start <= B.start && A.end >= B.end;
-        const overlaps = (A, B) => !(A.end <= B.start || B.end <= A.start);
-
-        for (let i = 0; i < intervals.length; i++) {
-            for (let j = i + 1; j < intervals.length; j++) {
-                const A = intervals[i], B = intervals[j];
-                const Ei = byId.get(A.id), Ej = byId.get(B.id);
-                if (contains(A, B)) { Ej.relations.parentId = Ei.id; Ei.relations.childrenIds.push(Ej.id); }
-                else if (contains(B, A)) { Ei.relations.parentId = Ej.id; Ej.relations.childrenIds.push(Ei.id); }
-            }
-        }
-
-        let og = 1;
-        for (let i = 0; i < intervals.length; i++) {
-            for (let j = i + 1; j < intervals.length; j++) {
-                const A = intervals[i], B = intervals[j];
-                if (overlaps(A, B) && !contains(A, B) && !contains(B, A)) {
-                    const Ei = byId.get(A.id), Ej = byId.get(B.id);
-                    const gId = Ei.relations.overlapGroup || Ej.relations.overlapGroup || og++;
-                    Ei.relations.overlapGroup = gId; Ej.relations.overlapGroup = gId;
-                }
-            }
-        }
-
-        for (const e of proper) {
-            if (e.type === "pill") continue;
-            const peers = proper.filter(x => x.relations.sameAnchorGroup === e.relations.sameAnchorGroup);
-            if (peers.length > 1) { e.type = "parallel_bundle"; continue; }
-            if (e.relations.childrenIds.length || e.relations.overlapGroup) { e.type = "braid"; continue; }
-            e.type = "simple_bubble";
-        }
-
-        // ---- off‑spine components (context)
+        // Off-spine components (default off)
         const offSpine = [];
-        if (includeOffSpineComponents) {
-            const off = new Set(g.nodes.keys());
-            for (const s of chain) off.delete(s);
+        if (includeOffSpineComponents !== "none" && budget > 0) {
             const seen = new Set();
-            for (const v of off) {
-                if (seen.has(v)) continue;
-                const comp = []; const q = [v]; seen.add(v);
+            for (const [id] of this.graph.nodes) {
+                if (budget <= 0) break;
+                if (onSpine.has(id) || seen.has(id)) continue;
+                const q = [id], comp = new Set([id]); seen.add(id);
+                let touches = false;
                 while (q.length) {
-                    const x = q.shift(); comp.push(x);
-                    for (const nb of (g.adj.get(x) || [])) {
-                        if (spineSet.has(nb) || seen.has(nb)) continue;
-                        seen.add(nb); q.push(nb);
+                    const v = q.shift(); budget--; if (budget <= 0) break;
+                    if (onSpine.has(v)) touches = true;
+                    for (const u of (this.graph.adj.get(v) || [])) if (!seen.has(u)) { seen.add(u); comp.add(u); q.push(u); }
+                    if (comp.size > maxRegionNodes * 2) break; // hard stop for huge islands
+                }
+                if (!touches) {
+                    if (includeOffSpineComponents === "summary") {
+                        offSpine.push({ nodes: [...comp], edges: [], keyed: false });
+                    } else {
+                        const { edges: e, truncated } = collectRegionEdges(comp);
+                        offSpine.push({ nodes: [...comp], edges: [...e], keyed: false, truncated });
                     }
                 }
-                const eds = [];
-                for (const x of comp) {
-                    for (const nb of (g.adj.get(x) || [])) {
-                        if (spineSet.has(nb)) continue;
-                        if (comp.indexOf(nb) < 0) continue;
-                        if (this.#num(nb) < this.#num(x)) continue;
-                        const ek = g.edges.has(edgeKeyOf(x, nb)) ? edgeKeyOf(x, nb) : edgeKeyOf(nb, x);
-                        eds.push(ek);
-                    }
-                }
-                offSpine.push({ nodes: comp, edges: eds, size: comp.length });
             }
         }
 
-        return { spine, events, offSpine };
+        const aborted = (budget <= 0);
+        return { spine, events, offSpine, aborted };
     }
 
-    // ========================= Tooltip helpers =========================
-    setActiveSpine(spine) {
-        this._spineKey = spine?.assemblyKey || null;
-        this._bpStart = new Map();
-        this._bpEnd   = new Map();
-        if (spine && Array.isArray(spine.nodes)) {
-            for (const n of spine.nodes) {
-                this._bpStart.set(n.id, n.bpStart);
-                this._bpEnd.set(n.id, n.bpEnd);
+    // ========================= Private utils =========================
+    #edgeKeyOf(a, b) { return `edge:${a}:${b}`; }
+    #requireGraph() { if (!this.graph) throw new Error("PangenomeService: call loadData/createGraph(json) first."); }
+
+    _getInduced(key) {
+        if (this._inducedCache.has(key)) return this._inducedCache.get(key);
+
+        const nodesIn = new Set();
+        for (const [id, n] of this.graph.nodes) if (n.assemblies.has(key)) nodesIn.add(id);
+
+        const adj = new Map();
+        const add = (a,b)=>{ if(!adj.has(a)) adj.set(a,new Set()); adj.get(a).add(b); };
+
+        for (const [ek, {from,to}] of this.graph.edges) if (nodesIn.has(from) && nodesIn.has(to)) { add(from,to); add(to,from); }
+
+        const components = [];
+        const seen = new Set();
+        for (const v of nodesIn) {
+            if (seen.has(v)) continue;
+            const q = [v], comp = new Set([v]); seen.add(v);
+            while (q.length) {
+                const x = q.shift();
+                for (const y of (adj.get(x) || [])) if (!seen.has(y)) { seen.add(y); comp.add(y); q.push(y); }
             }
+            components.push(comp);
         }
-        return this._spineKey;
+
+        const induced = { nodesIn, adj, components };
+        this._inducedCache.set(key, induced);
+        return induced;
     }
 
-    /** True bp on current spine (or null). */
-    getBpExtent(nodeId) {
-        if (!this._bpStart || !this._bpEnd) return null;
-        if (!this._bpStart.has(nodeId)) return null;
-        return { bpStart: this._bpStart.get(nodeId), bpEnd: this._bpEnd.get(nodeId), onSpine: true, projected: false };
+    #chooseLongestPath(paths) {
+        if (!paths || !paths.length) return null;
+        let best = null, bestLen = -1;
+        for (const p of paths) {
+            const L = (p && Number.isFinite(p.bpLen)) ? p.bpLen : this._bpLenOf(p?.nodes || []);
+            if (L > bestLen) { best = p; bestLen = L; }
+        }
+        return best;
     }
 
-    /** True bp mapping for any given walk (returns Map<nodeId,{bpStart,bpEnd}>). */
-    indexWalkBpExtents(walk) {
-        const m = new Map();
-        const nodes = walk?.paths?.[0]?.nodes || [];
-        let acc = 0;
+    _bpLenOf(nodes) {
+        let L = 0;
         for (const id of nodes) {
-            const len = this.graph?.nodes.get(id)?.lengthBp || 0;
-            m.set(id, { bpStart: acc, bpEnd: acc + len });
-            acc += len;
+            const n = this.graph.nodes.get(id);
+            if (n && Number.isFinite(n.lengthBp)) L += n.lengthBp;
         }
-        return m;
+        return L;
     }
 
-    /** Projected bp for off‑spine nodes within a specific event (or true for mid‑spine). */
-    getProjectedBpInEvent(nodeId, event) {
-        if (!event || !Array.isArray(event.paths)) return null;
-        if (nodeId === event.anchors.leftId)  return { bpStart: event.anchors.spanStart, bpEnd: event.anchors.spanStart, onSpine: true, projected: false };
-        if (event.anchors.rightId && nodeId === event.anchors.rightId) return { bpStart: event.anchors.spanEnd, bpEnd: event.anchors.spanEnd, onSpine: true, projected: false };
-        for (const p of event.paths) {
-            if (!Array.isArray(p.nodesDetailed)) continue;
-            for (const d of p.nodesDetailed) {
-                if (d.id === nodeId) return { bpStart: d.refBpStart, bpEnd: d.refBpEnd, onSpine: !!d.isSpine, projected: !d.isSpine };
-            }
+    _recomputeEdges(nodes) {
+        const out = [];
+        for (let i = 0; i < nodes.length - 1; i++) {
+            const a = nodes[i], b = nodes[i + 1];
+            const f = this.#edgeKeyOf(a, b);
+            const r = this.#edgeKeyOf(b, a);
+            if (this.graph.edges.has(f)) out.push(f);
+            else if (this.graph.edges.has(r)) out.push(r);
         }
-        return null;
+        return out;
     }
 
-    /** Prefer true spine bp, else projected in any event, else null. */
-    getAnyBpExtent(nodeId, features) {
-        const s = this.getBpExtent(nodeId);
-        if (s) return s;
-        if (features && Array.isArray(features.events)) {
-            for (const ev of features.events) {
-                const hit = this.getProjectedBpInEvent(nodeId, ev);
-                if (hit) return hit;
-            }
+    _buildSpineBp(path, locusStartBp) {
+        let x = Number(locusStartBp) || 0;
+        const nodes = [];
+        for (const id of path.nodes) {
+            const len = this.graph.nodes.get(id)?.lengthBp || 0;
+            nodes.push({ id, bpStart: x, bpEnd: x + len, lengthBp: len });
+            x += len;
         }
-        return null;
+        return {
+            assemblyKey: null,
+            nodes,
+            edges: path.edges.slice(),
+            lengthBp: nodes.length ? nodes[nodes.length - 1].bpEnd - nodes[0].bpStart : 0
+        };
     }
 
-    // ========================= Region nesting (shallow) =========================
-    _assessInnerForEvent(event, opts) {
-        const L = event.anchors.leftId, R = event.anchors.rightId;
-        // 1) choose a local spine chain inside the region
-        let localChain = null;
-        if (R && event.paths && event.paths[0] && Array.isArray(event.paths[0].nodesDetailed)) {
-            localChain = event.paths[0].nodesDetailed.map(d => d.id);
-        } else if (!R) {
-            const loop = this.#findLocalLoopThrough(event.region.nodes, L);
-            if (loop && loop.length >= 3) localChain = loop; // L ... L
+    _bfsFarthest(start, adj) {
+        const parent = new Map([[start, null]]);
+        const q = [start];
+        let last = start;
+        while (q.length) {
+            const v = q.shift();
+            last = v;
+            for (const u of (adj.get(v) || [])) if (!parent.has(u)) { parent.set(u, v); q.push(u); }
         }
-        if (!localChain || localChain.length < 2) return [];
-
-        // 2) build subgraph restricted to region + anchors
-        const regionSet = new Set(event.region.nodes.concat([L, R].filter(Boolean)));
-        const sub = this.#makeSubgraph(regionSet);
-
-        // 3) run detector on the subgraph with the local spine
-        const subSvc = new PangenomeService();
-        subSvc.graph = sub;
-        const localWalk = { key: "local", paths: [{ nodes: localChain, edges: [], bpLen: 0 }] };
-        const inner = subSvc.assessGraphFeatures(localWalk, { ...opts, nestRegions: "none", includeOffSpineComponents: false });
-        return inner.events || [];
+        return { far: last, parent };
     }
 
-    #makeSubgraph(nodeSet) {
-        const g = this.graph;
-        const nodes = new Map();
-        const edges = new Map();
-        const adj = new Map();
-        const index = { byAssembly: new Map() };
-
-        for (const id of nodeSet) {
-            const n = g.nodes.get(id);
-            if (!n) continue;
-            nodes.set(id, { ...n });
-            adj.set(id, []);
-        }
-        for (const id of nodeSet) {
-            const nbrs = g.adj.get(id) || [];
-            for (const nb of nbrs) {
-                if (!nodeSet.has(nb)) continue;
-                const ekF = `edge:${id}:${nb}`;
-                const ekR = `edge:${nb}:${id}`;
-                if (g.edges.has(ekF)) edges.set(ekF, g.edges.get(ekF));
-                if (g.edges.has(ekR)) edges.set(ekR, g.edges.get(ekR));
-                adj.get(id).push(nb);
-            }
-        }
-        return { nodes, edges, adj, index };
+    _reconstructPath(parent, dst) {
+        const nodes = [];
+        let cur = dst;
+        while (cur != null) { nodes.push(cur); cur = parent.get(cur); }
+        nodes.reverse();
+        const edges = this._recomputeEdges(nodes);
+        return { nodes, edges, bpLen: this._bpLenOf(nodes), leftEndpoint: nodes[0], rightEndpoint: nodes[nodes.length - 1] };
     }
 
-    #findLocalLoopThrough(regionNodes, L) {
-        const region = new Set(regionNodes.concat([L]));
-        const adj = new Map();
-        for (const id of region) {
-            const nbrs = (this.graph.adj.get(id) || []).filter(n => region.has(n));
-            adj.set(id, nbrs);
-        }
-        const stack = [[L, null, []]];
-        const seen = new Set([L]);
-        while (stack.length) {
-            const [u, p, path] = stack.pop();
-            const newPath = path.concat(u);
-            for (const v of (adj.get(u) || [])) {
-                if (v === p) continue;
-                if (v === L && newPath.length > 1) return newPath.concat(L);
-                if (!seen.has(v)) { seen.add(v); stack.push([v, u, newPath]); }
-            }
-        }
-        return null;
+    _buildStrictPathForComponent(compSet, adj) {
+        let start = null;
+        for (const v of compSet) if ((adj.get(v)?.size || 0) === 1) { start = v; break; }
+        if (!start) start = compSet.values().next().value;
+        const a = this._bfsFarthest(start, adj).far;
+        const { far: b, parent } = this._bfsFarthest(a, adj);
+        return this._reconstructPath(parent, b);
     }
 
-    // ========================= Public convenience for locus origin =========================
-
-    /** Set a default locusStartBp used by assessGraphFeatures when none is provided */
-    setDefaultLocusStartBp(bp) { this.defaultLocusStartBp = Number(bp) || 0; return this.defaultLocusStartBp; }
-    /** Read the default locusStartBp */
-    getDefaultLocusStartBp() { return this.defaultLocusStartBp ?? 0; }
-
-    /** Batch version of getSpineFeatures for multiple assemblies */
-    getSpineFeaturesBatch({ keys = null, assessOpts = {}, walkOpts = {} } = {}) {
-        const all = keys ? keys : this.listAssemblyKeys();
-        return all.map(k => this.getSpineFeatures(k, assessOpts, walkOpts));
-    }
-
-    // ========================= Private helpers =========================
-
-    // Normalize per-path direction and recompute edges to match the chosen orientation.
-    // startNodeId: if provided and it is an endpoint of a path, orient that path to start there.
-    // directionPolicy: "asFound" | "nodeIdAsc" | "nodeIdDesc"
     _normalizePathDirections(paths, { startNodeId = null, directionPolicy = "asFound" } = {}) {
         if (!Array.isArray(paths) || paths.length === 0) return;
-
-        const asNum = (id) => {
-            const m = String(id).match(/^(\d+)/);   // numeric prefix of "13003+"
-            return m ? Number(m[1]) : Number.NEGATIVE_INFINITY;
+        const asNum = (id) => { const m = String(id).match(/^([0-9]+)/); return m ? Number(m[1]) : Number.NEGATIVE_INFINITY; };
+        const edgeVote = (nodes) => {
+            let score = 0;
+            const out = this.#directedOut();
+            for (let i = 0; i < nodes.length - 1; i++) {
+                const a = nodes[i], b = nodes[i + 1];
+                if (out.get(a)?.has(b)) score += 1;
+                else if (out.get(b)?.has(a)) score -= 1;
+            }
+            return score;
         };
 
         for (const p of paths) {
-            if (!p || !Array.isArray(p.nodes) || p.nodes.length === 0) continue;
-
-            // Decide whether to flip the nodes array
+            if (!p || !Array.isArray(p.nodes) || p.nodes.length < 2) continue;
             let policyApplied = "asFound";
-            if (p.nodes.length >= 2) {
-                if (startNodeId && p.nodes[p.nodes.length - 1] === startNodeId && p.nodes[0] !== startNodeId) {
-                    p.nodes.reverse();
-                    policyApplied = "startNodeId";
-                } else if (!startNodeId && (directionPolicy === "nodeIdAsc" || directionPolicy === "nodeIdDesc")) {
-                    const first = asNum(p.nodes[0]);
-                    const last  = asNum(p.nodes[p.nodes.length - 1]);
-                    const needAsc  = (directionPolicy === "nodeIdAsc"  && first > last);
-                    const needDesc = (directionPolicy === "nodeIdDesc" && first < last);
-                    if (needAsc || needDesc) {
-                        p.nodes.reverse();
-                        policyApplied = directionPolicy;
-                    }
-                }
+            const nodes = p.nodes;
+
+            if (startNodeId) {
+                const head = nodes[0] === startNodeId;
+                const tail = nodes[nodes.length - 1] === startNodeId;
+                if (!head && tail) { nodes.reverse(); policyApplied = "startNodeId"; }
             }
 
-            // Recompute edges in the chosen direction
-            const edgesOnPath = [];
-            for (let i = 0; i < p.nodes.length - 1; i++) {
-                const a = p.nodes[i], b = p.nodes[i + 1];
-                const ekF = this.#edgeKeyOf(a, b);
-                const ekR = this.#edgeKeyOf(b, a);
-                if (this.graph.edges.has(ekF)) edgesOnPath.push(ekF);
-                else if (this.graph.edges.has(ekR)) edgesOnPath.push(ekR);
-                // else: missing edge between consecutive nodes (should not happen)
+            if (policyApplied === "asFound" && directionPolicy === "edgeFlow") {
+                const score = edgeVote(nodes);
+                if (score < 0) { nodes.reverse(); policyApplied = "edgeFlow"; }
+                else if (score > 0) policyApplied = "edgeFlow";
             }
-            p.edges = edgesOnPath;
 
-            // Refresh metadata to match the new orientation
-            p.leftEndpoint  = p.nodes[0];
-            p.rightEndpoint = p.nodes[p.nodes.length - 1];
+            if (policyApplied === "asFound" &&
+                (directionPolicy === "nodeIdAsc" || directionPolicy === "nodeIdDesc")) {
+                const first = asNum(nodes[0]), last = asNum(nodes[nodes.length - 1]);
+                const needAsc  = directionPolicy === "nodeIdAsc"  && first > last;
+                const needDesc = directionPolicy === "nodeIdDesc" && first < last;
+                if (needAsc || needDesc) { nodes.reverse(); policyApplied = directionPolicy; }
+                else policyApplied = directionPolicy;
+            }
+
+            p.edges = this._recomputeEdges(nodes);
+            p.leftEndpoint  = nodes[0];
+            p.rightEndpoint = nodes[nodes.length - 1];
             p.direction = { start: p.leftEndpoint, end: p.rightEndpoint, policyApplied };
         }
     }
 
     #directedOut() {
         if (this._dirOut) return this._dirOut;
-        const out = new Map(); // Map<a, Set<b>> for directed edges a->b
-        for (const [ek] of this.graph.edges) {
-            const parts = ek.split(":");
-            if (parts.length !== 3) continue;
-            const a = parts[1], b = parts[2];
-            if (!out.has(a)) out.set(a, new Set());
-            out.get(a).add(b);
+        const out = new Map();
+        if (this.graph?.out?.size) {
+            for (const [a, setB] of this.graph.out) out.set(a, new Set(setB));
+        } else {
+            for (const [ek, {from,to}] of this.graph.edges) {
+                if (!out.has(from)) out.set(from, new Set());
+                out.get(from).add(to);
+            }
         }
         this._dirOut = out;
         return out;
@@ -868,25 +652,13 @@ export default class PangenomeService {
             }
             return s;
         };
-
         for (const p of paths) {
             if (!p || !Array.isArray(p.nodes) || p.nodes.length < 2) continue;
-            // Respect explicit startNode orientation if already applied
             if (p.direction && p.direction.policyApplied === "startNodeId") continue;
-            const fwd = score(p.nodes);
-            const rev = score([...p.nodes].reverse());
+            const fwd = score(p.nodes), rev = score([...p.nodes].reverse());
             if (rev > fwd) {
                 p.nodes.reverse();
-                // recompute edges to match
-                const edgesOnPath = [];
-                for (let i = 0; i < p.nodes.length - 1; i++) {
-                    const a = p.nodes[i], b = p.nodes[i + 1];
-                    const f = this.#edgeKeyOf(a, b);
-                    const r = this.#edgeKeyOf(b, a);
-                    if (this.graph.edges.has(f)) edgesOnPath.push(f);
-                    else if (this.graph.edges.has(r)) edgesOnPath.push(r);
-                }
-                p.edges = edgesOnPath;
+                p.edges = this._recomputeEdges(p.nodes);
                 p.leftEndpoint  = p.nodes[0];
                 p.rightEndpoint = p.nodes[p.nodes.length - 1];
                 p.direction = { start: p.leftEndpoint, end: p.rightEndpoint, policyApplied: "edgeFlow" };
@@ -896,215 +668,100 @@ export default class PangenomeService {
         }
     }
 
+    _trimLeafEndsForAssembly(key, path, { bpMax = 0, nodesMax = 0 } = {}) {
+        if (!path || !Array.isArray(path.nodes) || path.nodes.length < 2) return path;
+        const { adj } = this._getInduced(key);
+        const lenOf = (id) => (this.graph.nodes.get(id)?.lengthBp || 0);
 
-    #chooseLongestPath(paths) {
-        if (!paths || !paths.length) return null;
-        let best = null, bestLen = -1;
-        for (const p of paths) {
-            const L = (p && Number.isFinite(p.bpLen)) ? p.bpLen : 0;
-            if (L > bestLen) { best = p; bestLen = L; }
-        }
-        return best;
-    }
-
-    #requireGraph() { if (!this.graph) throw new Error("PangenomeService: graph not created. Call createGraph(json) first."); }
-    #edgeKeyOf(a, b) { return `edge:${a}:${b}`; }
-    #parseSignedId(id) { const m = String(id).match(/^(.+?)([+-])$/); if (!m) throw new Error(`Node id \"${id}\" must end with + or -`); return { bare: m[1], sign: m[2] }; }
-    #num(id) { return Number(this.#parseSignedId(id).bare); }
-
-    #inducedAdj(adj, allowSet) {
-        const out = new Map();
-        for (const id of allowSet) out.set(id, []);
-        for (const id of allowSet) {
-            const nbrs = adj.get(id) || [];
-            for (const nb of nbrs) if (allowSet.has(nb)) out.get(id).push(nb);
-        }
-        return out;
-    }
-
-    #connectedComponents(indAdj) {
-        const vis = new Set(), comps = [];
-        for (const id of indAdj.keys()) {
-            if (vis.has(id)) continue;
-            const q = [id], comp = []; vis.add(id);
-            while (q.length) {
-                const v = q.shift(); comp.push(v);
-                for (const w of (indAdj.get(v) || [])) if (!vis.has(w)) { vis.add(w); q.push(w); }
+        const sideLen = (forward) => {
+            let i = forward ? 0 : path.nodes.length - 1;
+            let j = forward ? 1 : path.nodes.length - 2;
+            let total = 0, n = 0;
+            while (i >= 0 && j >= 0 && i < path.nodes.length && j < path.nodes.length) {
+                const a = path.nodes[i], b = path.nodes[j];
+                const degA = (adj.get(a)?.size || 0);
+                if (degA !== 1) break;
+                total += lenOf(a); n++;
+                i = forward ? i + 1 : i - 1;
+                j = forward ? j + 1 : j - 1;
+                const mid = path.nodes[i];
+                const degMid = (adj.get(mid)?.size || 0);
+                if (degMid !== 2) break;
             }
-            comps.push(comp);
-        }
-        return comps;
-    }
-
-    #degreeMap(indAdj) { const d = new Map(); for (const [id, list] of indAdj) d.set(id, (list || []).length); return d; }
-
-    #chooseEndpoints(indAdj, comp) {
-        const deg = this.#degreeMap(indAdj);
-        const endpoints = comp.filter(id => (deg.get(id) || 0) === 1);
-        if (endpoints.length >= 2) return [endpoints[0], endpoints[1]];
-        const farthest = (start) => {
-            const q = [start], dist = new Map([[start, 0]]); let last = start;
-            while (q.length) { const v = q.shift(); last = v; for (const w of (indAdj.get(v) || [])) if (!dist.has(w)) { dist.set(w, dist.get(v) + 1); q.push(w); } }
-            return last;
-        };
-        const a = comp[0]; const u = farthest(a); const v = farthest(u); return [u, v];
-    }
-
-    #extractPathEndpointWalk(indAdj, comp) {
-        if (!comp.length) return [];
-        const deg = this.#degreeMap(indAdj);
-        const [start] = this.#chooseEndpoints(indAdj, comp);
-        const walk = []; const vis = new Set(); let prev = null, cur = start;
-        while (cur && !vis.has(cur)) {
-            walk.push(cur); vis.add(cur);
-            const cand = (indAdj.get(cur) || []).filter(n => n !== prev && !vis.has(n));
-            if (cand.length === 0) break;
-            if (cand.length === 1) { prev = cur; cur = cand[0]; continue; }
-            cand.sort((a, b) => (deg.get(a) || 0) - (deg.get(b) || 0) || (this.#num(a) - this.#num(b)));
-            prev = cur; cur = cand[0];
-        }
-        return walk;
-    }
-
-    // -------- Patch B: robust block–cut extractor --------
-    #biconnectedDecomposition(indAdj) {
-        const disc = new Map(), low = new Map(), parent = new Map();
-        let time = 0; const edgeStack = []; const blocks = []; const articulation = new Set();
-
-        const push = (u, v) => edgeStack.push([u, v]);
-        const popUntil = (u, v) => {
-            const set = new Set();
-            while (edgeStack.length) {
-                const [x, y] = edgeStack.pop();
-                set.add(x); set.add(y);
-                if ((x === u && y === v) || (x === v && y === u)) break;
-            }
-            if (set.size) blocks.push(set);
+            return { totalBp: total, count: n, cutIndex: i };
         };
 
-        const dfs = (u) => {
-            disc.set(u, ++time); low.set(u, time);
-            let childCount = 0;
-            for (const v of (indAdj.get(u) || [])) {
-                if (!disc.has(v)) {
-                    parent.set(v, u); childCount++; push(u, v);
-                    dfs(v);
-                    low.set(u, Math.min(low.get(u), low.get(v)));
-                    if ((parent.get(u) !== undefined && low.get(v) >= disc.get(u)) || (parent.get(u) === undefined && childCount > 1)) {
-                        articulation.add(u); popUntil(u, v);
-                    }
-                } else if (v !== parent.get(u) && disc.get(v) < disc.get(u)) {
-                    push(u, v); low.set(u, Math.min(low.get(u), disc.get(v)));
-                }
+        let left = 0, right = path.nodes.length;
+        if (bpMax > 0 || nodesMax > 0) {
+            const L = sideLen(true);
+            if ((bpMax > 0 && L.totalBp <= bpMax) || (nodesMax > 0 && L.count <= nodesMax)) {
+                left = Math.min(Math.max(L.cutIndex, 0), right - 2);
             }
+            const R = sideLen(false);
+            if ((bpMax > 0 && R.totalBp <= bpMax) || (nodesMax > 0 && R.count <= nodesMax)) {
+                right = Math.max(Math.min(R.cutIndex + 1, path.nodes.length), left + 2);
+            }
+        }
+        if (left === 0 && right === path.nodes.length) return path;
+
+        const nodes = path.nodes.slice(left, right);
+        return {
+            nodes,
+            edges: this._recomputeEdges(nodes),
+            bpLen: this._bpLenOf(nodes),
+            leftEndpoint: nodes[0],
+            rightEndpoint: nodes[nodes.length - 1],
+            direction: { start: nodes[0], end: nodes[nodes.length - 1], policyApplied: (path.direction?.policyApplied || "trimmed") }
         };
-
-        for (const u of indAdj.keys()) if (!disc.has(u)) { dfs(u); if (edgeStack.length) popUntil(...edgeStack[edgeStack.length - 1]); }
-        return { blocks, articulation };
     }
 
-    #buildBlockCutTree(blocks, articulation) {
-        const bctAdj = new Map(); const blockNodes = [];
-        const add = (n) => { if (!bctAdj.has(n)) bctAdj.set(n, new Set()); };
-        for (let i = 0; i < blocks.length; i++) {
-            const B = `B#${i}`; add(B); blockNodes[i] = blocks[i];
-            for (const v of blocks[i]) {
-                if (!articulation.has(v)) continue; const A = `A#${v}`; add(A);
-                bctAdj.get(B).add(A); bctAdj.get(A).add(B);
-            }
-        }
-        const adj = new Map(); for (const [k, set] of bctAdj) adj.set(k, Array.from(set));
-        return { adj, blockNodes };
+    _trimDiff(before, after) {
+        let i = 0; while (i < before.length && i < after.length && before[i] === after[i]) i++;
+        let j = 0; while (j < before.length && j < after.length && before[before.length-1-j] === after[after.length-1-j]) j++;
+        const prefixRemoved = before.slice(0, before.length - (after.length + (before.length - after.length - j)));
+        const suffixRemoved = before.slice(before.length - j + 0);
+        // The above is conservative; provide straightforward version instead:
+        const pr = before.slice(0, i);
+        const sr = before.slice(before.length - j);
+        return { prefixRemoved: pr, suffixRemoved: sr };
     }
 
-    #blockOfVertex(blocks, v) { for (let i = 0; i < blocks.length; i++) if (blocks[i].has(v)) return i; return -1; }
-
-    #bfsPath(indAdj, start, goal, allowSet = null) {
-        if (start === goal) return [start];
-        const A = allowSet || new Set(indAdj.keys());
-        if (!A.has(start) || !A.has(goal)) return null;
-        const q = [start], prev = new Map([[start, null]]);
-        while (q.length) {
-            const v = q.shift();
-            for (const w of (indAdj.get(v) || [])) {
-                if (!A.has(w) || prev.has(w)) continue;
-                prev.set(w, v);
-                if (w === goal) {
-                    const path = [w]; let cur = v; while (cur) { path.push(cur); cur = prev.get(cur); }
-                    path.reverse(); return path;
-                }
-                q.push(w);
-            }
-        }
-        return null;
+    _countOffSpineKeyed(key, pathNodeSet) {
+        const set = this.graph.assembliesIndex.get(key) || new Set();
+        let c = 0; for (const id of set) if (!pathNodeSet.has(id)) c++;
+        return c;
     }
 
-    #extractPathBlockCut(indAdj, comp) {
-        if (!comp || comp.length === 0) return [];
-        if (comp.length === 1) return [comp[0]]; // singleton
-
-        const { blocks, articulation } = this.#biconnectedDecomposition(indAdj);
-        if (!blocks || blocks.length === 0) {
-            return this.#extractPathEndpointWalk(indAdj, comp);
+    _edgeFlowScores(nodes) {
+        const out = this.#directedOut();
+        let fwd = 0, rev = 0;
+        for (let i = 0; i < nodes.length - 1; i++) {
+            const a = nodes[i], b = nodes[i + 1];
+            if (out.get(a)?.has(b)) fwd++;
+            if (out.get(b)?.has(a)) rev++;
         }
-
-        const [s, t] = this.#chooseEndpoints(indAdj, comp);
-        const bs = this.#blockOfVertex(blocks, s);
-        const bt = this.#blockOfVertex(blocks, t);
-        if (bs === -1 || bt === -1) {
-            const p = this.#bfsPath(indAdj, s, t);
-            return (p && p.length) ? p : this.#extractPathEndpointWalk(indAdj, comp);
+        const rnodes = [...nodes].reverse();
+        let fwdR = 0, revR = 0;
+        for (let i = 0; i < rnodes.length - 1; i++) {
+            const a = rnodes[i], b = rnodes[i + 1];
+            if (out.get(a)?.has(b)) fwdR++;
+            if (out.get(b)?.has(a)) revR++;
         }
-
-        const { adj: bctAdj } = this.#buildBlockCutTree(blocks, articulation);
-        const start = `B#${bs}`, goal = `B#${bt}`;
-
-        const Q = [start], prev = new Map([[start, null]]);
-        while (Q.length) {
-            const x = Q.shift(); if (x === goal) break;
-            for (const y of (bctAdj.get(x) || [])) if (!prev.has(y)) { prev.set(y, x); Q.push(y); }
-        }
-        if (!prev.has(goal)) {
-            const p = this.#bfsPath(indAdj, s, t) || this.#extractPathEndpointWalk(indAdj, comp);
-            return p || [];
-        }
-
-        const bctPath = []; for (let cur = goal; cur; cur = prev.get(cur)) bctPath.push(cur); bctPath.reverse();
-
-        const finalPath = []; let entry = s;
-        for (let i = 0; i < bctPath.length; i++) {
-            const label = bctPath[i]; if (!label.startsWith("B#")) continue;
-            const bi = Number(label.slice(2));
-            const allowSet = blocks[bi];
-            const inEntry = (i === 0) ? entry : (bctPath[i - 1].startsWith("A#") ? bctPath[i - 1].slice(2) : entry);
-            const nextLabel = (i === bctPath.length - 1) ? null : bctPath[i + 1];
-            const inExit = nextLabel && nextLabel.startsWith("A#") ? nextLabel.slice(2) : t;
-
-            const seg = this.#bfsPath(indAdj, inEntry, inExit, new Set(allowSet)) || [];
-            if (!seg.length) { const p = this.#bfsPath(indAdj, s, t) || this.#extractPathEndpointWalk(indAdj, comp); return p || []; }
-
-            if (finalPath.length && finalPath[finalPath.length - 1] === seg[0]) finalPath.push(...seg.slice(1));
-            else finalPath.push(...seg);
-
-            entry = inExit;
-        }
-
-        if (!finalPath.length) {
-            const p = this.#bfsPath(indAdj, s, t) || this.#extractPathEndpointWalk(indAdj, comp);
-            return p || [];
-        }
-        return finalPath;
+        return { forward: fwd - rev, reverse: fwdR - revR };
     }
 
-    // -------- Patch A: defensive mode chooser --------
-    #decideMode(subAdj, comp) {
-        const deg = this.#degreeMap(subAdj);
-        const n = comp.length;
-        const e = comp.reduce((s, id) => s + (subAdj.get(id) || []).length, 0) / 2;
-        const endpoints = comp.filter(id => (deg.get(id) || 0) === 1).length;
-        const maxDeg = Math.max(0, ...comp.map(id => deg.get(id) || 0));
-        if (n <= 2 || e <= 1) return "endpoint"; // tiny/degenerate
-        const looksChainy = (endpoints === 2) && (maxDeg <= 2) && (e <= n);
-        return looksChainy ? "endpoint" : "blockcut";
+    _provenanceForPath(key, path) {
+        const ef = this._edgeFlowScores(path.nodes);
+        return {
+            assemblyKey: key,
+            endpoints: { start: path.leftEndpoint, end: path.rightEndpoint },
+            direction: path.direction || { policyApplied: "unknown" },
+            edgeFlow: { forwardScore: ef.forward, reverseScore: ef.reverse, chosen: (ef.forward >= ef.reverse) ? "forward" : "reverse" },
+            method: "induced-longest-simple + edgeFlow + optional leafTrim",
+            trimmed: { enabled: false },
+            offSpineKeyed: 0
+        };
     }
 }
+
+export default PangenomeService;
