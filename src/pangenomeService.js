@@ -1,9 +1,8 @@
-// PangenomeService v1.1 — deterministic walks + bounded feature assessment.
-// Pure JavaScript. No external dependencies.
+// PangenomeService v1.2 — deterministic walks, arrow-aware start, bounded features.
 
 class PangenomeService {
     constructor() {
-        this.graph = null;       // { nodes, edges, out, adj, assembliesIndex }
+        this.graph = null;       // { nodes, edges, out, adj, assembliesIndex, locus? }
         this._dirOut = null;
         this._defaultLocusStartBp = 0;
     }
@@ -11,15 +10,16 @@ class PangenomeService {
     // ---------- Public API ----------
 
     loadData(json, { assemblyKeyDelim = "#" } = {}) {
-        const nodes = new Map();      // id -> { id, lengthBp, assemblies:Set, raw? }
-        const edges = new Map();      // "edge:a:b" -> { from, to }
-        const out   = new Map();      // id -> Set(neighbors) (directed)
-        const adj   = new Map();      // id -> Set(neighbors) (undirected)
-        const assembliesIndex = new Map(); // asmKey -> Set(nodeId)
+        const nodes = new Map();
+        const edges = new Map();
+        const out   = new Map();
+        const adj   = new Map();
+        const assembliesIndex = new Map();
 
         const addOut=(a,b)=>{ if(!out.has(a)) out.set(a,new Set()); out.get(a).add(b); };
         const addAdj=(a,b)=>{ if(!adj.has(a)) adj.set(a,new Set()); if(!adj.has(b)) adj.set(b,new Set()); adj.get(a).add(b); adj.get(b).add(a); };
 
+        // optional sequences (for lengths fallback)
         const seqs = new Map();
         if (json?.sequence) for (const [id, seq] of Object.entries(json.sequence)) seqs.set(String(id), String(seq ?? ""));
 
@@ -81,13 +81,18 @@ class PangenomeService {
 
     /**
      * Return a single **linear, non-branching** path for an assembly.
-     * If `startNodeId` is present in the assembly component and `startPolicy:"forceFromNode"`,
-     * the path **starts at that node**.
+     * Options:
+     *  - startNodeId?: string
+     *  - startPolicy?: "preferEndpoint" | "forceFromNode" | "preferArrowEndpoint"
+     *      - "forceFromNode": hard anchor at startNodeId
+     *      - "preferArrowEndpoint": auto-pick a directed source as start if startNodeId not given
+     *      - "preferEndpoint": legacy (flip if startNodeId is already an endpoint)
+     *  - directionPolicy?: "edgeFlow" | "asIs"
      */
     getAssemblyWalk(assemblyKey, {
         startNodeId = null,
-        startPolicy = "preferEndpoint",   // "preferEndpoint" | "forceFromNode"
-        directionPolicy = "edgeFlow"      // "edgeFlow" | "asIs"
+        startPolicy = "preferArrowEndpoint",
+        directionPolicy = "edgeFlow"
     } = {}) {
         this.#requireGraph();
 
@@ -98,15 +103,39 @@ class PangenomeService {
             throw new Error(`startNodeId ${startNodeId} is not in assembly ${assemblyKey}`);
         }
 
-        const comp = (startNodeId)
-            ? this.#componentContaining(startNodeId, induced.adj)
-            : this.#largestComponentByBp(induced.adj);
+        let nodes;
 
-        let nodes = (startNodeId && startPolicy === "forceFromNode")
-            ? this.#anchoredPathByDoubleSweep(comp, startNodeId, induced.adj)
-            : this.#diameterPath(comp, induced.adj);
+        // 1) hard anchor
+        if (startNodeId && startPolicy === "forceFromNode") {
+            const comp = this.#componentContaining(startNodeId, induced.adj);
+            nodes = this.#anchoredPathByDoubleSweep(comp, startNodeId, induced.adj);
+        }
 
-        if (directionPolicy === "edgeFlow" && !(startNodeId && startPolicy === "forceFromNode")) {
+        // 2) auto arrow-consistent endpoint
+        if (!nodes && !startNodeId && startPolicy === "preferArrowEndpoint") {
+            const anchor = this.#chooseArrowSource(assemblyKey, induced);
+            if (anchor) {
+                const comp = this.#componentContaining(anchor, induced.adj);
+                nodes = this.#anchoredPathByDoubleSweep(comp, anchor, induced.adj);
+            }
+        }
+
+        // 3) default (long simple path / diameter proxy)
+        if (!nodes) {
+            const comp = startNodeId
+                ? this.#componentContaining(startNodeId, induced.adj)
+                : this.#largestComponentByBp(induced.adj);
+            nodes = this.#diameterPath(comp, induced.adj);
+
+            // legacy endpoint preference
+            if (startNodeId && startPolicy === "preferEndpoint") {
+                if (nodes[nodes.length - 1] === startNodeId) nodes = [...nodes].reverse();
+            }
+        }
+
+        // Orientation (skip flipping if we deliberately anchored)
+        const anchored = !!(startNodeId && startPolicy === "forceFromNode") || (!startNodeId && startPolicy === "preferArrowEndpoint");
+        if (directionPolicy === "edgeFlow" && !anchored) {
             const sF = this.#edgeFlowScore(nodes);
             const sR = this.#edgeFlowScore([...nodes].reverse());
             if (sR > sF) nodes.reverse();
@@ -121,24 +150,8 @@ class PangenomeService {
     setDefaultLocusStartBp(bp) { this._defaultLocusStartBp = Number(bp) || 0; return this._defaultLocusStartBp; }
     getDefaultLocusStartBp()   { return this._defaultLocusStartBp ?? 0; }
 
-    // --- Spine + features (bounded, fast) ---
+    // --- Spine + features (bounded) ---
 
-    /**
-     * Build a linearized “spine” for an assembly and discover nearby events.
-     * Bounded by caps & a global operation budget to avoid stalls.
-     *
-     * assessOpts:
-     *  - includeAdjacent=true
-     *  - allowMidSpineReentry=true
-     *  - includeDangling=true
-     *  - includeOffSpineComponents="none"|"summary"|"full"
-     *  - maxPathsPerEvent=1
-     *  - maxRegionHops=64, maxRegionNodes=4000, maxRegionEdges=4000
-     *  - operationBudget=500000
-     *  - locusStartBp = (default set via setDefaultLocusStartBp)
-     *
-     * walkOpts: passed to getAssemblyWalk (startNodeId, startPolicy, directionPolicy)
-     */
     getSpineFeatures(assemblyKey, assessOpts = {}, walkOpts = {}) {
         this.#requireGraph();
 
@@ -155,18 +168,12 @@ class PangenomeService {
             locusStartBp = (this._defaultLocusStartBp ?? 0)
         } = assessOpts || {};
 
-        // 1) Spine path (linear, anchored if requested)
         const path = this.getAssemblyWalk(assemblyKey, walkOpts);
         if (!path.nodes.length) {
-            return {
-                spine: { assemblyKey, nodes: [], edges: [], lengthBp: 0 },
-                events: [],
-                offSpine: [],
-                aborted: false
-            };
+            return { spine: { assemblyKey, nodes: [], edges: [], lengthBp: 0 }, events: [], offSpine: [], aborted: false };
         }
 
-        // 2) Spine with bp coords
+        // Spine with bp coords
         let x = Number(locusStartBp) || 0;
         const spineNodes = [];
         for (const id of path.nodes) {
@@ -181,7 +188,7 @@ class PangenomeService {
             lengthBp: spineNodes.length ? (spineNodes[spineNodes.length-1].bpEnd - spineNodes[0].bpStart) : 0
         };
 
-        // 3) Event discovery (bounded)
+        // Event discovery (bounded)
         let budget = Math.max(10000, Number(operationBudget) || 200000);
         const onSpine = new Set(spine.nodes.map(n => n.id));
         const bpOf = new Map(spine.nodes.map(n => [n.id, { bpStart: n.bpStart, bpEnd: n.bpEnd }]));
@@ -196,7 +203,6 @@ class PangenomeService {
             return false;
         };
 
-        // Explore around (L,R) to find alt region
         const exploreRegion = (L, R) => {
             const blockSpine = !allowMidSpineReentry;
             const allowed = (id) => (id === L || id === R || !blockSpine || !onSpine.has(id));
@@ -223,17 +229,16 @@ class PangenomeService {
                 if (truncated) break;
             }
 
-            // Region edges (directed keys, de-duplicated by undirected pair)
+            // collect directed edges inside region
             const redges = new Set();
-            const undPairs = new Set();
+            const pairs = new Set();
             for (const a of region) {
                 for (const b of (this.graph.adj.get(a) || [])) {
                     if (!region.has(b)) continue;
                     const pair = (a < b) ? `${a}|${b}` : `${b}|${a}`;
-                    if (undPairs.has(pair)) continue;
-                    undPairs.add(pair);
-                    const k1 = `edge:${a}:${b}`;
-                    const k2 = `edge:${b}:${a}`;
+                    if (pairs.has(pair)) continue;
+                    pairs.add(pair);
+                    const k1 = `edge:${a}:${b}`, k2 = `edge:${b}:${a}`;
                     if (this.graph.edges.has(k1)) redges.add(k1);
                     if (this.graph.edges.has(k2)) redges.add(k2);
                     if (redges.size > maxRegionEdges) { truncated = true; break; }
@@ -241,7 +246,7 @@ class PangenomeService {
                 if (truncated) break;
             }
 
-            return { parent, region, redges: [...redges], touchedR, truncated };
+            return { region, redges: [...redges], touchedR, truncated };
         };
 
         const shortestAltPath = (L, R, region) => {
@@ -254,8 +259,7 @@ class PangenomeService {
                     if (!region.has(u) || p.has(u)) continue;
                     p.set(u, v);
                     if (u === R) {
-                        const nodes = [];
-                        for (let cur = u; cur != null; cur = p.get(cur)) nodes.push(cur);
+                        const nodes = []; for (let cur = u; cur != null; cur = p.get(cur)) nodes.push(cur);
                         nodes.reverse();
                         const edges = this._recomputeEdges(nodes);
                         const offNodes = nodes.filter(id => !onSpine.has(id));
@@ -275,18 +279,13 @@ class PangenomeService {
             const pairKey = `${L}|${R}`;
             if (seenPairs.has(pairKey)) continue;
 
-            if (!hasOffSpineNeighbor(L) && !hasOffSpineNeighbor(R)) {
-                seenPairs.add(pairKey);
-                continue;
-            }
+            if (!hasOffSpineNeighbor(L) && !hasOffSpineNeighbor(R)) { seenPairs.add(pairKey); continue; }
 
             const { region, redges, touchedR, truncated } = exploreRegion(L, R);
 
-            // If region == {L,R} only and we don't want adjacent-only pills, skip
             const onlyLR = (region.size === 2 && region.has(L) && region.has(R));
             if (onlyLR && !includeAdjacent) { seenPairs.add(pairKey); continue; }
 
-            // Must actually include off-spine content
             const hasOff = [...region].some(n => !onSpine.has(n));
             if (!hasOff) { seenPairs.add(pairKey); continue; }
 
@@ -331,7 +330,7 @@ class PangenomeService {
             seenPairs.add(pairKey);
         }
 
-        // 4) Optional: off-spine components (context only)
+        // off-spine components (optional)
         const offSpine = [];
         if (includeOffSpineComponents !== "none" && budget > 0) {
             const seen = new Set([...onSpine]);
@@ -354,9 +353,7 @@ class PangenomeService {
                     if (includeOffSpineComponents === "summary") {
                         offSpine.push({ nodes: [...comp], edges: [], keyed: false });
                     } else {
-                        // full: collect internal directed edges
-                        const redges = new Set();
-                        const pairs = new Set();
+                        const redges = new Set(), pairs = new Set();
                         for (const a of comp) {
                             for (const b of (this.graph.adj.get(a) || [])) {
                                 if (!comp.has(b)) continue;
@@ -380,7 +377,7 @@ class PangenomeService {
         return { spine, events, offSpine, aborted };
     }
 
-    // ---------- Private: induced subgraph & components ----------
+    // ---------- Private: induced subgraph & directed endpoints ----------
 
     #induced(assemblyKey) {
         const nodesIn = new Set();
@@ -394,6 +391,56 @@ class PangenomeService {
             for (const to of outs) if (nodesIn.has(to)) { add(from,to); add(to,from); }
         }
         return { nodesIn, adj };
+    }
+
+    #directedInduced(assemblyKey, induced) {
+        const nodesIn = induced?.nodesIn ?? this.#induced(assemblyKey).nodesIn;
+        const outD = new Map(), inD = new Map();
+        for (const id of nodesIn) { outD.set(id, new Set()); inD.set(id, new Set()); }
+        for (const [from, outs] of this.graph.out) if (nodesIn.has(from)) {
+            for (const to of outs) if (nodesIn.has(to)) {
+                outD.get(from).add(to);
+                inD.get(to).add(from);
+            }
+        }
+        return { outD, inD, nodesIn };
+    }
+
+    #chooseArrowSource(assemblyKey, induced) {
+        const { outD, inD, nodesIn } = this.#directedInduced(assemblyKey, induced);
+        const lenOf = (id)=> (this.graph.nodes.get(id)?.lengthBp || 0);
+
+        const sources = [];
+        for (const id of nodesIn) {
+            const indeg = inD.get(id)?.size || 0;
+            const outdeg = outD.get(id)?.size || 0;
+            if (indeg === 0 && outdeg > 0) sources.push(id);
+        }
+        if (!sources.length) return null;
+
+        // score each source by directed reach bp (unique nodes visited along out edges)
+        const scoreSource = (s) => {
+            const seen = new Set([s]);
+            const q = [s];
+            let bp = lenOf(s);
+            while (q.length) {
+                const v = q.shift();
+                for (const u of (outD.get(v) || [])) {
+                    if (seen.has(u)) continue;
+                    seen.add(u);
+                    bp += lenOf(u);
+                    q.push(u);
+                }
+            }
+            return { bp, id: s };
+        };
+
+        let best = null;
+        for (const s of sources) {
+            const sc = scoreSource(s);
+            if (!best || sc.bp > best.bp || (sc.bp === best.bp && this.#idCmp(sc.id, best.id) < 0)) best = sc;
+        }
+        return best?.id ?? null;
     }
 
     #componentContaining(start, adj) {
@@ -424,7 +471,7 @@ class PangenomeService {
         return best;
     }
 
-    // ---------- Private: path algorithms (deterministic) ----------
+    // ---------- Private: path algorithms ----------
 
     #diameterPath(comp, adj) {
         const seed = [...comp].sort(this.#idCmp)[0];
@@ -480,13 +527,9 @@ class PangenomeService {
                 const candD = dist.get(v) + 1;
                 const candB = (bp.get(v) || 0) + lenOf(u);
                 if (!dist.has(u)) {
-                    parent.set(u, v);
-                    dist.set(u, candD);
-                    bp.set(u, candB);
-                    q.push(u);
+                    parent.set(u, v); dist.set(u, candD); bp.set(u, candB); q.push(u);
                 } else if (candD === dist.get(u) && candB > bp.get(u)) {
-                    parent.set(u, v);
-                    bp.set(u, candB);
+                    parent.set(u, v); bp.set(u, candB);
                 }
             }
         }
@@ -509,7 +552,7 @@ class PangenomeService {
             const k1 = `edge:${a}:${b}`, k2 = `edge:${b}:${a}`;
             if (this.graph.edges.has(k1)) keys.push(k1);
             else if (this.graph.edges.has(k2)) keys.push(k2);
-            else keys.push(`edge:${a}:${b}`); // fall back for display
+            else keys.push(`edge:${a}:${b}`); // fallback for display
         }
         return keys;
     }
@@ -544,7 +587,6 @@ class PangenomeService {
         }
         return best;
     }
-
     #tupleCmp(a, b) {
         const n = Math.max(a.length, b.length);
         for (let i = 0; i < n; i++) {

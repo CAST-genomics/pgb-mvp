@@ -69,8 +69,7 @@ class GenomicService {
 
             const walkConfig =
                 {
-                    // startNodeId: this.startNode,
-                    startPolicy: "forceFromNode",
+                    startPolicy: "preferArrowEndpoint", // or "forceFromNode" with startNodeId
                     directionPolicy: "edgeFlow",
                 };
 
