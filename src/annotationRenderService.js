@@ -1,7 +1,6 @@
 import {app} from "./main.js"
-import {colorOfBase} from "./utils/genomicUtils.js"
 import eventBus from "./utils/eventBus.js"
-import {colorToRGBString, getRandomPastelAppleCrayonColor} from "./utils/color.js"
+import {colorToRGBString, getAppleCrayonColorByName, getRandomPastelAppleCrayonColor} from "./utils/color.js"
 import { getLineXYZWithTrackBasepair, buildBpIndex, buildNodeEndpointMap, makeNodeRecordMap, getTrackParameterWithLineParameter } from "./utils/nodeTrackMappingUtils.js"
 
 class AnnotationRenderService {
@@ -92,7 +91,7 @@ class AnnotationRenderService {
         if (undefined === result) {
             this.isSequenceRenderer = true
             this.drawConfig = { nodes, chr, bpStart, bpEnd }
-            this.renderSequenceStripAccessor(this.drawConfig)
+            this.renderGenomicExtents(this.drawConfig)
         } else {
             this.isSequenceRenderer = false
             const {geneFeatureSource, geneRenderer} = result
@@ -159,110 +158,38 @@ class AnnotationRenderService {
         this.container.appendChild(this.visualFeedbackElement);
     }
 
-    renderSequenceStripAccessor(config) {
+    renderGenomicExtents(config) {
 
         const { nodes, bpStart:assemblyBPStart, bpEnd:assemblyBPEnd } = config
 
         const canvas = this.container.querySelector('canvas')
+        const { width, height } = canvas.getBoundingClientRect();
 
         const ctx = canvas.getContext('2d')
-
-        const { width, height } = canvas
         ctx.clearRect(0, 0, width, height);
 
         const bpLength = Math.max(1, assemblyBPEnd - assemblyBPStart);
         const bpPerPixel = bpLength / width
         const pixelPerBP = 1/bpPerPixel
 
-        for (const { id, bpStart, bpEnd, lenBp } of nodes){
+        for (const { id, bpStart, bpEnd, lengthBp } of nodes){
 
-            ctx.fillStyle = colorToRGBString(getRandomPastelAppleCrayonColor())
+            ctx.fillStyle = colorToRGBString(getAppleCrayonColorByName('aluminum'))
 
-            const xBP = bpStart - assemblyBPStart
-            const x = Math.floor(xBP * pixelPerBP)
-            const w = Math.ceil(lenBp * pixelPerBP)
-            ctx.fillRect(x, 0, w, height)
+            // Calculate start and end positions
+            const startXBP = bpStart - assemblyBPStart
+            const endXBP = bpEnd - assemblyBPStart
+            const startX = Math.floor(startXBP * pixelPerBP)
+            const endX = Math.floor(endXBP * pixelPerBP)
+            
+            // Draw vertical line at start position (2 pixels wide)
+            ctx.fillRect(startX, 0, 1, height)
+            
+            // Draw vertical line at end position (2 pixels wide)
+            ctx.fillRect(endX - 1, 0, 1, height)
         }
 
 
-    }
-
-    __renderSequenceStripAccessor({ sequenceStripAccessor, bpStart, bpEnd }) {
-
-        const { totalLen, charAt, sequences } = sequenceStripAccessor
-
-        const canvas = this.container.querySelector('canvas')
-
-        const ctx = canvas.getContext('2d', { willReadFrequently: false })
-
-        const { width, height } = canvas
-        ctx.clearRect(0, 0, width, height);
-        ctx.imageSmoothingEnabled = false;
-
-        const bpLength = Math.max(1, bpEnd - bpStart);
-        const bpPerPixel = bpLength / width;
-
-        const imageData = ctx.createImageData(width, 1); // 1-row image, then stretch vertically
-        const data = imageData.data;
-
-        if (bpPerPixel <= 1) {
-            // Zoomed in: each pixel column is one base (or some columns unused)
-            for (let x = 0; x < width; x++) {
-
-                const bp = Math.floor(bpStart + x * bpPerPixel);
-                const [r,g,b,a] = colorOfBase(charAt(bp, sequences))
-                const i = x * 4;
-
-                data[i  ] = r;
-                data[i+1] = g;
-                data[i+2] = b;
-                data[i+3] = a;
-            }
-        } else {
-            // Zoomed out: one pixel column covers multiple bases — average color
-            for (let x = 0; x < width; x++) {
-
-                let r=0
-                let g=0
-                let b=0
-
-                const bps = Math.floor(bpStart + x * bpPerPixel);
-                const bpe = Math.floor(bpStart + (x+1) * bpPerPixel);
-
-                let cnt=0;
-
-                for (let bp = bps; bp < bpe; bp++) {
-
-                    const base = charAt(bp - bps, sequences)
-
-                    const [R,G,B] = colorOfBase(base);
-                    r+=R;
-                    g+=G;
-                    b+=B;
-
-                    cnt++;
-                }
-
-                // default grey
-                if (0 === cnt) {
-                    r=g=b=160;
-                    cnt=1;
-                }
-
-                const i = 4 * x;
-
-                data[i  ] = (r / cnt) | 0;
-                data[i+1] = (g / cnt) | 0;
-                data[i+2] = (b / cnt) | 0;
-                data[i+3] = 255;
-
-            }
-        }
-
-        // Blit 1-row then scale to full height (fast)
-        ctx.putImageData(imageData, 0, 0);
-
-        ctx.drawImage(canvas, 0, 0, width, 1, 0, 0, width, height);
     }
 
     render(renderConfig) {
@@ -306,7 +233,7 @@ class AnnotationRenderService {
         if (false === this.isSequenceRenderer && this.drawConfig) {
             this.render(this.drawConfig);
         } else if (true === this.isSequenceRenderer && this.drawConfig) {
-            this.renderSequenceStripAccessor(this.drawConfig)
+            this.renderGenomicExtents(this.drawConfig)
         } else {
             ctx.clearRect(0, 0, width, height);
         }
