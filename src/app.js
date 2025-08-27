@@ -6,6 +6,7 @@ import RayCastService from "./raycastService.js"
 import {loadPath, prettyPrint} from './utils/utils.js'
 import eventBus from './utils/eventBus.js';
 import { annotationRenderService } from "./main.js"
+import {getAppleCrayonColorByName} from "./utils/color.js"
 
 class App {
 
@@ -36,6 +37,8 @@ class App {
         this.isTooltipEnabled = undefined
 
         this.tooltip = this.createTooltip();
+
+        this.feedbackColor = getAppleCrayonColorByName('maraschino')
 
         // Setup resize handler
         window.addEventListener('resize', () => {

@@ -1,9 +1,7 @@
-import * as THREE from 'three';
 import {app} from "./main.js"
-import LocusInput from "./locusInput.js"
 import {colorOfBase} from "./utils/genomicUtils.js"
 import eventBus from "./utils/eventBus.js"
-import {colorToRGBString, getAppleCrayonColorByName, getRandomPastelAppleCrayonColor} from "./utils/color.js"
+import {colorToRGBString, getRandomPastelAppleCrayonColor} from "./utils/color.js"
 
 class AnnotationRenderService {
 
@@ -15,6 +13,7 @@ class AnnotationRenderService {
         this.raycastService = raycastService;
 
         this.bpIndex = undefined
+        this.bpIndexMap = new Map()
 
         this.splineParameterMap = new Map()
 
@@ -27,6 +26,7 @@ class AnnotationRenderService {
         this.setupEventHandlers()
 
         this.setupEventBusSubscriptions()
+
     }
 
     setupEventHandlers() {
@@ -60,10 +60,10 @@ class AnnotationRenderService {
         const { spine } = this.genomicService.assemblyWalkMap.get(assembly)
         const { nodes, edges } = spine
 
-
         const legs = buildWalkLegs(nodes, app.pangenomeService.graph);
 
         this.bpIndex = buildBpIndex(spine, legs);
+        this.bpIndexMap = createBPIndexMapWithBPIndex(this.bpIndex)
 
         const { chr } = this.genomicService.locus
         const bpStart = nodes[0].bpStart
@@ -126,7 +126,10 @@ class AnnotationRenderService {
         }
 
         const { startParam, endParam } = this.splineParameterMap.get(nodeName)
-        const param = startParam * ( 1 - t) + endParam * t
+        // const param = startParam * ( 1 - t) + endParam * t
+
+        const { tOriented } = getOrientedTFromRawT(nodeName, t, this.bpIndexMap)
+        const param = startParam * ( 1 - tOriented) + endParam * tOriented
 
         this.visualFeedbackElement.style.display = 'block';
 
@@ -304,6 +307,7 @@ class AnnotationRenderService {
         this.splineParameterMap.clear()
 
         this.bpIndex = undefined
+        this.bpIndexMap.clear()
 
         const { width, height } = this.container.getBoundingClientRect();
         const canvas = this.container.querySelector('canvas')
@@ -362,7 +366,8 @@ class AnnotationRenderService {
 
          */
 
-        this.raycastService.showVisualFeedback(pointOnLine, parametricLine.material.color)
+        // this.raycastService.showVisualFeedback(pointOnLine, parametricLine.material.color)
+        this.raycastService.showVisualFeedback(pointOnLine, app.feedbackColor)
     }
 
     dispose() {
@@ -444,7 +449,6 @@ function buildWalkLegs(walkNodes, graph) {
     return legs;
 }
 
-
 /**
  * From spine nodes (with bpStart/bpEnd) and legs, produce a fast lookup index.
  * Inside-node direction is taken from incoming leg if present; else outgoing; else +1.
@@ -521,20 +525,59 @@ function locateCursorOnWalk(bp, bpIndex, geometryManager) {
     return { nodeId: node.id, t, dir, xyz, parametricLine };
 }
 
-function onGeneTrackHover(bp, bpIndex) {
-    const hit = locateCursorOnWalk(bp, bpIndex, nodeGeomMap);
-    if (!hit) return;
-
-    // Move the dot
-    if (hit.xyz) dot.position.copy(hit.xyz);
-    else {
-        // Fallback: cache t and sample later if geometry not yet present
-        // e.g., pendingSamples.push(hit)
+/**
+ * If you built bpIndex via buildBpIndex(spine, legs), this
+ * converts it to a handy Map for quick node lookups.
+ *
+ * record = { dir: +1|-1, bpStart, bpEnd, lengthBp }
+ */
+function createBPIndexMapWithBPIndex(bpIndex) {
+    const map = new Map();
+    for (const n of bpIndex.idx) {
+        map.set(n.id, {
+            dir: n.dir >= 0 ? +1 : -1,
+            bpStart: n.bpStart,
+            bpEnd: n.bpEnd,
+            lengthBp: n.lengthBp
+        });
     }
+    return map;
+}
 
-    // (Optional) UI affordances
-    // tooltip.textContent = `${hit.nodeId}  ${hit.dir > 0 ? "→" : "←"}  t=${hit.t.toFixed(3)}`;
-    // highlightNode(hit.nodeId, { reversed: hit.dir < 0 });
+/**
+ * Optional: map (nodeId, tRaw) -> track bp, honoring direction.
+ * Handy for your node→track mapping.
+ *
+ * @param {string} nodeName
+ * @param {number} tRaw
+ * @param {Map<string,{dir:number,bpStart:number,lengthBp:number}>} bpIndexMap
+ * @returns {{ bp:number, tOriented, dir:1|-1 } | null}
+ */
+function getOrientedTFromRawT(nodeName, tRaw, bpIndexMap) {
+    const rec = bpIndexMap.get(nodeName);
+    if (!rec) return null;
+    const dir = rec.dir >= 0 ? +1 : -1;
+    const tOriented = dir === +1 ? tRaw : 1 - tRaw;
+    const bp = rec.bpStart + tOriented * (rec.lengthBp || 0);
+    return { bp, tOriented, dir };
+}
+
+/**
+ * Strand-normalize a ParametricLine t according to arrow flow.
+ * Use this *for semantics* (progress, mapping to bp). Do NOT use it
+ * to re-sample the hit position (you already have the raycast xyz).
+ *
+ * @param {string} nodeId
+ * @param {number} tRaw    // [0,1] from ParametricLine raycast
+ * @param {Map<string,{dir:number}>} nodeDirIndex
+ * @param {number} [fallbackDir=+1]
+ * @returns {{ t:number, dir:1|-1 }}
+ */
+function orientNodeT(nodeId, tRaw, nodeDirIndex, fallbackDir = +1) {
+    const rec = nodeDirIndex.get(nodeId);
+    const dir = (rec?.dir ?? fallbackDir) >= 0 ? +1 : -1;
+    const t = dir === +1 ? tRaw : 1 - tRaw;
+    return { t, dir };
 }
 
 export default AnnotationRenderService;

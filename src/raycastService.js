@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import eventBus from './utils/eventBus.js';
 import ParametricLine from "./parametricLine.js"
+import {app} from "./main.js"
 
 class RayCastService {
 
@@ -145,11 +146,11 @@ class RayCastService {
 
     showVisualFeedback(pointOnLine, visualFeedbackColor) {
 
-
         this.raycastVisualFeedback.visible = true;
         this.raycastVisualFeedback.position.copy(pointOnLine);
 
-        this.raycastVisualFeedback.material.color.copy(visualFeedbackColor).offsetHSL(0.7, 0, 0);
+        // this.raycastVisualFeedback.material.color.copy(visualFeedbackColor).offsetHSL(0.7, 0, 0);
+        this.raycastVisualFeedback.material.color.copy(visualFeedbackColor);
     }
 
     clearVisualFeedback() {
@@ -171,7 +172,8 @@ class RayCastService {
         }
 
         const { pointOnLine, object:line } = intersection
-        this.showVisualFeedback(pointOnLine, line.material.color)
+        // this.showVisualFeedback(pointOnLine, line.material.color)
+        this.showVisualFeedback(pointOnLine, app.feedbackColor)
 
         return this.currentIntersection
     }
