@@ -1,157 +1,165 @@
 # How to Map Annotation Track to Assembly Walk
 
-This document shows how to map a 1D gene-annotation track position (bp) to a moving dot on your pangenome graph, even when parts of the assembly walk traverse nodes in reverse (against neighbors). The approach is **piecewise strand-aware**: for each leg between two consecutive nodes, we detect the directed edge and, inside that node, flip the parametric direction `t∈[0,1]` when needed so the dot always follows arrow flow.
+This updated guide shows how to build **solid, monotonic, bi-directional mapping** between a 1D annotation track (bp) and your 3D pangenome graph rendered with Three.js—**even when some nodes are geometrically flipped or traversed in opposite senses**.
 
-> Works with your Three.js `ParametricLine` subclass of `Line2`, which exposes `getPointAt(t) -> THREE.Vector3`.
+The core idea is to anchor each node’s parametric space to its actual **left neighbor → right neighbor** geometry. We do this once by choosing, per node, which endpoint (`t=0` or `t=1`) is the **entry** (closer to the left neighbor) and which is the **exit** (closer to the right neighbor). From there:
 
----
+* **Track → Graph:** map bp → node via binary search → progress `u∈[0,1]` → oriented `t = entryT + u·(exitT−entryT)`.
+* **Graph → Track:** map raw raycast `tRaw` back to `u = (tRaw−entryT)/(exitT−entryT)` → bp.
 
-## Overview
-
-1. **Build legs** for the selected assembly walk and compute each leg’s local direction (`+1` if edge is `A→B`, `-1` if `B→A`).
-2. **Precompute a bp index** over the spine nodes (their `[bpStart, bpEnd)` ranges) and assign an “inside-node direction” derived from incoming/outgoing leg.
-3. **On mouse move**, binary-search the node by bp, derive oriented `t` (flip when dir = −1), and sample the node’s `ParametricLine` with `getPointAt(t)`.
+This stays monotonic in track space and visually correct across flipped nodes.
 
 ---
 
-## Inputs and assumptions
+## Prereqs & Assumptions
 
-* You can obtain a **spine** for the chosen assembly with per-node bp ranges:
+* You obtain the spine for the selected assembly via `getSpineFeatures(assemblyKey)`.
+  `spine.nodes` is in walk order and includes `{ id, bpStart, bpEnd }` with **monotonic** bp.
+* Each node is rendered as a **ParametricLine** (subclass of `Line2`) exposing:
 
-  ```js
-  // example shape
-  spine = {
-    nodes: [
-      { id: "2912+", bpStart: 12_345, bpEnd: 20_001 },
-      { id: "2913-", bpStart: 20_001, bpEnd: 25_777 },
-      // ...
-    ]
-  };
+  ```ts
+  getPointAt(t: number): THREE.Vector3   // t ∈ [0,1]
   ```
+* You keep a registry:
 
-* You can obtain the **walk order** of node IDs for the assembly (non-branching):
-
-  ```js
-  walkNodes = ["2912+", "2913-", "2914+", /* ... */];
+  ```ts
+  const nodeGeomMap: Map<string, ParametricLine>;
   ```
-
-  > If your service supports it, run the global orientation pass (e.g., `directionPolicy: "edgeFlow"`) to eliminate whole-walk reversals before you compute legs.
-
-* You can test for the existence of a **directed edge** between two nodes:
-
-  ```js
-  const hasDirectedEdge = (a, b) => edges.has(`edge:${a}:${b}`);
-  ```
-
-  Replace with whatever your graph index uses.
-
-* You maintain a `Map<string, ParametricLine>` for the rendered nodes:
-
-  ```js
-  const nodeGeomMap = new Map();     // nodeId -> ParametricLine
-  // ParametricLine must provide: getPointAt(t) -> THREE.Vector3
-  ```
-
-> Reminder: Your assembly key is a triple `assembly#haplotype#sequence_id`. Use the full key when requesting spine/walk.
+* You can provide a representative **center** for each node (e.g., your label position or a precomputed centroid). If you don’t have one, the builder below will fall back to `line.getPointAt(0.5)`.
 
 ---
 
-## Code: Build Legs (direction per consecutive pair)
+## API Overview (what you’ll use)
+
+1. `buildBpIndex(spine)` → `{ idx, bpMin, bpMax }`
+2. `makeNodeRecordMap(bpIndex)` → `Map<nodeId, {bpStart,bpEnd,lengthBp}>`
+3. `buildNodeEndpointMap(walkNodes, nodeGeomMap, nodeCenter)` → `Map<nodeId, {entryT,exitT}>`
+4. `bpToNodeParam(bp, bpIndex, endpointMap, nodeGeomMap)` → `{ nodeId, t, xyz, u }`
+5. `nodeRaycastTToBp(nodeId, tRaw, bpIndex, endpointMap, nodeRecordMap)` → `{ bp, u }`
+
+(Advanced add-ons and tests appear later.)
+
+---
+
+## Code (drop-in)
+
+### Tiny helpers
 
 ```js
-/**
- * Build per-leg direction along a linear assembly walk.
- * dir = +1 if the directed edge is from -> to; -1 if to -> from; 0 if unknown.
- *
- * @param {string[]} walkNodes - node ids in walk order
- * @param {(a:string,b:string)=>boolean} hasDirectedEdge - predicate for directed edges
- * @returns {{from:string,to:string,dir:1|-1|0,edgeKey?:string}[]}
- */
-function buildWalkLegs(walkNodes, hasDirectedEdge) {
-  const legs = [];
-  for (let i = 0; i < walkNodes.length - 1; i++) {
-    const a = walkNodes[i];
-    const b = walkNodes[i + 1];
-    let dir = 0;
-    let edgeKey;
-    if (hasDirectedEdge(a, b)) { dir = +1; edgeKey = `${a}->${b}`; }
-    else if (hasDirectedEdge(b, a)) { dir = -1; edgeKey = `${b}->${a}`; }
-    else { dir = 0; edgeKey = undefined; }
-    legs.push({ from: a, to: b, dir, edgeKey });
-  }
-  return legs;
-}
+const clamp01 = x => (x < 0 ? 0 : x > 1 ? 1 : x);
+const d2 = (a, b) => { const dx=a.x-b.x, dy=a.y-b.y, dz=a.z-b.z; return dx*dx + dy*dy + dz*dz; };
 ```
 
----
-
-## Code: Build the bp index (once per selection)
+### 1) Build a bp index from the spine
 
 ```js
-const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-
 /**
- * From spine nodes (with bpStart/bpEnd) and legs, produce a fast lookup index.
- * Inside-node direction is taken from incoming leg if present; else outgoing; else +1.
- *
- * @param {{nodes: {id:string,bpStart:number,bpEnd:number}[]}} spine
- * @param {{from:string,to:string,dir:1|-1|0}[]} legs
- * @returns {{
- *   idx: {id:string,bpStart:number,bpEnd:number,lengthBp:number,dir:1|-1}[],
- *   bpMin:number, bpMax:number
- * }}
+ * Monotonic 1D index over spine nodes.
  */
-function buildBpIndex(spine, legs) {
-  const nodes = spine.nodes.map(n => ({
+function buildBpIndex(spine) {
+  const idx = spine.nodes.map(n => ({
     id: n.id,
     bpStart: n.bpStart,
     bpEnd: n.bpEnd,
     lengthBp: Math.max(0, (n.bpEnd ?? 0) - (n.bpStart ?? 0)),
   }));
-
-  // Per-node "inside" direction (prefer incoming leg)
-  const nodeDir = new Array(nodes.length).fill(+1);
-  for (let i = 0; i < nodes.length; i++) {
-    const incoming = (i > 0) ? legs[i - 1] : null;          // leg that ends at node i
-    const outgoing = (i < legs.length) ? legs[i] : null;    // leg that starts at node i
-    let d = incoming?.dir ?? outgoing?.dir ?? +1;
-    nodeDir[i] = d >= 0 ? +1 : -1; // normalize 0 -> +1
-  }
-
-  const idx = nodes.map((n, i) => ({ ...n, dir: nodeDir[i] }));
   const bpMin = idx.length ? idx[0].bpStart : 0;
   const bpMax = idx.length ? idx[idx.length - 1].bpEnd : 0;
   return { idx, bpMin, bpMax };
 }
+
+function makeNodeRecordMap(bpIndex) {
+  const m = new Map();
+  for (const n of bpIndex.idx) m.set(n.id, n);
+  return m;
+}
 ```
 
----
-
-## Code: Map `bp → { nodeId, t, dir, xyz }` (call on mouse move)
+### 2) Anchor each node’s parametric endpoints to its neighbors
 
 ```js
 /**
- * Locate cursor along the walk for a given bp.
- * Returns oriented t so motion inside node follows arrow direction.
+ * Decide, per node, which endpoint is ENTRY (toward left neighbor) and which is EXIT (toward right neighbor).
+ * Ensures bp increases left→right on the track while the dot travels from left neighbor end to right neighbor end,
+ * regardless of the line’s internal t-direction or inversions.
  *
- * @param {number} bp
- * @param {{idx:{id:string,bpStart:number,bpEnd:number,lengthBp:number,dir:1|-1}[], bpMin:number, bpMax:number}} bpIndex
- * @param {Map<string, { getPointAt: (t:number)=>THREE.Vector3 }>} nodeGeomMap
- * @returns {{nodeId:string,t:number,dir:1|-1,xyz:THREE.Vector3}|null}
+ * @param {string[]} walkNodes                  // spine/walk order, e.g. spine.nodes.map(n => n.id)
+ * @param {Map<string,{getPointAt:(t:number)=>THREE.Vector3}>} nodeGeomMap
+ * @param {(id:string)=>THREE.Vector3} nodeCenter   // center for a node (fallback used if null)
+ * @returns {Map<string,{entryT:0|1, exitT:0|1}>}
  */
-function locateCursorOnWalk(bp, bpIndex, nodeGeomMap) {
+function buildNodeEndpointMap(walkNodes, nodeGeomMap, nodeCenter) {
+  const map = new Map();
+  const endpoint = (id, t) => nodeGeomMap.get(id)?.getPointAt?.(t) ?? null;
+  const center   = (id)    => nodeCenter(id) ?? nodeGeomMap.get(id)?.getPointAt?.(0.5) ?? null;
+
+  for (let i = 0; i < walkNodes.length; i++) {
+    const id = walkNodes[i];
+    const prevId = i > 0 ? walkNodes[i - 1] : null;
+    const nextId = i < walkNodes.length - 1 ? walkNodes[i + 1] : null;
+
+    const p0 = endpoint(id, 0), p1 = endpoint(id, 1);
+    let entryT = 0, exitT = 1;
+
+    if (p0 && p1) {
+      if (prevId && nextId) {
+        const prevC = center(prevId), nextC = center(nextId);
+
+        // ENTRY = endpoint closer to previous node’s center
+        const dPrev0 = prevC ? d2(p0, prevC) : Infinity;
+        const dPrev1 = prevC ? d2(p1, prevC) : Infinity;
+        entryT = dPrev0 <= dPrev1 ? 0 : 1;
+
+        // EXIT  = endpoint closer to next node’s center
+        const dNext0 = nextC ? d2(p0, nextC) : Infinity;
+        const dNext1 = nextC ? d2(p1, nextC) : Infinity;
+        exitT = dNext0 <= dNext1 ? 0 : 1;
+
+        // Degenerate case: both pick same end → force exit to the other end
+        if (entryT === exitT) exitT = 1 - entryT;
+
+      } else if (nextId) {
+        // First node in window: choose EXIT toward next
+        const nextC = center(nextId);
+        const dNext0 = nextC ? d2(p0, nextC) : Infinity;
+        const dNext1 = nextC ? d2(p1, nextC) : Infinity;
+        exitT  = dNext0 <= dNext1 ? 0 : 1;
+        entryT = 1 - exitT;
+
+      } else if (prevId) {
+        // Last node in window: choose ENTRY toward prev
+        const prevC = center(prevId);
+        const dPrev0 = prevC ? d2(p0, prevC) : Infinity;
+        const dPrev1 = prevC ? d2(p1, prevC) : Infinity;
+        entryT = dPrev0 <= dPrev1 ? 0 : 1;
+        exitT  = 1 - entryT;
+      }
+    }
+
+    map.set(id, { entryT, exitT });
+  }
+
+  return map;
+}
+```
+
+### 3) Track → Graph
+
+```js
+/**
+ * Map a track bp to a dot position on the graph.
+ * Returns oriented t and the sampled xyz on the node’s ParametricLine.
+ */
+function bpToNodeParam(bp, bpIndex, endpointMap, nodeGeomMap) {
   const { idx } = bpIndex;
   if (!idx.length) return null;
 
-  // Clamp bp to [bpMin, bpMax)
-  const first = idx[0];
-  const last  = idx[idx.length - 1];
+  // Clamp into [first.bpStart, last.bpEnd)
+  const first = idx[0], last = idx[idx.length - 1];
   if (bp < first.bpStart) bp = first.bpStart;
-  if (bp >= last.bpEnd)   bp = (typeof Math.nextDown === "function")
-    ? Math.nextDown(last.bpEnd)
-    : last.bpEnd - 1e-9;
+  if (bp >= last.bpEnd)   bp = last.bpEnd - 1e-9;
 
-  // Binary search: find node with bpStart <= bp < bpEnd
+  // Binary search node where bpStart <= bp < bpEnd
   let lo = 0, hi = idx.length - 1, hit = 0;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
@@ -162,103 +170,229 @@ function locateCursorOnWalk(bp, bpIndex, nodeGeomMap) {
   }
 
   const n = idx[hit];
-  const raw = n.lengthBp > 0 ? (bp - n.bpStart) / n.lengthBp : 0;  // un-oriented in [0,1]
-  const dir = n.dir;                                               // +1 or -1
-  const t   = (dir === +1) ? clamp01(raw) : clamp01(1 - raw);      // flip inside-node if reversed
+  const u = n.lengthBp ? clamp01((bp - n.bpStart) / n.lengthBp) : 0;
+
+  const { entryT = 0, exitT = 1 } = endpointMap.get(n.id) ?? {};
+  const t = entryT + u * (exitT - entryT);
 
   const line = nodeGeomMap.get(n.id);
   const xyz  = line?.getPointAt ? line.getPointAt(t) : null;
 
-  return { nodeId: n.id, t, dir, xyz };
+  return { nodeId: n.id, t, xyz, u };
+}
+```
+
+### 4) Graph → Track
+
+```js
+/**
+ * Map a raycast hit on a ParametricLine (nodeId, tRaw) back to bp on the track.
+ * Use the hit xyz for the dot; this mapping is for semantics (scrubber position, tooltips).
+ */
+function nodeRaycastTToBp(nodeId, tRaw, bpIndex, endpointMap, nodeRecordMap) {
+  const rec = nodeRecordMap.get(nodeId);
+  if (!rec) return null;
+
+  const { entryT = 0, exitT = 1 } = endpointMap.get(nodeId) ?? {};
+  const denom = (exitT - entryT) || 1;       // avoid division by zero
+  const u = clamp01((tRaw - entryT) / denom);
+  const bp = rec.bpStart + u * (rec.lengthBp || 0);
+
+  return { bp, u };
 }
 ```
 
 ---
 
-## Wiring it all together
+## Wiring Example
 
 ```js
-// 1) Fetch data for the selected assembly
-const assemblyKey = "GRCh38#1#chrHSP90AA1"; // example; use your real triple
+// 1) Get monotonic spine for the selected assembly
 const { spine } = pangenomeService.getSpineFeatures(assemblyKey);
-const { nodes: walkNodes } = pangenomeService.getAssemblyWalk(
-  assemblyKey,
-  { directionPolicy: "edgeFlow" } // optional but recommended
-);
 
-// 2) Build legs with your graph index
-const hasDirectedEdge = (a, b) => graph.edges.has(`edge:${a}:${b}`);
-const legs   = buildWalkLegs(walkNodes, hasDirectedEdge);
+// 2) Build indices
+const bpIndex = buildBpIndex(spine);
+const nodeRecordMap = makeNodeRecordMap(bpIndex);
 
-// 3) Build the bp index
-const bpIndex = buildBpIndex(spine, legs);
+// 3) Build endpoint map using scene geometry
+const walkNodes = spine.nodes.map(n => n.id);
+const endpointMap = buildNodeEndpointMap(walkNodes, nodeGeomMap, nodeCenter);
 
-// 4) Build (or already have) a Map of nodeId -> ParametricLine
-// const nodeGeomMap = new Map([...]);
+// 4a) Track → Graph (hover/scrub)
+function onTrackHover(bp) {
+  const hit = bpToNodeParam(bp, bpIndex, endpointMap, nodeGeomMap);
+  if (hit?.xyz) {
+    dot.position.copy(hit.xyz);
+    // Optional: tooltip with nodeId and hit.u.toFixed(3)
+  }
+}
 
-// 5) On gene-track hover:
-function onGeneTrackHover(bp /* genomic position on the annotation track */) {
-  const hit = locateCursorOnWalk(bp, bpIndex, nodeGeomMap);
-  if (!hit) return;
+// 4b) Graph → Track (raycast on ParametricLine)
+function onRaycastHit({ nodeId, tRaw, xyz }) {
+  dot.position.copy(xyz); // true hit for visuals
+  const mapped = nodeRaycastTToBp(nodeId, tRaw, bpIndex, endpointMap, nodeRecordMap);
+  if (mapped) trackScrubber.setBp(mapped.bp);
+}
+```
 
-  // Move the dot
-  if (hit.xyz) dot.position.copy(hit.xyz);
-  else {
-    // Fallback: cache t and sample later if geometry not yet present
-    // e.g., pendingSamples.push(hit)
+---
+
+## Advanced
+
+### A) Seam Smoothing at Node Boundaries (anti-snap)
+
+Blend positions across seams when bp is within a small pixel band of a node boundary.
+
+```js
+/**
+ * Return a seam-smoothed dot position near node boundaries.
+ * pxToBp: conversion factor (track pixels → bp). pxEpsilon: half-band in px to blend.
+ */
+function sampleSeamAware(bp, bpIndex, endpointMap, nodeGeomMap, pxToBp, pxEpsilon = 2) {
+  const hit = bpToNodeParam(bp, bpIndex, endpointMap, nodeGeomMap);
+  if (!hit?.xyz) return null;
+
+  const bpBand = Math.max(1e-9, pxToBp * pxEpsilon);
+  const { idx } = bpIndex;
+  const i = idx.findIndex(n => n.id === hit.nodeId);
+  if (i < 0) return hit.xyz;
+
+  const n = idx[i];
+  const atStart = bp - n.bpStart;
+  const atEnd   = n.bpEnd - bp;
+
+  // Near left boundary → blend prev.exit → curr.entry
+  if (atStart < bpBand && i > 0) {
+    const prev = idx[i - 1];
+    const alpha = clamp01(atStart / bpBand);
+
+    const prevEnds = endpointMap.get(prev.id) || { entryT: 0, exitT: 1 };
+    const prevLine = nodeGeomMap.get(prev.id);
+    const pA = prevLine.getPointAt(prevEnds.exitT);
+
+    const ends = endpointMap.get(n.id) || { entryT: 0, exitT: 1 };
+    const line = nodeGeomMap.get(n.id);
+    const pB = line.getPointAt(ends.entryT);
+
+    return pA.clone().lerp(pB, alpha);
   }
 
-  // (Optional) UI affordances
-  // tooltip.textContent = `${hit.nodeId}  ${hit.dir > 0 ? "→" : "←"}  t=${hit.t.toFixed(3)}`;
-  // highlightNode(hit.nodeId, { reversed: hit.dir < 0 });
+  // Near right boundary → blend curr.exit → next.entry
+  if (atEnd < bpBand && i < idx.length - 1) {
+    const next = idx[i + 1];
+    const alpha = clamp01(atEnd / bpBand);
+
+    const ends = endpointMap.get(n.id) || { entryT: 0, exitT: 1 };
+    const line = nodeGeomMap.get(n.id);
+    const pA = line.getPointAt(ends.exitT);
+
+    const nextEnds = endpointMap.get(next.id) || { entryT: 0, exitT: 1 };
+    const nextLine = nodeGeomMap.get(next.id);
+    const pB = nextLine.getPointAt(nextEnds.entryT);
+
+    return pA.clone().lerp(pB, 1 - alpha);
+  }
+
+  return hit.xyz;
 }
 ```
 
----
-
-## Notes & options
-
-* **Boundary smoothing.** To avoid a visual “snap” right at `bpEnd`, blend positions from the current and next node within a small epsilon (e.g., ±5 bp or ±1 px on your track).
-* **Mode toggle.** Offer a switch:
-
-  * *Follow walk order* (ignore legs; set all node `dir=+1`, dot always left→right), or
-  * *Follow arrow flow* (use computed `dir` per node, as above).
-* **Missing edges.** If neither `a→b` nor `b→a` exists, set leg `dir=0` and let `buildBpIndex` coerce to `+1` by default. You can also inherit the previous leg’s `dir` for continuity.
-* **Zero-length nodes.** If `bpStart===bpEnd`, the node’s `t` is 0; you can still place the dot at the node’s preferred entry/center.
-* **Performance.** Precompute is O(N). Hover lookups are O(log N) with tiny constants; if you keep the last hit index and search locally, you’ll get near O(1) amortized during smooth mouse motion.
+**Use:** in your hover handler, swap `hit.xyz` with `sampleSeamAware(...)`.
 
 ---
 
-## (Optional) Math.nextDown polyfill
+### B) Quick Round-Trip Tests (confidence check)
 
 ```js
-if (typeof Math.nextDown !== "function") {
-  Math.nextDown = function (x) {
-    if (!Number.isFinite(x)) return x;
-    if (x === 0) return -Number.MIN_VALUE;
-    const buffer = new ArrayBuffer(8);
-    const view64 = new Float64Array(buffer);
-    const view32 = new Uint32Array(buffer);
-    view64[0] = x;
-    // Little endian IEEE-754: decrement the 64-bit pattern
-    if (x > 0) {
-      if (view32[1] === 0) { view32[0]--; view32[1] = 0xFFFFFFFF; }
-      else { view32[1]--; }
-    } else {
-      if (view32[1] === 0xFFFFFFFF) { view32[0]++; view32[1] = 0; }
-      else { view32[1]++; }
+const EPS_BP = 1e-6;  // bp tolerance
+const EPS_U  = 1e-4;  // within-node progress tolerance
+
+function testTrackRoundTrip(bpIndex, endpointMap, nodeGeomMap) {
+  const nodeMap = makeNodeRecordMap(bpIndex);
+  const { bpMin, bpMax } = bpIndex;
+  for (let i = 0; i < 400; i++) {
+    const bp = bpMin + (bpMax - bpMin) * (i / 399);
+    const hit = bpToNodeParam(bp, bpIndex, endpointMap, nodeGeomMap);
+    const back = nodeRaycastTToBp(hit.nodeId, hit.t, bpIndex, endpointMap, nodeMap);
+    if (!back || Math.abs(back.bp - bp) > EPS_BP) {
+      console.warn("Track→Graph→Track mismatch", { i, bp, hit, back });
+      return false;
     }
-    return view64[0];
-  };
+  }
+  return true;
+}
+
+function testGraphRoundTrip(bpIndex, endpointMap, nodeGeomMap) {
+  const nodeMap = makeNodeRecordMap(bpIndex);
+  for (const n of bpIndex.idx) {
+    for (const tRaw of [0, 0.25, 0.5, 0.75, 1]) {
+      const back = nodeRaycastTToBp(n.id, tRaw, bpIndex, endpointMap, nodeMap);
+      if (!back) return false;
+      const hit  = bpToNodeParam(back.bp, bpIndex, endpointMap, nodeGeomMap);
+      if (hit.nodeId !== n.id || Math.abs(hit.u - back.u) > EPS_U) {
+        console.warn("Graph→Track→Graph mismatch", { n: n.id, tRaw, back, hit });
+        return false;
+      }
+    }
+  }
+  return true;
 }
 ```
 
 ---
 
-## Summary
+### C) Optional: Edge-Aware Debug (dirIn / dirOut)
 
-* **Leg directions** capture local arrow flow between consecutive nodes.
-* **Bp index** enables fast mapping from a 1D annotation coordinate to the correct node.
-* **Oriented `t`** flips inside reversed nodes so your dot always travels with the graph’s arrows—no matter how the assembly path mixes forward and reverse segments.
+If you want to visualize inversions or sanity-check geometry anchoring, you can derive a **per-node incoming/outgoing direction** from your directed edges and chosen walk order. This is **not required** for the mapping itself, which is geometry-anchored, but it’s useful for overlays.
 
-Drop these utilities into your app and you’ll have a crisp, strand-aware cursor that makes intuitive visual sense across all datasets.
+```js
+// Your standard edge key helper
+const getEdgeKey = (a, b) => `edge:${a}:${b}`;
+
+/**
+ * Build per-leg directions for the selected walk.
+ * edges: Set/Map whose keys are edge:${a}:${b} for directed edges.
+ */
+function buildWalkLegs(walkNodes, edges) {
+  const legs = [];
+  for (let i = 0; i < walkNodes.length - 1; i++) {
+    const a = walkNodes[i], b = walkNodes[i + 1];
+    const fwd = edges.has(getEdgeKey(a, b));
+    const rev = edges.has(getEdgeKey(b, a));
+    let dir = 0, edgeKey;
+    if (fwd && !rev) { dir = +1; edgeKey = getEdgeKey(a, b); }
+    else if (rev && !fwd) { dir = -1; edgeKey = getEdgeKey(b, a); }
+    else if (fwd && rev) { dir = +1; edgeKey = getEdgeKey(a, b); } // tie-break
+    legs.push({ from: a, to: b, dir, edgeKey });
+  }
+  return legs;
+}
+
+/**
+ * Convert legs → per-node (dirIn, dirOut). Useful for icons/overlays at flip nodes.
+ */
+function toNodeDirs(walkNodes, legs) {
+  const nodeDirs = new Map();
+  for (let i = 0; i < walkNodes.length; i++) {
+    const dirIn  = i > 0 ? Math.sign(legs[i - 1].dir || 0) : 0;
+    const dirOut = i < legs.length ? Math.sign(legs[i].dir || 0) : 0;
+    nodeDirs.set(walkNodes[i], { dirIn, dirOut });
+  }
+  return nodeDirs;
+}
+```
+
+You can mark nodes where `dirIn !== dirOut` with a small glyph (↺) to show strand flips.
+
+---
+
+## Notes & Tips
+
+* **Monotonic by construction:** bp is guaranteed increasing along the spine. The geometry-anchored endpoints ensure the dot moves left→right across each node as bp increases—even when the node’s internal `t` runs “backwards” or the surrounding legs disagree.
+* **Keep the raycast xyz:** For Graph→Track, use the hit’s xyz for visuals and only use the mapping for semantics (bp/scrubber/tooltip).
+* **Performance:** Precompute is O(N). Track scrubs are O(log N). Raycast mapping is O(1). Cache `makeNodeRecordMap(bpIndex)` and, during scrubs, start the binary search near the last hit for near-O(1) behavior.
+* **Centers:** If you don’t have a separate `nodeCenter(id)`, the fallback (`getPointAt(0.5)`) works surprisingly well. If your nodes are very curved or asymmetric, consider caching better centers (e.g., mean of sampled points or your label anchor).
+
+---
+
+That’s it. Plug these in and you’ll have **stable, monotonic, bi-directional mapping** across all datasets, including tricky inversions and flipped node parameterizations.

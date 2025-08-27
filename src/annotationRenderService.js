@@ -2,6 +2,7 @@ import {app} from "./main.js"
 import {colorOfBase} from "./utils/genomicUtils.js"
 import eventBus from "./utils/eventBus.js"
 import {colorToRGBString, getRandomPastelAppleCrayonColor} from "./utils/color.js"
+import { getLineXYZWithTrackBasepair, buildBpIndex, buildNodeEndpointMap, makeNodeRecordMap, getTrackParameterWithLineParameter } from "./utils/nodeTrackMappingUtils.js"
 
 class AnnotationRenderService {
 
@@ -14,6 +15,7 @@ class AnnotationRenderService {
 
         this.bpIndex = undefined
         this.bpIndexMap = new Map()
+        this.endpointMap = new Map()
 
         this.splineParameterMap = new Map()
 
@@ -57,13 +59,17 @@ class AnnotationRenderService {
 
         const { assembly } = data
 
+        this.assembly = assembly
+
         const { spine } = this.genomicService.assemblyWalkMap.get(assembly)
         const { nodes, edges } = spine
 
-        const legs = buildWalkLegs(nodes, app.pangenomeService.graph);
+        this.bpIndex = buildBpIndex(spine);
+        this.bpIndexMap = makeNodeRecordMap(this.bpIndex)
 
-        this.bpIndex = buildBpIndex(spine, legs);
-        this.bpIndexMap = createBPIndexMapWithBPIndex(this.bpIndex)
+        const walkNodes = spine.nodes.map(n => n.id);
+
+        this.endpointMap = buildNodeEndpointMap(walkNodes, this.geometryManager);
 
         const { chr } = this.genomicService.locus
         const bpStart = nodes[0].bpStart
@@ -110,6 +116,12 @@ class AnnotationRenderService {
 
         this.splineParameterMap.clear()
 
+        this.bpIndexMap.clear()
+
+        this.bpIndex = undefined
+
+        this.endpointMap.clear()
+
         this.clear()
     }
 
@@ -125,10 +137,9 @@ class AnnotationRenderService {
             return
         }
 
-        const { startParam, endParam } = this.splineParameterMap.get(nodeName)
-        // const param = startParam * ( 1 - t) + endParam * t
+        const { bp, u:tOriented } = getTrackParameterWithLineParameter(nodeName, t, this.bpIndex, this.endpointMap, this.bpIndexMap)
 
-        const { tOriented } = getOrientedTFromRawT(nodeName, t, this.bpIndexMap)
+        const { startParam, endParam } = this.splineParameterMap.get(nodeName)
         const param = startParam * ( 1 - tOriented) + endParam * tOriented
 
         this.visualFeedbackElement.style.display = 'block';
@@ -302,19 +313,6 @@ class AnnotationRenderService {
 
     }
 
-    clear() {
-
-        this.splineParameterMap.clear()
-
-        this.bpIndex = undefined
-        this.bpIndexMap.clear()
-
-        const { width, height } = this.container.getBoundingClientRect();
-        const canvas = this.container.querySelector('canvas')
-        const ctx = canvas.getContext('2d')
-        ctx.clearRect(0, 0, width, height);
-    }
-
     handleMouseEnter(event) {
         this.raycastService.disable()
         this.visualFeedbackElement.style.display = 'block'
@@ -342,7 +340,8 @@ class AnnotationRenderService {
 
         const bp= Math.floor(this.bpStart * ( 1 - param) + this.bpEnd * param)
 
-        const { nodeId, t, dir, xyz:pointOnLine, parametricLine} = locateCursorOnWalk(bp, this.bpIndex, this.geometryManager)
+        const { nodeId, t, xyz:pointOnLine, u } = getLineXYZWithTrackBasepair(bp, this.bpIndex, this.endpointMap, this.geometryManager);
+
 
         /*
         let nodeId
@@ -368,6 +367,22 @@ class AnnotationRenderService {
 
         // this.raycastService.showVisualFeedback(pointOnLine, parametricLine.material.color)
         this.raycastService.showVisualFeedback(pointOnLine, app.feedbackColor)
+    }
+
+    clear() {
+
+        this.splineParameterMap.clear()
+
+        this.bpIndex = undefined
+
+        this.bpIndexMap.clear()
+
+        this.endpointMap.clear()
+
+        const { width, height } = this.container.getBoundingClientRect();
+        const canvas = this.container.querySelector('canvas')
+        const ctx = canvas.getContext('2d')
+        ctx.clearRect(0, 0, width, height);
     }
 
     dispose() {
@@ -403,181 +418,6 @@ class AnnotationRenderService {
         this.splineParameterMap.clear()
     }
 
-}
-
-/**
- * Build per-leg direction along a linear assembly walk.
- * dir = +1 if the directed edge is from -> to; -1 if to -> from; 0 if unknown.
- *
- * @param {string[]} walkNodes - node ids in walk order
- * @param graph
- * @returns {{from:string,to:string,dir:1|-1|0,edgeKey?:string}[]}
- */
-function buildWalkLegs(walkNodes, graph) {
-
-    const getEdgeKey = (a, b) => `edge:${a}:${b}`
-
-    const hasDirectedEdge = (a, b) => {
-        const key = getEdgeKey(a,b)
-        return graph.edges.has(key);
-    }
-
-
-    const legs = [];
-    for (let i = 0; i < walkNodes.length - 1; i++) {
-
-        const a = walkNodes[i];
-        const b = walkNodes[i + 1];
-
-        let dir = 0;
-
-        let edgeKey;
-        if (hasDirectedEdge(a.id, b.id)) {
-            dir = +1;
-            edgeKey = getEdgeKey(a.id, b.id);
-        } else if (hasDirectedEdge(b.id, a.id)) {
-            dir = -1;
-            edgeKey = getEdgeKey(b.id, a.id);
-        } else {
-            dir = 0;
-            edgeKey = undefined;
-        }
-
-        console.log(`direction ${ dir } edge ${ edgeKey }`)
-        legs.push({ from: a, to: b, dir, edgeKey });
-    }
-    return legs;
-}
-
-/**
- * From spine nodes (with bpStart/bpEnd) and legs, produce a fast lookup index.
- * Inside-node direction is taken from incoming leg if present; else outgoing; else +1.
- *
- * @param {{nodes: {id:string,bpStart:number,bpEnd:number}[]}} spine
- * @param {{from:string,to:string,dir:1|-1|0}[]} legs
- * @returns {{
- *   idx: {id:string,bpStart:number,bpEnd:number,lengthBp:number,dir:1|-1}[],
- *   bpMin:number, bpMax:number
- * }}
- */
-function buildBpIndex(spine, legs) {
-    const nodes = spine.nodes.map(n => ({
-        id: n.id,
-        bpStart: n.bpStart,
-        bpEnd: n.bpEnd,
-        lengthBp: Math.max(0, (n.bpEnd ?? 0) - (n.bpStart ?? 0)),
-    }));
-
-    // Per-node "inside" direction (prefer incoming leg)
-    const nodeDir = new Array(nodes.length).fill(+1);
-    for (let i = 0; i < nodes.length; i++) {
-        const incoming = (i > 0) ? legs[i - 1] : null;          // leg that ends at node i
-        const outgoing = (i < legs.length) ? legs[i] : null;    // leg that starts at node i
-        let d = incoming?.dir ?? outgoing?.dir ?? +1;
-        nodeDir[i] = d >= 0 ? +1 : -1; // normalize 0 -> +1
-    }
-
-    const idx = nodes.map((n, i) => ({ ...n, dir: nodeDir[i] }));
-    const bpMin = idx.length ? idx[0].bpStart : 0;
-    const bpMax = idx.length ? idx[idx.length - 1].bpEnd : 0;
-    return { idx, bpMin, bpMax };
-}
-
-/**
- * Locate cursor along the walk for a given bp.
- * Returns oriented t so motion inside node follows arrow direction.
- *
- * @param {number} bp
- * @param {{idx:{id:string,bpStart:number,bpEnd:number,lengthBp:number,dir:1|-1}[], bpMin:number, bpMax:number}} bpIndex
- * @param {Map<string, { getPointAt: (t:number)=>THREE.Vector3 }>} geometryManager
- * @returns {{nodeId:string,t:number,dir:1|-1,xyz:THREE.Vector3}|null}
- */
-function locateCursorOnWalk(bp, bpIndex, geometryManager) {
-
-    const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-
-    const { idx } = bpIndex;
-
-    // Clamp bp to [bpMin, bpMax)
-    const first = idx[0];
-    const last  = idx[idx.length - 1];
-    if (bp < first.bpStart) bp = first.bpStart;
-    if (bp >= last.bpEnd)   bp = (typeof Math.nextDown === "function") ? Math.nextDown(last.bpEnd) : last.bpEnd - 1e-9;
-
-    // Binary search: find node with bpStart <= bp < bpEnd
-    let lo = 0, hi = idx.length - 1, hit = 0;
-    while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        const n = idx[mid];
-        if (bp < n.bpStart) hi = mid - 1;
-        else if (bp >= n.bpEnd) lo = mid + 1;
-        else { hit = mid; break; }
-    }
-
-    const node = idx[hit];
-    const raw = node.lengthBp > 0 ? (bp - node.bpStart) / node.lengthBp : 0;  // un-oriented in [0,1]
-    const dir = node.dir;                                               // +1 or -1
-    const t   = (dir === +1) ? clamp01(raw) : clamp01(1 - raw);      // flip inside-node if reversed
-
-    const parametricLine = geometryManager.getLine(node.id);
-    const xyz  = parametricLine.getPoint(t, 'world')
-
-    return { nodeId: node.id, t, dir, xyz, parametricLine };
-}
-
-/**
- * If you built bpIndex via buildBpIndex(spine, legs), this
- * converts it to a handy Map for quick node lookups.
- *
- * record = { dir: +1|-1, bpStart, bpEnd, lengthBp }
- */
-function createBPIndexMapWithBPIndex(bpIndex) {
-    const map = new Map();
-    for (const n of bpIndex.idx) {
-        map.set(n.id, {
-            dir: n.dir >= 0 ? +1 : -1,
-            bpStart: n.bpStart,
-            bpEnd: n.bpEnd,
-            lengthBp: n.lengthBp
-        });
-    }
-    return map;
-}
-
-/**
- * Optional: map (nodeId, tRaw) -> track bp, honoring direction.
- * Handy for your node→track mapping.
- *
- * @param {string} nodeName
- * @param {number} tRaw
- * @param {Map<string,{dir:number,bpStart:number,lengthBp:number}>} bpIndexMap
- * @returns {{ bp:number, tOriented, dir:1|-1 } | null}
- */
-function getOrientedTFromRawT(nodeName, tRaw, bpIndexMap) {
-    const rec = bpIndexMap.get(nodeName);
-    if (!rec) return null;
-    const dir = rec.dir >= 0 ? +1 : -1;
-    const tOriented = dir === +1 ? tRaw : 1 - tRaw;
-    const bp = rec.bpStart + tOriented * (rec.lengthBp || 0);
-    return { bp, tOriented, dir };
-}
-
-/**
- * Strand-normalize a ParametricLine t according to arrow flow.
- * Use this *for semantics* (progress, mapping to bp). Do NOT use it
- * to re-sample the hit position (you already have the raycast xyz).
- *
- * @param {string} nodeId
- * @param {number} tRaw    // [0,1] from ParametricLine raycast
- * @param {Map<string,{dir:number}>} nodeDirIndex
- * @param {number} [fallbackDir=+1]
- * @returns {{ t:number, dir:1|-1 }}
- */
-function orientNodeT(nodeId, tRaw, nodeDirIndex, fallbackDir = +1) {
-    const rec = nodeDirIndex.get(nodeId);
-    const dir = (rec?.dir ?? fallbackDir) >= 0 ? +1 : -1;
-    const t = dir === +1 ? tRaw : 1 - tRaw;
-    return { t, dir };
 }
 
 export default AnnotationRenderService;
