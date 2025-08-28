@@ -182,38 +182,54 @@ const colorComplements = new Map([
 
 /**
  * Returns a random color from the Apple Crayon palette
+ * @param {boolean} includeSnow - Whether to include white (snow) color, default false
  * @returns {THREE.Color} A THREE.Color object
  */
-function getRandomAppleCrayonColor() {
-    const colors = Array.from(appleCrayonColors.values());
-    return colors[Math.floor(Math.random() * colors.length)].clone();
+function getRandomAppleCrayonColor(includeSnow = false) {
+    let colors = Array.from(appleCrayonColors.entries());
+    if (!includeSnow) {
+        colors = colors.filter(([name]) => name !== 'snow');
+    }
+    const [_, color] = colors[Math.floor(Math.random() * colors.length)];
+    return color.clone();
 }
 
 /**
  * Returns a random vibrant color from the Apple Crayon palette
  * Excludes grays and pastels
+ * @param {boolean} includeSnow - Whether to include white (snow) color, default false (not applicable for vibrant colors)
  * @returns {THREE.Color} A THREE.Color object
  */
-function getRandomVibrantAppleCrayonColor() {
+function getRandomVibrantAppleCrayonColor(includeSnow = false) {
     const colorName = colorCategories.vibrant[Math.floor(Math.random() * colorCategories.vibrant.length)];
     return getAppleCrayonColorByName(colorName);
 }
 
 /**
  * Returns a random pastel color from the Apple Crayon palette
+ * @param {boolean} includeSnow - Whether to include white (snow) color, default false
  * @returns {THREE.Color} A THREE.Color object
  */
-function getRandomPastelAppleCrayonColor() {
-    const colorName = colorCategories.pastels[Math.floor(Math.random() * colorCategories.pastels.length)];
+function getRandomPastelAppleCrayonColor(includeSnow = false) {
+    let pastelColors = colorCategories.pastels;
+    if (!includeSnow) {
+        pastelColors = pastelColors.filter(name => name !== 'snow');
+    }
+    const colorName = pastelColors[Math.floor(Math.random() * pastelColors.length)];
     return getAppleCrayonColorByName(colorName);
 }
 
 /**
  * Returns a random gray from the Apple Crayon palette
+ * @param {boolean} includeSnow - Whether to include white (snow) color, default false
  * @returns {THREE.Color} A THREE.Color object
  */
-function getRandomGrayAppleCrayonColor() {
-    const colorName = colorCategories.grays[Math.floor(Math.random() * colorCategories.grays.length)];
+function getRandomGrayAppleCrayonColor(includeSnow = false) {
+    let grayColors = colorCategories.grays;
+    if (!includeSnow) {
+        grayColors = grayColors.filter(name => name !== 'snow');
+    }
+    const colorName = grayColors[Math.floor(Math.random() * grayColors.length)];
     return getAppleCrayonColorByName(colorName);
 }
 

@@ -6,12 +6,10 @@ class LineFactory {
     /**
      * Create node line geometry without material
      */
-    static createNodeLineGeometry(spline, divisionsMultiplier, zOffset = 0) {
-        // Calculate number of divisions
-        const divisions = Math.round(divisionsMultiplier * spline.points.length);
+    static createNodeLineGeometry(spline, divisions, zOffset = 0) {
 
         // Sample the spline with getPoints (returns an array of Vector3)
-        const points = spline.getPoints(divisions);
+        const points = spline.getPoints(divisions)
 
         // Set z for each point to zOffset (like the original createNodeLine method)
         for (const point of points) {
@@ -23,11 +21,19 @@ class LineFactory {
 
         // Create LineGeometry (not BufferGeometry) for Line2 compatibility
         const lineGeometry = new LineGeometry();
-        lineGeometry.setPositions(xyzList);
+        lineGeometry.setPositions(xyzList)
+        lineGeometry.userData.xyzStart = xyzList.slice()
+        lineGeometry.userData.xyzEnd = xyzList.slice()
+
+        // Diagnostics
+        // const expectPoints = `Expected points: ${ points.length }`
+        // const number = lineGeometry.attributes.instanceStart.count
+        // const lineSegments = `Line segments: ${ number }`
+        // const inferredPoints = `Points inferred from line segments: ${ 1 + number }`
+        // console.log(`${expectPoints} ${lineSegments} ${inferredPoints}`)
 
         return lineGeometry;
     }
-
     /**
      * Create edge rectangle geometry without material (for texture mapping)
      */
@@ -76,4 +82,32 @@ class LineFactory {
     }
 }
 
+function buildArcLengthTable(line2){
+    const g = line2.geometry;
+    const starts = g.attributes.instanceStart; // per-segment A
+    const ends   = g.attributes.instanceEnd;   // per-segment B
+    const a = new THREE.Vector3(), b = new THREE.Vector3();
+    const segLen = new Float32Array(starts.count);
+    const cum = new Float32Array(starts.count + 1);
+    let acc = 0; cum[0] = 0;
+    for (let i = 0; i < starts.count; i++){
+        a.fromBufferAttribute(starts, i);
+        b.fromBufferAttribute(ends,   i);
+        const L = a.distanceTo(b);
+        segLen[i] = L;
+        acc += L;
+        cum[i + 1] = acc;
+    }
+    return { segLen, cum, total: acc };
+}
+
+function fixedSplineDivisions(spline, divisions) {
+    return divisions
+}
+
+function adaptiveSplineDivisions(spline, multiplier) {
+    return Math.round(multiplier * spline.points.length)
+}
+
+export { fixedSplineDivisions, adaptiveSplineDivisions, buildArcLengthTable }
 export default LineFactory;

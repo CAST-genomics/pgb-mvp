@@ -1,9 +1,8 @@
-import AnnotationRenderService from "./annotationRenderService.js"
-import { locusInput } from "./main.js"
+import {app, locusInput} from "./main.js"
+import LocusInput from "./locusInput.js"
 import {getPerceptuallyDistinctColors} from "./utils/hsluv-utils.js"
 import {colors32Distinct, colors64Distinct} from "./utils/color.js"
 import {prettyPrint, uniqueRandomGenerator} from "./utils/utils.js"
-import {tripleKey} from "./utils/chatGraphAssemblyWalkLinearizeGraph/assemblyWalkUtils.js"
 
 class GenomicService {
 
@@ -12,29 +11,30 @@ class GenomicService {
         this.assemblyPayload = new Map()
         this.nodeAssemblyStats = new Map()
         this.assemblySet = new Set()
+        this.assemblyWalkMap = new Map()
+        this.startNode = undefined
     }
 
-    async createMetadata(json, genomeLibrary, raycastService) {
+    async createMetadata(json, pangenomeService, genomeLibrary, geometryManager, raycastService) {
 
-        const { locus:locusString, node:nodes, edge:edges, sequence:sequences } = json
+        const { locus:locusString, node:nodes, sequence:sequences } = json
 
-        // TODO: For now we will use a single graph spanning locus in conjunction
-        //       with the annotation renderer
-        this.locus = locusInput.parseLocusString(locusString)
+        this.locus = LocusInput.parseLocusString(locusString)
 
         // Internal to the app we use 0-indexed
         this.locus.startBP -= 1
         console.log(`locus length ${ prettyPrint(this.locus.endBP - this.locus.startBP) }`)
 
-        this.assemblySet.clear()
-        const renderLibrary = new Map()
-        const locusExtentMap = new Map()
+        this.startNode = undefined
+        for (const [nodeName, { assembly }] of Object.entries(nodes)) {
 
-        for (const [nodeName, { assembly, length }] of Object.entries(nodes)) {
+            if (undefined === this.startNode) {
+                this.startNode = nodeName
+            }
 
             const assemblySet = new Set()
             for(const item of assembly){
-                assemblySet.add(tripleKey(item))
+                assemblySet.add(GenomicService.tripleKey(item))
             }
 
             const metadata =  { assemblySet, sequence: sequences[nodeName] }
@@ -42,6 +42,7 @@ class GenomicService {
 
         }
 
+        // Build assembly set
         this.assemblySet = new Set()
         for (const [ key, { assemblySet }] of this.metadata) {
             for (const item of assemblySet){
@@ -49,18 +50,42 @@ class GenomicService {
             }
         }
 
+        // Build assembly walk map
+
+        pangenomeService.setDefaultLocusStartBp(this.locus.startBP)
+
+        for (const assemblyKey of this.assemblySet){
+
+            const assessmentConfig =
+                {
+                    includeOffSpineComponents: "none",
+                    maxPathsPerEvent: 1,
+                    maxRegionHops: 64,
+                    maxRegionNodes: 4000,
+                    maxRegionEdges: 4000,
+                    operationBudget: 500000,
+                    locusStartBp: this.locus.startBP
+                };
+
+            const walkConfig =
+                {
+                    startPolicy: "preferArrowEndpoint", // or "forceFromNode" with startNodeId
+                    directionPolicy: "edgeFlow",
+                };
+
+            const features = pangenomeService.getSpineFeatures(assemblyKey, assessmentConfig, walkConfig)
+
+            this.assemblyWalkMap.set(assemblyKey, features)
+        }
+
         const uniqueColors = getPerceptuallyDistinctColors(1 + this.assemblySet.size)
         const uniqueColorsRandomized = Array.from(uniqueRandomGenerator(uniqueColors, uniqueColors.length - 1));
 
         let i = 0;
-        for (const tripleKey of this.assemblySet) {
-            // const annotationRenderService = renderLibrary.get(assembly);
-            // const locus = locusExtentMap.get(assembly);
-            this.assemblyPayload.set(tripleKey, { color:uniqueColorsRandomized[ i ], /*annotationRenderService, locus*/ });
+        for (const assemblyKey of this.assemblySet) {
+            this.assemblyPayload.set(assemblyKey, { color:uniqueColorsRandomized[ i ] });
             i++;
         }
-
-        console.log(`GenomicService: Created ${this.assemblySet.size} assembly colors`);
 
     }
 
@@ -104,18 +129,25 @@ class GenomicService {
     }
 
     clear() {
-        this.metadata.clear();
 
-        for (const {annotationRenderService} of this.assemblyPayload.values()) {
+        this.startNode = undefined
 
-            if (annotationRenderService) {
-                annotationRenderService.dispose();
-            }
-        }
+        this.metadata.clear()
 
         this.assemblyPayload.clear()
+
         this.nodeAssemblyStats.clear()
+
+        this.assemblySet.clear()
+
+        this.assemblyWalkMap.clear()
+
     }
+
+    static tripleKey(a) {
+        return `${a.assembly_name}#${a.haplotype}#${a.sequence_id}`
+    }
+
 }
 
 export default GenomicService;

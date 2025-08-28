@@ -81,7 +81,7 @@ document.addEventListener("DOMContentLoaded",  (event) => {
     addKnotVisualization(scene, straightKnots, 0x00ff00); // Green spheres for straight knots
     addDerivedPointsVisualization(scene, pointsTarget, 0x00ffff); // Cyan spheres for target derived points
 
-    slider.addEventListener('input', () => doLerp(line, geometry, valueDisplay, xyz, xyzTarget, slider.value));
+    slider.addEventListener('input', () => doLerp(line, xyz, xyzTarget, valueDisplay, slider.value));
 
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
@@ -171,14 +171,14 @@ function createHorizontalKnots(numKnots, y, width) {
     return knots;
 }
 
-function doLerp(line, geometry, valueDisplay, src, dst, interpolant) {
+function doLerp(line, src, dst, valueDisplay, interpolant) {
 
     const weight = parseFloat(interpolant);
     valueDisplay.textContent = weight.toFixed(2);
 
     const lerped = src.map((number, i) => number * (1 - weight) + dst[i] * weight);
 
-    geometry.setPositions(lerped);
+    line.geometry.setPositions(lerped);
 
     if (line.computeLineDistances) {
         line.computeLineDistances();

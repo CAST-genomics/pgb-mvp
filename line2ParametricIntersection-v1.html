@@ -1,0 +1,148 @@
+<!-- HTML panel: empty is fine -->
+
+<!-- JS panel: paste everything below into the JavaScript panel (set to "Module") -->
+<script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.179.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.179.1/examples/jsm/"
+      }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { Line2 } from 'three/addons/lines/Line2.js';
+    import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+    import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+
+    // --- renderer / scene / camera
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(devicePixelRatio);
+    document.body.style.margin = '0';
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x101010);
+    const camera = new THREE.PerspectiveCamera(45, 2, 0.1, 100);
+    camera.position.set(8, 6, 12);
+    camera.lookAt(0, 0, 0);
+
+    // --- line material (worldUnits true; SMALL linewidth)
+    const material = new LineMaterial({
+        color: 0xffffff,
+        linewidth: 0.12,     // world units (keep this small)
+        worldUnits: true
+    });
+
+    // --- geometry + line
+    const geometry = new LineGeometry();
+    let xyzList = [ 0,0,0,  2,0,0,  3,1,0,  5,1,0,  6,0,0 ];
+    geometry.setPositions(xyzList);
+    const line = new Line2(geometry, material);
+    scene.add(line);
+
+    // --- arc-length table (rebuild when positions change)
+    let ARC = buildArcLengthTable(line);
+    function buildArcLengthTable(line2){
+        const g = line2.geometry;
+        const starts = g.attributes.instanceStart;
+        const ends   = g.attributes.instanceEnd;
+        const a = new THREE.Vector3(), b = new THREE.Vector3();
+        const segLen = new Float32Array(starts.count);
+        const cum = new Float32Array(starts.count + 1);
+        let acc = 0; cum[0] = 0;
+        for (let i = 0; i < starts.count; i++){
+            a.fromBufferAttribute(starts, i);
+            b.fromBufferAttribute(ends,   i);
+            const L = a.distanceTo(b);
+            segLen[i] = L;
+            acc += L;
+            cum[i + 1] = acc;
+        }
+        return { segLen, cum, total: acc };
+    }
+
+    function updatePositions(newXYZ){
+        geometry.setPositions(newXYZ);
+        ARC = buildArcLengthTable(line);     // keep t-parameterization in sync
+    }
+
+    // --- raycasting → t
+    const raycaster = new THREE.Raycaster();
+    raycaster.params.Line2 = raycaster.params.Line2 || {};
+    raycaster.params.Line2.threshold = 1; // px
+    const mouse = new THREE.Vector2();
+
+    function tFromHit(line2, hit, arc){
+        const P = hit.point.clone();
+        line2.worldToLocal(P);
+
+        const g = line2.geometry;
+        const i = hit.faceIndex;
+        const A = new THREE.Vector3().fromBufferAttribute(g.attributes.instanceStart, i);
+        const B = new THREE.Vector3().fromBufferAttribute(g.attributes.instanceEnd,   i);
+
+        const AB = B.clone().sub(A);
+        const u = AB.lengthSq() > 0 ? THREE.MathUtils.clamp( AB.dot(P.clone().sub(A)) / AB.lengthSq(), 0, 1 ) : 0;
+
+        const s = arc.cum[i] + u * arc.segLen[i];
+        const t = arc.total > 0 ? s / arc.total : 0;
+        return { t, u, segmentIndex: i };
+    }
+
+    // --- UI: show t
+    const label = document.createElement('div');
+    label.style.cssText = 'position:fixed;left:8px;top:8px;font:14px/1.4 monospace;color:#fff';
+    document.body.appendChild(label);
+
+    // --- demo slider that moves the last point (to mimic your interactive edits)
+    const slider = document.createElement('input');
+    slider.type = 'range'; slider.min = '0'; slider.max = '1'; slider.step = '0.01'; slider.value = '1';
+    slider.style.cssText = 'position:fixed;left:8px;bottom:8px;width:260px';
+    document.body.appendChild(slider);
+
+    slider.addEventListener('input', () => {
+        const k = parseFloat(slider.value);
+        const last = new THREE.Vector3(xyzList.at(-3), xyzList.at(-2), xyzList.at(-1));
+        const prev = new THREE.Vector3(xyzList.at(-6), xyzList.at(-5), xyzList.at(-4));
+        const moved = prev.clone().lerp(last, k);
+        const arr = xyzList.slice();
+        arr.splice(-3, 3, moved.x, moved.y, moved.z);
+        updatePositions(arr);
+    });
+
+    // --- pointer hover → compute t
+    window.addEventListener('pointermove', (e) => {
+        const r = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+        mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const hits = raycaster.intersectObject(line, false);
+        if (hits.length && ARC.total > 0) {
+            const { t, u, segmentIndex } = tFromHit(line, hits[0], ARC);
+            label.textContent = `t: ${t.toFixed(4)}  (seg ${segmentIndex}, u=${u.toFixed(3)})`;
+        } else {
+            label.textContent = '(hover the line)';
+        }
+    });
+
+    // --- resize: IMPORTANT for LineMaterial
+    function onResize(){
+        const w = innerWidth, h = innerHeight;
+        renderer.setSize(w, h);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+
+        // keep this up to date or lines can look like giant blobs:
+        material.resolution.set(w, h);
+    }
+    addEventListener('resize', onResize);
+    onResize();
+
+    (function loop(){
+        renderer.render(scene, camera);
+        requestAnimationFrame(loop);
+    })();
+</script>

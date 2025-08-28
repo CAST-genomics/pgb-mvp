@@ -2,19 +2,20 @@ import * as THREE from 'three'
 import CameraManager from './cameraManager.js'
 import MapControlsFactory from './mapControlsFactory.js'
 import RendererFactory from './rendererFactory.js'
+import RayCastService from "./raycastService.js"
+import {loadPath, prettyPrint} from './utils/utils.js'
 import eventBus from './utils/eventBus.js';
-import { loadPath } from './utils/utils.js'
-import {createGraph} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createGraph.js"
-import {createAssemblyWalks} from "./utils/chatGraphAssemblyWalkLinearizeGraph/createAssemblyWalk.js"
+import { annotationRenderService } from "./main.js"
+import {getAppleCrayonColorByName} from "./utils/color.js"
 
 class App {
 
-    constructor(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager) {
+    constructor(container, frustumSize, pangenomeService, raycastService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager) {
         this.container = container
 
         this.renderer = RendererFactory.createRenderer(container)
 
-        this.sequenceService = sequenceService
+        this.pangenomeService = pangenomeService
         this.genomicService = genomicService
         this.geometryManager = geometryManager
         this.assemblyWidget = assemblyWidget
@@ -33,7 +34,11 @@ class App {
         sceneManager.getActiveScene().add(this.raycastService.setupVisualFeedback());
 
         // Initialize tooltip
+        this.isTooltipEnabled = undefined
+
         this.tooltip = this.createTooltip();
+
+        this.feedbackColor = getAppleCrayonColorByName('maraschino')
 
         // Setup resize handler
         window.addEventListener('resize', () => {
@@ -53,7 +58,7 @@ class App {
         // Sort by distance to get the closest intersection
         intersections.sort((a, b) => a.distance - b.distance);
 
-        const { faceIndex, point, pointOnLine, object } = intersections[0];
+        const { point, object } = intersections[0];
 
         this.renderer.domElement.style.cursor = 'none';
 
@@ -61,9 +66,23 @@ class App {
             this.raycastService.showVisualFeedback(point, new THREE.Color(0x00ff00));
             this.showTooltip(object, point, 'edge');
         } else if (object.userData?.type === 'node') {
-            const { t, nodeName, nodeLine } = this.raycastService.handleIntersection(this.geometryManager, object, pointOnLine, faceIndex);
-            eventBus.publish('lineIntersection', { t, nodeName, nodeLine })
-            this.showTooltip(object, point, 'node');
+
+            const { t, nodeName, line } = this.raycastService.handleIntersection(this.geometryManager, intersections[0], RayCastService.DIRECT_LINE_INTERSECTION_STRATEGY)
+
+            // const { x, y } = point
+            // const exe = `${ prettyPrint(Math.floor(x)) }`
+            // const wye = `${ prettyPrint(Math.floor(y)) }`
+            // // console.log(`xyz(${ exe }, ${ wye }) t ${ t.toFixed(4) }`)
+            //
+            // const { x:_x, y:_y } = line.getPoint(t, 'world')
+            // const _exe = `${ prettyPrint(Math.floor(_x)) }`
+            // const _wye = `${ prettyPrint(Math.floor(_y)) }`
+            // console.log(`intersectionXY (${ exe }, ${ wye }) xyDerivedFromT (${ _exe }, ${ _wye })`)
+
+            eventBus.publish('lineIntersection', { t, nodeName, nodeLine:line })
+
+            this.showTooltip(object, point, 'node')
+
         }
     }
 
@@ -72,15 +91,31 @@ class App {
         this.showTooltip(edgeObject, point, 'edge');
     }
 
+    enableTooltip(){
+        this.isTooltipEnabled = true
+    }
+
+    disableTooltip(){
+        this.isTooltipEnabled = false
+    }
+
     createTooltip() {
         const tooltip = document.createElement('div');
         tooltip.className = 'graph-tooltip';
 
         this.container.appendChild(tooltip);
+
+        this.enableTooltip()
+
         return tooltip;
     }
 
     showTooltip(object, point, type) {
+
+        if (false === this.isTooltipEnabled) {
+            return
+        }
+
         // Convert 3D world coordinates to screen coordinates
         const screenPoint = point.clone().project(this.cameraManager.camera);
 
@@ -135,7 +170,8 @@ class App {
     clearIntersection() {
         this.raycastService.clearIntersection()
         this.renderer.domElement.style.cursor = '';
-        this.hideTooltip();
+        this.hideTooltip()
+        eventBus.publish('clearIntersection', {})
     }
 
     animate() {
@@ -149,8 +185,6 @@ class App {
             const intersections = this.raycastService.intersectObjects(this.cameraManager.camera, allObjects)
             this.handleIntersection(intersections)
         }
-
-        this.sequenceService.update();
 
         this.mapControl.update()
 
@@ -206,7 +240,7 @@ class App {
         }
 
         // const boundingSphereHelper = this.#createBoundingSphereHelper(boundingSphere)
-        // this.scene.add(boundingSphereHelper)
+        // scene.add(boundingSphereHelper)
 
         // Multiplier used to add padding around scene bounding sphere when framing the view
         const SCENE_VIEW_PADDING = 1.5
@@ -254,9 +288,12 @@ class App {
             return
         }
 
+        this.pangenomeService.loadData(json)
+
+        annotationRenderService.clear()
 
         this.genomicService.clear()
-        await this.genomicService.createMetadata(json, this.genomeLibrary, this.raycastService)
+        await this.genomicService.createMetadata(json, this.pangenomeService, this.genomeLibrary, this.geometryManager, this.raycastService)
 
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         const scene = this.sceneManager.getActiveScene()
@@ -264,9 +301,7 @@ class App {
         this.geometryManager.createGeometry(json, look)
         this.geometryManager.addToScene(scene)
 
-        const graph = createGraph(json)
-        const walks = createAssemblyWalks(graph)
-        this.assemblyWidget.configure(walks)
+        this.assemblyWidget.configure()
 
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)
 

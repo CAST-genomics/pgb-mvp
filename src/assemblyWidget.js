@@ -1,9 +1,11 @@
 import { Draggable } from './utils/draggable.js';
 import { colorToRGBString } from './utils/color.js';
 import eventBus from './utils/eventBus.js';
+import { app } from "./main.js";
+import genomicService from "./genomicService.js"
 
 class AssemblyWidget {
-    constructor(gear, assemblyWidgetContainer, genomicService, raycastService) {
+    constructor(gear, assemblyWidgetContainer, genomicService, geometryManager, raycastService) {
         this.gear = gear;
         this.gear.addEventListener('click', this.onGearClick.bind(this));
 
@@ -12,10 +14,11 @@ class AssemblyWidget {
         this.searchInput = null; // Will be initialized when card is shown
 
         this.genomicService = genomicService;
+        this.geometryManager = geometryManager
 
         // raycastService.registerClickHandler(this.raycastClickHandler.bind(this));
 
-        this.restoreUnsub = eventBus.subscribe('assembly:restoreEmphasis', data => {
+        this.restoreUnsub = eventBus.subscribe('assembly:normal', data => {
             const selectors = Array.from(this.listGroup.querySelectorAll('.assembly-widget__genome-selector'))
             for (const selector of selectors) {
                 selector.style.border = '2px solid transparent'
@@ -29,12 +32,12 @@ class AssemblyWidget {
 
     }
 
-    raycastClickHandler(intersection) {
+    raycastClickHandler(intersection, event) {
 
         if (intersection) {
         } else {
             this.selectedAssemblies.clear();
-            eventBus.publish('assembly:restoreEmphasis', { nodeNames: this.genomicService.getNodeNameSet(), assemblySet: this.genomicService.assemblySet });
+            eventBus.publish('assembly:normal', { nodeNames: this.genomicService.getNodeNameSet(), assemblySet: this.genomicService.assemblySet });
         }
     }
 
@@ -79,35 +82,43 @@ class AssemblyWidget {
         return container;
     }
 
-    onAssemblySelectorClick(assembly, event) {
+    async onAssemblySelectorClick(assembly, event) {
         event.stopPropagation();
 
         if (this.selectedAssemblies.has(assembly)) {
-            // Deselect
-            this.selectedAssemblies.delete(assembly);
-            eventBus.publish('assembly:restoreEmphasis', { nodeNames: this.genomicService.getNodeNameSet() });
-        } else {
-            // Deselect previously selected assembly
-            if (this.selectedAssemblies.size > 0) {
 
+            // Deselect current assembly selector
+            this.selectedAssemblies.delete(assembly);
+
+            const nodeSet = this.geometryManager.geometryFactory.getNodeNameSet()
+            const edgeSet = this.geometryManager.geometryFactory.getEdgeNameSet()
+            eventBus.publish('assembly:normal', { nodeSet, edgeSet })
+        } else {
+
+            // Deselect previous assembly selector. Select new assembly selector
+            if (this.selectedAssemblies.size > 0) {
                 const previousAssembly = [...this.selectedAssemblies][0];
                 this.selectedAssemblies.delete(previousAssembly);
-                eventBus.publish('assembly:restoreEmphasis', { nodeNames: this.genomicService.getNodeNameSet(), assemblySet:this.genomicService.assemblySet });
+
+                const nodeSet = this.geometryManager.geometryFactory.getNodeNameSet()
+                const edgeSet = this.geometryManager.geometryFactory.getEdgeNameSet()
+                eventBus.publish('assembly:normal', { nodeSet, edgeSet })
             }
 
-            // Select new genome
             console.log(`selected ${ assembly }`)
 
+            // Select new genome
             this.selectedAssemblies.add(assembly);
             event.target.style.border = '2px solid #000';
             event.target.style.transform = 'scale(1.5)'
 
-            const { paths } = this.walks.find(walk => assembly === walk.key)
-            // const { nodes, edges } = paths[ 0 ]
-            const emphasisNodeSet = new Set([ ...(paths.map(({ nodes }) => nodes).flat())])
-            const emphasisEdgeSet = new Set([ ...(paths.map(({ edges }) => edges).flat())])
+            const { spine } = this.genomicService.assemblyWalkMap.get(assembly)
+            const { nodes, edges } = spine
 
-            eventBus.publish('assembly:deemphasizeNodes', { assembly, emphasisNodeSet, emphasisEdgeSet });
+            const nodeSet = new Set([ ...(nodes.map(({ id }) => id)) ])
+            const edgeSet = new Set([ ...edges ])
+
+            eventBus.publish('assembly:emphasis', { assembly, nodeSet, edgeSet });
         }
     }
 
@@ -172,8 +183,7 @@ class AssemblyWidget {
 
     }
 
-    configure(walks) {
-        this.walks = walks
+    configure() {
         this.populateList()
     }
 

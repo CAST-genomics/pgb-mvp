@@ -10,13 +10,16 @@ import GenomeLibrary from "./igvCore/genome/genomeLibrary.js"
 import materialService from './materialService.js'
 import LookManager from './lookManager.js'
 import AssemblyVisualizationLook from './assemblyVisualizationLook.js'
-import GenomeFrequencyLook from './genomeFrequencyLook.js'
 import SceneManager from './sceneManager.js'
+import PangenomeService from "./pangenomeService.js"
+import AnnotationRenderService from "./annotationRenderService.js"
 import './styles/app.scss'
 
 let app
 let locusInput
 let defaultGenome
+let sequenceService
+let annotationRenderService
 document.addEventListener("DOMContentLoaded", async (event) => {
 
     await materialService.initialize()
@@ -25,20 +28,23 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const { genome } = await genomeLibrary.getGenomePayload('hg38')
     defaultGenome = genome
 
-    const container = document.getElementById('pgb-three-container')
+    const threeJSContainer = document.getElementById('pgb-three-container')
 
     const threshold = 8
-    const raycastService = new RayCastService(container, threshold)
+    const raycastService = new RayCastService(threeJSContainer, threshold)
 
     const genomicService = new GenomicService()
 
     const geometryManager = new GeometryManager(genomicService)
 
-    const sequenceService = new SequenceService(document.getElementById('pgb-sequence-container'), raycastService, genomicService, geometryManager)
+    sequenceService = new SequenceService(threeJSContainer, raycastService, genomicService)
+
+    const annotationRenderServiceContainer = document.querySelector('.pgb-gene-annotation-track-container')
+    annotationRenderService = new AnnotationRenderService(annotationRenderServiceContainer, genomicService, geometryManager, raycastService)
 
     const gear = document.getElementById('pgb-gear-btn-container')
     const assemblyWidgetContainer = document.getElementById('pgb-gear-card')
-    const assemblyWidget = new AssemblyWidget(gear, assemblyWidgetContainer, genomicService, raycastService);
+    const assemblyWidget = new AssemblyWidget(gear, assemblyWidgetContainer, genomicService, geometryManager, raycastService);
 
 
     // Scene and Look managers
@@ -53,19 +59,17 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     })
     assemblyVisualizationLook.setAnimationEnabled(false)
 
-    const genomeFrequencyLook = GenomeFrequencyLook.createGenomeFrequencyLook('genomeFrequencyLook', { genomicService, geometryManager })
-
     // Look Manager
     const lookManager = new LookManager()
     lookManager.setLook('assemblyVisualizationScene', assemblyVisualizationLook);
-    lookManager.setLook('genomeFrequencyScene', genomeFrequencyLook);
 
     sceneManager.setActiveScene('assemblyVisualizationScene')
     lookManager.activateLook('assemblyVisualizationScene')
 
+    const pangenomeService = new PangenomeService()
 
     const frustumSize = 5
-    app = new App(container, frustumSize, raycastService, sequenceService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager)
+    app = new App(threeJSContainer, frustumSize, pangenomeService, raycastService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager)
 
     app.startAnimation()
 
@@ -89,5 +93,5 @@ document.addEventListener("DOMContentLoaded", async (event) => {
 
 })
 
-export { locusInput, defaultGenome }
+export { app, locusInput, annotationRenderService, defaultGenome }
 

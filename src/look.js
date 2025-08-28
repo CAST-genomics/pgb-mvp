@@ -5,6 +5,7 @@
 class Look {
 
     static NODE_LINE_WIDTH = 16;
+    static NODE_LINE_DEEMPHASIS_WIDTH = 16;
 
     constructor(name, config) {
         this.name = name;
