@@ -1,7 +1,7 @@
 import {app} from "./main.js"
 import eventBus from "./utils/eventBus.js"
 import {colorToRGBString, getAppleCrayonColorByName, getRandomPastelAppleCrayonColor} from "./utils/color.js"
-import { getLineXYZWithTrackBasepair, buildBpIndex, buildNodeEndpointMap, makeNodeRecordMap, getTrackParameterWithLineParameter } from "./utils/nodeTrackMappingUtils.js"
+import { getLineXYZWithTrackBasepair, buildBpIndex, buildNodeEndpointMap, makeNodeRecordMap, getTrackParameterWithLineParameter } from "./utils/annotationTrackUtils.js"
 
 class AnnotationRenderService {
 
@@ -98,7 +98,7 @@ class AnnotationRenderService {
             this.featureSource = geneFeatureSource
             this.featureRenderer = geneRenderer
             const features = await this.getFeatures(chr, bpStart, bpEnd)
-            this.render({ container: this.container, bpStart, bpEnd, features })
+            this.renderGeneAnnotation({ container: this.container, bpStart, bpEnd, features })
         }
 
     }
@@ -172,27 +172,24 @@ class AnnotationRenderService {
         const bpPerPixel = bpLength / width
         const pixelPerBP = 1/bpPerPixel
 
+        ctx.fillStyle = colorToRGBString(getAppleCrayonColorByName('aluminum'))
+
         for (const { id, bpStart, bpEnd, lengthBp } of nodes){
 
-            ctx.fillStyle = colorToRGBString(getAppleCrayonColorByName('aluminum'))
-
-            // Calculate start and end positions
             const startXBP = bpStart - assemblyBPStart
             const endXBP = bpEnd - assemblyBPStart
             const startX = Math.floor(startXBP * pixelPerBP)
             const endX = Math.floor(endXBP * pixelPerBP)
-            
-            // Draw vertical line at start position (2 pixels wide)
+
             ctx.fillRect(startX, 0, 1, height)
-            
-            // Draw vertical line at end position (2 pixels wide)
+
             ctx.fillRect(endX - 1, 0, 1, height)
         }
 
 
     }
 
-    render(renderConfig) {
+    renderGeneAnnotation(renderConfig) {
 
         if (renderConfig) {
             const {container, bpStart, bpEnd} = renderConfig
@@ -231,7 +228,7 @@ class AnnotationRenderService {
         canvas.style.height = `${height}px`
 
         if (false === this.isSequenceRenderer && this.drawConfig) {
-            this.render(this.drawConfig);
+            this.renderGeneAnnotation(this.drawConfig);
         } else if (true === this.isSequenceRenderer && this.drawConfig) {
             this.renderGenomicExtents(this.drawConfig)
         } else {
