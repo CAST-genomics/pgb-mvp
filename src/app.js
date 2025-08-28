@@ -7,6 +7,7 @@ import {loadPath, prettyPrint} from './utils/utils.js'
 import eventBus from './utils/eventBus.js';
 import { annotationRenderService } from "./main.js"
 import {getAppleCrayonColorByName} from "./utils/color.js"
+import {calculateBasicStats, calculatePercentiles} from "./utils/stats.js"
 
 class App {
 
@@ -299,7 +300,6 @@ class App {
 
         this.assemblyWidget.configure()
 
-
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         const scene = this.sceneManager.getActiveScene()
 
@@ -310,36 +310,33 @@ class App {
         if (isMinigraphCactus) {
             console.log('graph is Minigraph Cactus')
 
-            /*
+            const nodeLengths = Object.values(json.node).map(({ length }) => length)
+            const stats = calculateBasicStats(nodeLengths)
+            const nodeLengthPercentiles = calculatePercentiles(nodeLengths)
 
-            Various Hacks
-
-
-            const assemblyKey = 'GRCh38#0#chr8'
-
-            const features = this.pangenomeService.getSpineFeatures(
-                assemblyKey,
-                {
-                    includeOffSpineComponents: "none",
-                    maxPathsPerEvent: 1,
-                    maxRegionHops: 64,
-                    maxRegionNodes: 4000,
-                    maxRegionEdges: 4000,
-                    operationBudget: 500000,
-                    locusStartBp: 0
-                },
-                {
-                    startPolicy: "preferArrowEndpoint",
-                    directionPolicy: "edgeFlow"
-                }
-            );
-
+            // const assemblyKey = 'GRCh38#0#chr8'
+            //
+            // const features = this.pangenomeService.getSpineFeatures(
+            //     assemblyKey,
+            //     {
+            //         includeOffSpineComponents: "none",
+            //         maxPathsPerEvent: 1,
+            //         maxRegionHops: 64,
+            //         maxRegionNodes: 4000,
+            //         maxRegionEdges: 4000,
+            //         operationBudget: 500000,
+            //         locusStartBp: 0
+            //     },
+            //     {
+            //         startPolicy: "preferArrowEndpoint",
+            //         directionPolicy: "edgeFlow"
+            //     }
+            // );
 
             // const walk = this.pangenomeService.getAssemblyWalk(assemblyKey, { startPolicy: "preferArrowEndpoint", directionPolicy: "edgeFlow" });
 
-             */
+            return;
 
-            // return;
         }
 
         this.geometryManager.addToScene(scene)
