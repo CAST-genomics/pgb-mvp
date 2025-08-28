@@ -174,18 +174,24 @@ class AnnotationRenderService {
 
         ctx.fillStyle = colorToRGBString(getAppleCrayonColorByName('aluminum'))
 
-        for (const { id, bpStart, bpEnd, lengthBp } of nodes){
+        let i= 0
+        for (const { bpStart, bpEnd } of nodes){
 
-            const startXBP = bpStart - assemblyBPStart
-            const endXBP = bpEnd - assemblyBPStart
-            const startX = Math.floor(startXBP * pixelPerBP)
-            const endX = Math.floor(endXBP * pixelPerBP)
+            const extentStartBP = bpStart - assemblyBPStart
+            const extentStart = Math.floor(extentStartBP * pixelPerBP)
 
-            ctx.fillRect(startX, 0, 1, height)
+            const extentEndBP = bpEnd - assemblyBPStart
+            const extentEnd = Math.floor(extentEndBP * pixelPerBP)
 
-            ctx.fillRect(endX - 1, 0, 1, height)
+            if (i > 0) {
+                ctx.fillRect(extentStart, 0, 1, height)
+            }
+
+            if (i < nodes.length - 1) {
+                ctx.fillRect(extentEnd - 1, 0, 1, height)
+            }
+            ++i
         }
-
 
     }
 

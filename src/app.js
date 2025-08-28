@@ -293,15 +293,24 @@ class App {
         annotationRenderService.clear()
 
         this.genomicService.clear()
+
         await this.genomicService.createMetadata(json, this.pangenomeService, this.genomeLibrary, this.geometryManager, this.raycastService)
+
+        this.assemblyWidget.configure()
+
 
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         const scene = this.sceneManager.getActiveScene()
 
         this.geometryManager.createGeometry(json, look)
-        this.geometryManager.addToScene(scene)
 
-        this.assemblyWidget.configure()
+        // if the url contains the subsstring graphtype=mc console log it
+        if (url.includes('graphtype=mc')) {
+            console.log('graphtype=mc found')
+            return;
+        }
+
+        this.geometryManager.addToScene(scene)
 
         this.updateViewToFitScene(scene, this.cameraManager, this.mapControl)
 
