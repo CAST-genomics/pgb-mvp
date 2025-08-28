@@ -239,8 +239,8 @@ class App {
             scene.remove(found)
         }
 
-        // const boundingSphereHelper = this.#createBoundingSphereHelper(boundingSphere)
-        // scene.add(boundingSphereHelper)
+        const boundingSphereHelper = this.#createBoundingSphereHelper(boundingSphere)
+        scene.add(boundingSphereHelper)
 
         // Multiplier used to add padding around scene bounding sphere when framing the view
         const SCENE_VIEW_PADDING = 1.5
@@ -290,6 +290,7 @@ class App {
 
         this.pangenomeService.loadData(json)
 
+
         annotationRenderService.clear()
 
         this.genomicService.clear()
@@ -302,12 +303,43 @@ class App {
         const look = this.lookManager.getLook(this.sceneManager.getActiveSceneName())
         const scene = this.sceneManager.getActiveScene()
 
-        this.geometryManager.createGeometry(json, look)
+        const isMinigraphCactus = url.includes('graphtype=mc')
 
-        // if the url contains the subsstring graphtype=mc console log it
-        if (url.includes('graphtype=mc')) {
-            console.log('graphtype=mc found')
-            return;
+        this.geometryManager.createGeometry(json, look, isMinigraphCactus)
+
+        if (isMinigraphCactus) {
+            console.log('graph is Minigraph Cactus')
+
+            /*
+
+            Various Hacks
+
+
+            const assemblyKey = 'GRCh38#0#chr8'
+
+            const features = this.pangenomeService.getSpineFeatures(
+                assemblyKey,
+                {
+                    includeOffSpineComponents: "none",
+                    maxPathsPerEvent: 1,
+                    maxRegionHops: 64,
+                    maxRegionNodes: 4000,
+                    maxRegionEdges: 4000,
+                    operationBudget: 500000,
+                    locusStartBp: 0
+                },
+                {
+                    startPolicy: "preferArrowEndpoint",
+                    directionPolicy: "edgeFlow"
+                }
+            );
+
+
+            // const walk = this.pangenomeService.getAssemblyWalk(assemblyKey, { startPolicy: "preferArrowEndpoint", directionPolicy: "edgeFlow" });
+
+             */
+
+            // return;
         }
 
         this.geometryManager.addToScene(scene)

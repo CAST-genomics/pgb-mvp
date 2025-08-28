@@ -14,17 +14,35 @@ class GeometryFactory {
         this.geometryCache = new Map(); // Cache geometries by node name
     }
 
-    createGeometryData(json) {
+    createGeometryData(json, isMinigraphCactus) {
         this.splines.clear();
         this.geometryCache.clear();
 
+        if (isMinigraphCactus) {
+            const src = { ...json.node }
+            json.node = {}
+            for (const [ key, value ] of Object.entries(src)) {
+                if (value.length > 100) {
+                    json.node[ key ] = value
+                }
+            }
+
+            console.log(`Mingraph Cactus: filtered nodes from ${ prettyPrint(Object.values(src).length) } to ${ prettyPrint(Object.values(json.node).length) }`)
+        }
+
+
         const bbox = this.#calculateBoundingBox(json);
+
+        // pretty print the bbox
+        console.log(`bbox: ${ prettyPrint(bbox.x.min) } ${ prettyPrint(bbox.x.max) } ${ prettyPrint(bbox.y.min) } ${ prettyPrint(bbox.y.max) }`)
 
         this.#createSplines(bbox, json.node);
 
         this.#createNodeGeometries(json.node);
 
-        this.#createEdgeGeometries(json.edge);
+        if (!isMinigraphCactus){
+            this.#createEdgeGeometries(json.edge);
+        }
 
         const result = {
             splines: this.splines,
