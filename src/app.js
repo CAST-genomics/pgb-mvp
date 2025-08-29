@@ -7,7 +7,7 @@ import {loadPath, prettyPrint} from './utils/utils.js'
 import eventBus from './utils/eventBus.js';
 import { annotationRenderService } from "./main.js"
 import {getAppleCrayonColorByName} from "./utils/color.js"
-import {calculateBasicStats, calculatePercentiles} from "./utils/stats.js"
+import {calculateBasicStats, calculatePercentiles, prettyPrintPercentiles} from "./utils/stats.js"
 
 class App {
 
@@ -240,8 +240,8 @@ class App {
             scene.remove(found)
         }
 
-        const boundingSphereHelper = this.#createBoundingSphereHelper(boundingSphere)
-        scene.add(boundingSphereHelper)
+        // const boundingSphereHelper = this.#createBoundingSphereHelper(boundingSphere)
+        // scene.add(boundingSphereHelper)
 
         // Multiplier used to add padding around scene bounding sphere when framing the view
         const SCENE_VIEW_PADDING = 1.5
@@ -307,12 +307,14 @@ class App {
 
         this.geometryManager.createGeometry(json, look, isMinigraphCactus)
 
+        const nodeLengths = Object.values(json.node).map(({ length }) => length)
+        // const stats = calculateBasicStats(nodeLengths)
+        const nodeLengthPercentiles = calculatePercentiles(nodeLengths)
+        const report = prettyPrintPercentiles(nodeLengthPercentiles, nodeLengths, "Node Lengths");
+        console.log(report);
+
         if (isMinigraphCactus) {
             console.log('graph is Minigraph Cactus')
-
-            const nodeLengths = Object.values(json.node).map(({ length }) => length)
-            const stats = calculateBasicStats(nodeLengths)
-            const nodeLengthPercentiles = calculatePercentiles(nodeLengths)
 
             // const assemblyKey = 'GRCh38#0#chr8'
             //

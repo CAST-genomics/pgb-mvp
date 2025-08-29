@@ -269,4 +269,52 @@ function normalizeDataset(values, method = 'percentile', options = {}) {
     }
 }
 
-export { calculateBasicStats, calculatePercentiles, calculateSkewness, calculateKurtosis }
+/**
+ * Pretty print percentile analysis results
+ * @param {Object} percentileResults - Results from calculatePercentiles function
+ * @param {number[]} originalValues - Original array of values passed to calculatePercentiles
+ * @param {string} title - Optional title for the output
+ * @returns {string} Formatted string representation of the percentile analysis
+ */
+function prettyPrintPercentiles(percentileResults, originalValues, title = "Percentile Analysis") {
+    if (!percentileResults || !originalValues || originalValues.length === 0) {
+        return `${title}\nNo data available\n`;
+    }
+
+    const overallMin = Math.min(...originalValues);
+    const overallMax = Math.max(...originalValues);
+    const totalCount = originalValues.length;
+
+    let output = `${title}\n`;
+    output += `Overall Statistics:\n`;
+    output += `  Total values: ${totalCount}\n`;
+    output += `  Overall min: ${overallMin}\n`;
+    output += `  Overall max: ${overallMax}\n`;
+    output += `  Range: ${overallMax - overallMin}\n\n`;
+
+    output += `Bucket Details:\n`;
+    output += `${'='.repeat(80)}\n`;
+
+    Object.entries(percentileResults).forEach(([percentile, bucket]) => {
+        const bucketCount = bucket.values.length;
+        const bucketPercentage = ((bucketCount / totalCount) * 100).toFixed(1);
+        
+        output += `${percentile}:\n`;
+        output += `  Count: ${bucketCount} (${bucketPercentage}%)\n`;
+        output += `  Min: ${bucket.min}\n`;
+        output += `  Max: ${bucket.max}\n`;
+        output += `  Range: ${bucket.max - bucket.min}\n`;
+        
+        if (bucketCount > 0) {
+            const bucketMean = bucket.values.reduce((sum, val) => sum + val, 0) / bucketCount;
+            output += `  Mean: ${bucketMean.toFixed(2)}\n`;
+        }
+        
+        output += `  Values: [${bucket.values.slice(0, 5).join(', ')}${bucketCount > 5 ? `, ... (${bucketCount - 5} more)` : ''}]\n`;
+        output += `\n`;
+    });
+
+    return output;
+}
+
+export { calculateBasicStats, calculatePercentiles, calculateSkewness, calculateKurtosis, prettyPrintPercentiles }
