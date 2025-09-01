@@ -7,6 +7,9 @@ class GeometryManager {
     constructor(genomicService) {
 
         this.genomicService = genomicService;
+
+
+
         this.geometryFactory = new GeometryFactory(genomicService);
 
         this.linesGroup = new THREE.Group();
@@ -15,15 +18,20 @@ class GeometryManager {
         this.geometryData = null;
     }
 
-    createGeometry(json, look) {
-        this.geometryData = this.geometryFactory.createGeometryData(json);
+    createGeometry(json, look, isMinigraphCactus) {
+
+        this.isMinigraphCactus = isMinigraphCactus
+
+        this.geometryData = this.geometryFactory.createGeometryData(json, isMinigraphCactus);
 
         this.linesGroup.clear();
         this.edgesGroup.clear();
 
         this.#createNodeMeshes(look);
-        this.#createEdgeMeshes(look);
 
+        if (!this.isMinigraphCactus) {
+            this.#createEdgeMeshes(look);
+        }
 
     }
 

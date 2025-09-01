@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import LineFactory, {adaptiveSplineDivisions, fixedSplineDivisions} from './lineFactory.js';
 import {prettyPrint} from "./utils/utils.js"
+import {calculateBasicStats, calculatePercentiles} from "./utils/stats.js"
 
 class GeometryFactory {
 
@@ -14,17 +15,22 @@ class GeometryFactory {
         this.geometryCache = new Map(); // Cache geometries by node name
     }
 
-    createGeometryData(json) {
+    createGeometryData(json, isMinigraphCactus) {
         this.splines.clear();
         this.geometryCache.clear();
 
         const bbox = this.#calculateBoundingBox(json);
 
+        // pretty print the bbox
+        console.log(`bbox: ${ prettyPrint(bbox.x.min) } ${ prettyPrint(bbox.x.max) } ${ prettyPrint(bbox.y.min) } ${ prettyPrint(bbox.y.max) }`)
+
         this.#createSplines(bbox, json.node);
 
         this.#createNodeGeometries(json.node);
 
-        this.#createEdgeGeometries(json.edge);
+        if (!isMinigraphCactus){
+            this.#createEdgeGeometries(json.edge);
+        }
 
         const result = {
             splines: this.splines,

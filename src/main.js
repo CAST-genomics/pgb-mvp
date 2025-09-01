@@ -71,8 +71,6 @@ document.addEventListener("DOMContentLoaded", async (event) => {
     const frustumSize = 5
     app = new App(threeJSContainer, frustumSize, pangenomeService, raycastService, genomicService, geometryManager, assemblyWidget, genomeLibrary, sceneManager, lookManager)
 
-    app.startAnimation()
-
     locusInput = new LocusInput(document.getElementById('pgb-locus-input-container'), app)
 
     const urlParameter = locusInput.getUrlParameter('locus');

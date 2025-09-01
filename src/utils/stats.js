@@ -7,7 +7,7 @@
  * @param {number[]} values - Array of numeric values
  * @returns {Object} Object containing min, max, mean, median, stdDev
  */
-export function calculateBasicStats(values) {
+function calculateBasicStats(values) {
     if (!values || values.length === 0) {
         return { min: 0, max: 0, mean: 0, median: 0, stdDev: 0 };
     }
@@ -24,8 +24,8 @@ export function calculateBasicStats(values) {
     const mean = sum / n;
 
     // Median
-    const median = n % 2 === 0 
-        ? (sorted[n/2 - 1] + sorted[n/2]) / 2 
+    const median = n % 2 === 0
+        ? (sorted[n/2 - 1] + sorted[n/2]) / 2
         : sorted[Math.floor(n/2)];
 
     // Standard deviation
@@ -36,15 +36,15 @@ export function calculateBasicStats(values) {
 }
 
 /**
- * Calculate percentiles for an array of numbers
+ * Calculate percentiles for an array of numbers and group values by percentile ranges
  * @param {number[]} values - Array of numeric values
  * @param {number[]} percentiles - Array of percentile values (e.g., [10, 25, 50, 75, 90, 95])
- * @returns {Object} Object with percentile values as keys
+ * @returns {Object} Object with percentile values as keys and objects containing values array, min, and max for each bucket
  */
-export function calculatePercentiles(values, percentiles = [10, 25, 50, 75, 90, 95]) {
+function calculatePercentiles(values, percentiles = [10, 25, 50, 75, 90, 95]) {
     if (!values || values.length === 0) {
         const result = {};
-        percentiles.forEach(p => result[`p${p}`] = 0);
+        percentiles.forEach(p => result[`p${p}`] = { values: [], min: 0, max: 0 });
         return result;
     }
 
@@ -52,17 +52,46 @@ export function calculatePercentiles(values, percentiles = [10, 25, 50, 75, 90, 
     const n = sorted.length;
     const result = {};
 
+    // Calculate percentile boundaries
+    const percentileBoundaries = {};
     percentiles.forEach(p => {
         const index = (p / 100) * (n - 1);
         const lowerIndex = Math.floor(index);
         const upperIndex = Math.ceil(index);
-        
+
         if (lowerIndex === upperIndex) {
-            result[`p${p}`] = sorted[lowerIndex];
+            percentileBoundaries[`p${p}`] = sorted[lowerIndex];
         } else {
             const weight = index - lowerIndex;
-            result[`p${p}`] = sorted[lowerIndex] * (1 - weight) + sorted[upperIndex] * weight;
+            percentileBoundaries[`p${p}`] = sorted[lowerIndex] * (1 - weight) + sorted[upperIndex] * weight;
         }
+    });
+
+    // Group values by percentile ranges
+    percentiles.forEach((p, i) => {
+        const currentPercentile = `p${p}`;
+        const currentBoundary = percentileBoundaries[currentPercentile];
+        
+        let bucketValues;
+        if (i === 0) {
+            // First percentile: values <= currentBoundary
+            bucketValues = values.filter(v => v <= currentBoundary);
+        } else {
+            // Other percentiles: values > previousBoundary AND <= currentBoundary
+            const previousPercentile = `p${percentiles[i - 1]}`;
+            const previousBoundary = percentileBoundaries[previousPercentile];
+            bucketValues = values.filter(v => v > previousBoundary && v <= currentBoundary);
+        }
+
+        // Calculate min and max for this bucket
+        const bucketMin = bucketValues.length > 0 ? Math.min(...bucketValues) : 0;
+        const bucketMax = bucketValues.length > 0 ? Math.max(...bucketValues) : 0;
+
+        result[currentPercentile] = {
+            values: bucketValues,
+            min: bucketMin,
+            max: bucketMax
+        };
     });
 
     return result;
@@ -73,7 +102,7 @@ export function calculatePercentiles(values, percentiles = [10, 25, 50, 75, 90, 
  * @param {number[]} values - Array of numeric values
  * @returns {number} Skewness value
  */
-export function calculateSkewness(values) {
+function calculateSkewness(values) {
     if (!values || values.length < 3) return 0;
 
     const { mean, stdDev } = calculateBasicStats(values);
@@ -92,7 +121,7 @@ export function calculateSkewness(values) {
  * @param {number[]} values - Array of numeric values
  * @returns {number} Kurtosis value
  */
-export function calculateKurtosis(values) {
+function calculateKurtosis(values) {
     if (!values || values.length < 4) return 0;
 
     const { mean, stdDev } = calculateBasicStats(values);
@@ -114,10 +143,10 @@ export function calculateKurtosis(values) {
  * @param {number} percentiles.p95 - 95th percentile
  * @returns {number} Normalized value between 0 and 1
  */
-export function normalizeByPercentiles(value, percentiles) {
+function normalizeByPercentiles(value, percentiles) {
     const { p5, p95 } = percentiles;
     if (p95 === p5) return 0.5; // Avoid division by zero
-    
+
     const normalized = (value - p5) / (p95 - p5);
     return Math.max(0, Math.min(1, normalized)); // Clamp to [0, 1]
 }
@@ -128,7 +157,7 @@ export function normalizeByPercentiles(value, percentiles) {
  * @param {number} maxValue - Maximum value in the dataset
  * @returns {number} Normalized value between 0 and 1
  */
-export function normalizeByLog(value, maxValue) {
+function normalizeByLog(value, maxValue) {
     if (maxValue <= 0) return 0;
     return Math.log(1 + value) / Math.log(1 + maxValue);
 }
@@ -139,7 +168,7 @@ export function normalizeByLog(value, maxValue) {
  * @param {number} maxValue - Maximum value in the dataset
  * @returns {number} Normalized value between 0 and 1
  */
-export function normalizeBySqrt(value, maxValue) {
+function normalizeBySqrt(value, maxValue) {
     if (maxValue <= 0) return 0;
     return Math.sqrt(value) / Math.sqrt(maxValue);
 }
@@ -151,7 +180,7 @@ export function normalizeBySqrt(value, maxValue) {
  * @param {number} power - Power to apply (power < 1 spreads out low values)
  * @returns {number} Normalized value between 0 and 1
  */
-export function normalizeByPower(value, maxValue, power = 0.5) {
+function normalizeByPower(value, maxValue, power = 0.5) {
     if (maxValue <= 0) return 0;
     return Math.pow(value, power) / Math.pow(maxValue, power);
 }
@@ -162,15 +191,15 @@ export function normalizeByPower(value, maxValue, power = 0.5) {
  * @param {number[]} allValues - Array of all values in the dataset
  * @returns {number} Quantile rank between 0 and 1
  */
-export function calculateQuantileRank(value, allValues) {
+function calculateQuantileRank(value, allValues) {
     if (!allValues || allValues.length === 0) return 0;
-    
+
     const sorted = [...allValues].sort((a, b) => a - b);
     const index = sorted.findIndex(v => v >= value);
-    
+
     if (index === -1) return 1; // Value is greater than all values
     if (index === 0) return 0;  // Value is less than or equal to all values
-    
+
     return index / sorted.length;
 }
 
@@ -179,7 +208,7 @@ export function calculateQuantileRank(value, allValues) {
  * @param {number[]} values - Array of numeric values
  * @returns {Object} Complete distribution statistics
  */
-export function calculateDistributionStats(values) {
+function calculateDistributionStats(values) {
     if (!values || values.length === 0) {
         return {
             basic: { min: 0, max: 0, mean: 0, median: 0, stdDev: 0 },
@@ -209,33 +238,83 @@ export function calculateDistributionStats(values) {
  * @param {Object} options - Options for normalization
  * @returns {number[]} Array of normalized values
  */
-export function normalizeDataset(values, method = 'percentile', options = {}) {
+function normalizeDataset(values, method = 'percentile', options = {}) {
     if (!values || values.length === 0) return [];
 
     switch (method) {
         case 'percentile':
             const percentiles = calculatePercentiles(values, [5, 95]);
             return values.map(v => normalizeByPercentiles(v, percentiles));
-        
+
         case 'log':
             const maxLog = Math.max(...values);
             return values.map(v => normalizeByLog(v, maxLog));
-        
+
         case 'sqrt':
             const maxSqrt = Math.max(...values);
             return values.map(v => normalizeBySqrt(v, maxSqrt));
-        
+
         case 'power':
             const maxPower = Math.max(...values);
             const power = options.power || 0.5;
             return values.map(v => normalizeByPower(v, maxPower, power));
-        
+
         case 'quantile':
             return values.map(v => calculateQuantileRank(v, values));
-        
+
         default:
             console.warn(`Unknown normalization method: ${method}, using percentile`);
             const defaultPercentiles = calculatePercentiles(values, [5, 95]);
             return values.map(v => normalizeByPercentiles(v, defaultPercentiles));
     }
-} 
+}
+
+/**
+ * Pretty print percentile analysis results
+ * @param {Object} percentileResults - Results from calculatePercentiles function
+ * @param {number[]} originalValues - Original array of values passed to calculatePercentiles
+ * @param {string} title - Optional title for the output
+ * @returns {string} Formatted string representation of the percentile analysis
+ */
+function prettyPrintPercentiles(percentileResults, originalValues, title = "Percentile Analysis") {
+    if (!percentileResults || !originalValues || originalValues.length === 0) {
+        return `${title}\nNo data available\n`;
+    }
+
+    const overallMin = Math.min(...originalValues);
+    const overallMax = Math.max(...originalValues);
+    const totalCount = originalValues.length;
+
+    let output = `${title}\n`;
+    output += `Overall Statistics:\n`;
+    output += `  Total values: ${totalCount}\n`;
+    output += `  Overall min: ${overallMin}\n`;
+    output += `  Overall max: ${overallMax}\n`;
+    output += `  Range: ${overallMax - overallMin}\n\n`;
+
+    output += `Bucket Details:\n`;
+    output += `${'='.repeat(80)}\n`;
+
+    Object.entries(percentileResults).forEach(([percentile, bucket]) => {
+        const bucketCount = bucket.values.length;
+        const bucketPercentage = ((bucketCount / totalCount) * 100).toFixed(1);
+        
+        output += `${percentile}:\n`;
+        output += `  Count: ${bucketCount} (${bucketPercentage}%)\n`;
+        output += `  Min: ${bucket.min}\n`;
+        output += `  Max: ${bucket.max}\n`;
+        output += `  Range: ${bucket.max - bucket.min}\n`;
+        
+        if (bucketCount > 0) {
+            const bucketMean = bucket.values.reduce((sum, val) => sum + val, 0) / bucketCount;
+            output += `  Mean: ${bucketMean.toFixed(2)}\n`;
+        }
+        
+        output += `  Values: [${bucket.values.slice(0, 5).join(', ')}${bucketCount > 5 ? `, ... (${bucketCount - 5} more)` : ''}]\n`;
+        output += `\n`;
+    });
+
+    return output;
+}
+
+export { calculateBasicStats, calculatePercentiles, calculateSkewness, calculateKurtosis, prettyPrintPercentiles }
