@@ -1,4 +1,4 @@
-# PGB MVP (Pangenome Browser - Minimal Viable Product)
+# ⚠️ **DEPRECATED**
 
 > ⚠️ **DEPRECATED** - This repository has been replaced by [CAST-genomics/pgb](https://github.com/CAST-genomics/pgb). Please use the new repository for all future development and contributions.
 
