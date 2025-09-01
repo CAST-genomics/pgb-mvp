@@ -1,4 +1,7 @@
 # PGB MVP (Pangenome Browser - Minimal Viable Product)
+
+> ⚠️ **DEPRECATED** - This repository has been replaced by [CAST-genomics/pgb](https://github.com/CAST-genomics/pgb). Please use the new repository for all future development and contributions.
+
 [![Netlify Status](https://api.netlify.com/api/v1/badges/824b1763-2af8-44d4-af3c-1a5d0c1f26d2/deploy-status)](https://app.netlify.com/projects/pgb-mvp/deploys)
 
 A web-based 3D visualization tool for exploring pangenome data.
